@@ -4,6 +4,7 @@ import { HomePage } from '@/pages/HomePage'
 import { ProviderProfilePage } from '@/pages/ProviderProfilePage'
 import { ProviderDashboardPage } from '@/pages/ProviderDashboardPage'
 import { MyAccountPage } from '@/pages/MyAccountPage'
+import { BecomeProviderPage } from '@/pages/BecomeProviderPage'
 import { SearchPage } from '@/pages/SearchPage'
 import { LoginPage } from '@/pages/LoginPage'
 
@@ -16,6 +17,7 @@ function App() {
         <Route path="/profissional/:id" element={<ProviderProfilePage />} />
         <Route path="/meu-perfil" element={<ProviderDashboardPage />} />
         <Route path="/minha-conta" element={<MyAccountPage />} />
+        <Route path="/tornar-se-prestador" element={<BecomeProviderPage />} />
         <Route path="/buscar" element={<SearchPage />} />
         <Route path="/entrar" element={<LoginPage />} />
       </Routes>

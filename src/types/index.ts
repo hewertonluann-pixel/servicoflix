@@ -70,7 +70,7 @@ export interface ServiceHistory {
   duration: string
 }
 
-// Sistema de Roles (Perfil Duplo)
+// Sistema de perfil duplo
 export type UserRole = 'client' | 'provider'
 
 export interface ClientProfile {
@@ -89,14 +89,12 @@ export interface ProviderProfile {
   priceFrom: number
   skills: string[]
   categories: string[]
-  coverImage?: string
-  phone?: string
+  availability?: string[]
   responseTime?: string
-  completedJobs: number
-  rating: number
-  reviewCount: number
-  verified: boolean
-  videos: {
+  completedJobs?: number
+  verified?: boolean
+  coverImage?: string
+  videos?: {
     presentation?: string
     portfolio: string[]
   }
@@ -109,7 +107,6 @@ export interface User {
   avatar?: string
   roles: UserRole[]
   createdAt: string
-  updatedAt: string
   
   // Perfis opcionais
   clientProfile?: ClientProfile
