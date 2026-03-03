@@ -7,6 +7,7 @@ import { MyAccountPage } from '@/pages/MyAccountPage'
 import { BecomeProviderPage } from '@/pages/BecomeProviderPage'
 import { SearchPage } from '@/pages/SearchPage'
 import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
+import { AdminPage } from '@/pages/AdminPage'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/tornar-se-prestador" element={<BecomeProviderPage />} />
         <Route path="/buscar" element={<SearchPage />} />
         <Route path="/entrar" element={<SimpleLoginPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </div>
   )
