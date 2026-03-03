@@ -4,11 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Shield, Users, Briefcase, Tag, Plus, Trash2, Edit2,
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
-  AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star
+  AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, query, orderBy
+  setDoc, serverTimestamp, query, orderBy, arrayUnion
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
@@ -16,7 +16,7 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1']
 
-type Tab = 'usuarios' | 'prestadores' | 'categorias'
+type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias'
 
 interface UserData {
   id: string
@@ -55,23 +55,22 @@ const EMPTY_PROVIDER_FORM = {
 export const AdminPage = () => {
   const { user, loading: authLoading } = useSimpleAuth()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<Tab>('usuarios')
+  const [activeTab, setActiveTab] = useState<Tab>('pendentes')
   const [users, setUsers] = useState<UserData[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loadingData, setLoadingData] = useState(false)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  // Modal Categoria
   const [catModal, setCatModal] = useState(false)
   const [catForm, setCatForm] = useState({ name: '', icon: '🔧' })
   const [editingCat, setEditingCat] = useState<Category | null>(null)
   const [activeIconGroup, setActiveIconGroup] = useState(0)
-  // Modal Prestador
   const [providerModal, setProviderModal] = useState(false)
   const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM)
   const [savingProvider, setSavingProvider] = useState(false)
-  // Editar perfil de prestador existente
   const [editingProvider, setEditingProvider] = useState<UserData | null>(null)
+  const [rejectModal, setRejectModal] = useState<UserData | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
@@ -107,6 +106,43 @@ export const AdminPage = () => {
     if (!authLoading && isAdmin) { loadUsers(); loadCategories() }
   }, [authLoading, isAdmin])
 
+  // Aprovar prestador
+  const approveProvider = async (u: UserData) => {
+    try {
+      await updateDoc(doc(db, 'users', u.id), {
+        roles: arrayUnion('provider'),
+        'providerProfile.status': 'approved',
+        'providerProfile.verified': true,
+        'providerProfile.approvedAt': new Date().toISOString(),
+      })
+      setUsers(prev => prev.map(p => p.id === u.id ? {
+        ...p,
+        roles: [...(p.roles || []), 'provider'],
+        providerProfile: { ...p.providerProfile, status: 'approved', verified: true }
+      } : p))
+      showToast(`✅ ${u.name} aprovado como prestador!`)
+    } catch { showToast('Erro ao aprovar', 'error') }
+  }
+
+  // Rejeitar prestador
+  const rejectProvider = async () => {
+    if (!rejectModal) return
+    try {
+      await updateDoc(doc(db, 'users', rejectModal.id), {
+        'providerProfile.status': 'rejected',
+        'providerProfile.rejectedAt': new Date().toISOString(),
+        'providerProfile.rejectionReason': rejectReason,
+      })
+      setUsers(prev => prev.map(p => p.id === rejectModal.id ? {
+        ...p,
+        providerProfile: { ...p.providerProfile, status: 'rejected' }
+      } : p))
+      showToast(`Solicitação de ${rejectModal.name} rejeitada`)
+      setRejectModal(null)
+      setRejectReason('')
+    } catch { showToast('Erro ao rejeitar', 'error') }
+  }
+
   const toggleRole = async (userId: string, role: string, hasRole: boolean) => {
     try {
       const userDoc = users.find(u => u.id === userId)!
@@ -126,14 +162,13 @@ export const AdminPage = () => {
     } catch { showToast('Erro ao excluir usuário', 'error') }
   }
 
-  // Cadastrar novo prestador (cria conta Firebase Auth + doc Firestore)
   const saveProvider = async () => {
     if (!providerForm.name.trim() || !providerForm.email.trim()) return
     setSavingProvider(true)
     try {
       if (editingProvider) {
-        // Editar perfil do prestador existente
         const providerProfile = {
+          ...editingProvider.providerProfile,
           specialty: providerForm.specialty,
           city: providerForm.city,
           bio: providerForm.bio,
@@ -142,39 +177,27 @@ export const AdminPage = () => {
           whatsapp: providerForm.whatsapp,
           verified: providerForm.verified,
         }
-        await updateDoc(doc(db, 'users', editingProvider.id), {
-          name: providerForm.name,
-          providerProfile,
-        })
-        setUsers(prev => prev.map(u => u.id === editingProvider.id
-          ? { ...u, name: providerForm.name, providerProfile }
-          : u
-        ))
+        await updateDoc(doc(db, 'users', editingProvider.id), { name: providerForm.name, providerProfile })
+        setUsers(prev => prev.map(u => u.id === editingProvider.id ? { ...u, name: providerForm.name, providerProfile } : u))
         showToast('Prestador atualizado!')
       } else {
-        // Criar nova conta
         const cred = await createUserWithEmailAndPassword(auth, providerForm.email, providerForm.password || '123456')
         await updateProfile(cred.user, { displayName: providerForm.name })
         const newUser: any = {
-          id: cred.user.uid,
-          name: providerForm.name,
-          email: providerForm.email,
-          roles: ['client', 'provider'],
-          clientProfile: {},
+          id: cred.user.uid, name: providerForm.name, email: providerForm.email,
+          roles: ['client', 'provider'], clientProfile: {},
           providerProfile: {
-            specialty: providerForm.specialty,
-            city: providerForm.city,
-            bio: providerForm.bio,
-            priceFrom: providerForm.priceFrom,
+            specialty: providerForm.specialty, city: providerForm.city,
+            bio: providerForm.bio, priceFrom: providerForm.priceFrom,
             skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
-            whatsapp: providerForm.whatsapp,
-            verified: providerForm.verified,
+            whatsapp: providerForm.whatsapp, verified: providerForm.verified,
+            status: 'approved',
           },
           createdAt: serverTimestamp(),
         }
         await setDoc(doc(db, 'users', cred.user.uid), newUser)
         setUsers(prev => [newUser, ...prev])
-        showToast(`Prestador criado! Senha padrão: ${providerForm.password || '123456'}`)
+        showToast(`Prestador criado! Senha: ${providerForm.password || '123456'}`)
       }
       setProviderModal(false)
       setProviderForm(EMPTY_PROVIDER_FORM)
@@ -187,9 +210,7 @@ export const AdminPage = () => {
   const openEditProvider = (u: UserData) => {
     setEditingProvider(u)
     setProviderForm({
-      name: u.name || '',
-      email: u.email || '',
-      password: '',
+      name: u.name || '', email: u.email || '', password: '',
       specialty: u.providerProfile?.specialty || '',
       city: u.providerProfile?.city || '',
       bio: u.providerProfile?.bio || '',
@@ -242,18 +263,16 @@ export const AdminPage = () => {
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   )
-
   if (!user) return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="text-center">
         <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
         <h1 className="text-2xl font-black text-white mb-2">Login Necessário</h1>
-        <p className="text-muted mb-6">Você precisa estar logado para acessar o painel admin.</p>
+        <p className="text-muted mb-6">Você precisa estar logado.</p>
         <button onClick={() => navigate('/entrar')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">Fazer Login</button>
       </div>
     </div>
   )
-
   if (!isAdmin) return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="text-center">
@@ -268,6 +287,7 @@ export const AdminPage = () => {
 
   const providers = users.filter(u => u.roles?.includes('provider'))
   const clients = users.filter(u => !u.roles?.includes('provider'))
+  const pendingProviders = users.filter(u => u.providerProfile?.status === 'pending')
   const filteredUsers = users.filter(u =>
     u.name?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase())
@@ -317,7 +337,7 @@ export const AdminPage = () => {
             { label: 'Total Usuários', value: users.length, icon: Users, color: 'text-blue-400' },
             { label: 'Clientes', value: clients.length, icon: Users, color: 'text-green-400' },
             { label: 'Prestadores', value: providers.length, icon: Briefcase, color: 'text-primary' },
-            { label: 'Categorias', value: categories.length, icon: Tag, color: 'text-purple-400' },
+            { label: 'Aguardando', value: pendingProviders.length, icon: Clock, color: pendingProviders.length > 0 ? 'text-yellow-400' : 'text-muted' },
           ].map((stat, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className="bg-surface border border-border rounded-xl p-4"
@@ -330,25 +350,31 @@ export const AdminPage = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 bg-surface border border-border rounded-xl p-1">
+        <div className="flex gap-1.5 mb-6 bg-surface border border-border rounded-xl p-1 flex-wrap">
           {[
+            { id: 'pendentes', label: 'Pendentes', icon: Clock, badge: pendingProviders.length },
             { id: 'usuarios', label: 'Usuários', icon: Users },
             { id: 'prestadores', label: 'Prestadores', icon: Briefcase },
             { id: 'categorias', label: 'Categorias', icon: Tag },
           ].map(tab => (
             <button key={tab.id} onClick={() => { setActiveTab(tab.id as Tab); setSearch('') }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-sm font-semibold transition-colors relative ${
                 activeTab === tab.id ? 'bg-primary text-background' : 'text-muted hover:text-white'
               }`}
             >
               <tab.icon className="w-4 h-4" />
               <span className="hidden sm:inline">{tab.label}</span>
+              {tab.badge && tab.badge > 0 ? (
+                <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-black flex items-center justify-center ${
+                  activeTab === tab.id ? 'bg-background text-primary' : 'bg-yellow-400 text-background'
+                }`}>{tab.badge}</span>
+              ) : null}
             </button>
           ))}
         </div>
 
         {/* Busca */}
-        {activeTab !== 'categorias' && (
+        {activeTab !== 'categorias' && activeTab !== 'pendentes' && (
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -361,6 +387,7 @@ export const AdminPage = () => {
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs text-muted">
+            {activeTab === 'pendentes' && `${pendingProviders.length} aguardando aprovação`}
             {activeTab === 'usuarios' && `${filteredUsers.length} usuários`}
             {activeTab === 'prestadores' && `${filteredProviders.length} prestadores`}
             {activeTab === 'categorias' && `${categories.length} categorias`}
@@ -368,22 +395,16 @@ export const AdminPage = () => {
           <div className="flex gap-2">
             <button onClick={() => { loadUsers(); loadCategories() }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Atualizar
-            </button>
+            ><RefreshCw className="w-3.5 h-3.5" /> Atualizar</button>
             {activeTab === 'prestadores' && (
               <button onClick={() => { setEditingProvider(null); setProviderForm(EMPTY_PROVIDER_FORM); setProviderModal(true) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
-              >
-                <UserPlus className="w-3.5 h-3.5" /> Novo Prestador
-              </button>
+              ><UserPlus className="w-3.5 h-3.5" /> Novo Prestador</button>
             )}
             {activeTab === 'categorias' && (
               <button onClick={() => { setEditingCat(null); setCatForm({ name: '', icon: '🔧' }); setActiveIconGroup(0); setCatModal(true) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
-              >
-                <Plus className="w-3.5 h-3.5" /> Nova Categoria
-              </button>
+              ><Plus className="w-3.5 h-3.5" /> Nova Categoria</button>
             )}
           </div>
         </div>
@@ -394,7 +415,98 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* USUÁRIOS */}
+        {/* ABA: PENDENTES */}
+        {activeTab === 'pendentes' && !loadingData && (
+          <div className="space-y-4">
+            {pendingProviders.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-green-400" />
+                </div>
+                <p className="text-white font-semibold">Tudo em dia!</p>
+                <p className="text-muted text-sm mt-1">Nenhuma solicitação pendente.</p>
+              </div>
+            ) : pendingProviders.map(u => (
+              <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-surface border border-yellow-500/30 rounded-xl p-5"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0">
+                    {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-muted text-xl font-bold">{u.name?.[0]?.toUpperCase()}</div>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-bold text-white">{u.name}</p>
+                      <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold rounded-full flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5" /> Pendente
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted mb-3">{u.email}</p>
+
+                    {u.providerProfile && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                        {u.providerProfile.specialty && (
+                          <div className="bg-background rounded-lg px-3 py-2">
+                            <p className="text-[10px] text-muted">Especialidade</p>
+                            <p className="text-xs text-white font-medium">{u.providerProfile.specialty}</p>
+                          </div>
+                        )}
+                        {u.providerProfile.city && (
+                          <div className="bg-background rounded-lg px-3 py-2">
+                            <p className="text-[10px] text-muted">Cidade</p>
+                            <p className="text-xs text-white font-medium">{u.providerProfile.city}</p>
+                          </div>
+                        )}
+                        {u.providerProfile.priceFrom && (
+                          <div className="bg-background rounded-lg px-3 py-2">
+                            <p className="text-[10px] text-muted">Preço a partir de</p>
+                            <p className="text-xs text-primary font-bold">R$ {u.providerProfile.priceFrom}</p>
+                          </div>
+                        )}
+                        {u.providerProfile.submittedAt && (
+                          <div className="bg-background rounded-lg px-3 py-2">
+                            <p className="text-[10px] text-muted">Enviado em</p>
+                            <p className="text-xs text-white font-medium">{new Date(u.providerProfile.submittedAt).toLocaleDateString('pt-BR')}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {u.providerProfile?.bio && (
+                      <p className="text-xs text-muted bg-background rounded-lg px-3 py-2 mb-3 line-clamp-2">
+                        {u.providerProfile.bio}
+                      </p>
+                    )}
+
+                    {u.providerProfile?.skills?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-4">
+                        {u.providerProfile.skills.map((s: string) => (
+                          <span key={s} className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[10px] rounded-full">{s}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button onClick={() => approveProvider(u)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-xl transition-colors"
+                      >
+                        <Check className="w-4 h-4" /> Aprovar
+                      </button>
+                      <button onClick={() => { setRejectModal(u); setRejectReason('') }}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 text-sm font-bold rounded-xl transition-colors"
+                      >
+                        <X className="w-4 h-4" /> Recusar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* ABA: USUÁRIOS */}
         {activeTab === 'usuarios' && !loadingData && (
           <div className="space-y-3">
             {filteredUsers.length === 0 ? (
@@ -418,6 +530,9 @@ export const AdminPage = () => {
                         : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                       }`}>{role}</span>
                     ))}
+                    {u.providerProfile?.status === 'pending' && (
+                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">⏳ pendente</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -438,7 +553,7 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* PRESTADORES */}
+        {/* ABA: PRESTADORES */}
         {activeTab === 'prestadores' && !loadingData && (
           <div className="space-y-3">
             {filteredProviders.length === 0 ? (
@@ -462,7 +577,7 @@ export const AdminPage = () => {
                         <p className="text-sm font-bold text-white">{u.name}</p>
                         <p className="text-xs text-muted">{u.email}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap justify-end">
                         {u.providerProfile?.verified ? (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 border border-green-500/30 text-green-400 text-[10px] font-semibold rounded-full">
                             <Check className="w-3 h-3" /> Verificado
@@ -499,7 +614,7 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* CATEGORIAS */}
+        {/* ABA: CATEGORIAS */}
         {activeTab === 'categorias' && !loadingData && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {categories.length === 0 ? (
@@ -534,7 +649,40 @@ export const AdminPage = () => {
         )}
       </div>
 
-      {/* ===== MODAL: NOVO / EDITAR PRESTADOR ===== */}
+      {/* MODAL: RECUSAR */}
+      <AnimatePresence>
+        {rejectModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setRejectModal(null)}
+          >
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
+            >
+              <h2 className="text-lg font-black text-white mb-1">Recusar solicitação</h2>
+              <p className="text-sm text-muted mb-4">Motivo para <span className="text-white font-semibold">{rejectModal.name}</span></p>
+              <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                placeholder="Ex: Informações insuficientes, perfil incompleto..."
+                rows={3}
+                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-red-500 transition-colors placeholder:text-muted resize-none mb-4"
+              />
+              <div className="flex gap-3">
+                <button onClick={() => setRejectModal(null)}
+                  className="flex-1 py-3 bg-background border border-border text-muted rounded-xl hover:text-white transition-colors font-semibold"
+                >Cancelar</button>
+                <button onClick={rejectProvider}
+                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <X className="w-4 h-4" /> Recusar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: NOVO / EDITAR PRESTADOR */}
       <AnimatePresence>
         {providerModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -549,13 +697,9 @@ export const AdminPage = () => {
                 <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
                   <UserPlus className="w-5 h-5 text-primary" />
                 </div>
-                <h2 className="text-lg font-black text-white">
-                  {editingProvider ? 'Editar Prestador' : 'Novo Prestador'}
-                </h2>
+                <h2 className="text-lg font-black text-white">{editingProvider ? 'Editar Prestador' : 'Novo Prestador'}</h2>
               </div>
-
               <div className="space-y-4">
-                {/* Dados básicos */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-muted mb-1.5">Nome completo *</label>
@@ -569,21 +713,16 @@ export const AdminPage = () => {
                       className={`${inputCls} ${editingProvider ? 'opacity-50 cursor-not-allowed' : ''}`} />
                   </div>
                 </div>
-
                 {!editingProvider && (
                   <div>
                     <label className="block text-xs text-muted mb-1.5">Senha inicial</label>
                     <input value={providerForm.password} onChange={e => setProviderForm(p => ({ ...p, password: e.target.value }))}
                       placeholder="Padrão: 123456" type="password" className={inputCls} />
-                    <p className="text-[11px] text-muted mt-1">Deixe em branco para usar a senha padrão: 123456</p>
+                    <p className="text-[11px] text-muted mt-1">Deixe em branco para senha padrão: 123456</p>
                   </div>
                 )}
-
                 <hr className="border-border" />
-
-                {/* Perfil profissional */}
                 <p className="text-xs font-bold text-muted uppercase tracking-wider">Perfil profissional</p>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-muted mb-1.5">Especialidade</label>
@@ -591,15 +730,14 @@ export const AdminPage = () => {
                       placeholder="Ex: Professor de Violão" className={inputCls} />
                   </div>
                   <div>
-                    <label className="block text-xs text-muted mb-1.5 flex items-center gap-1"><MapPin className="w-3 h-3" /> Cidade</label>
+                    <label className="block text-xs text-muted mb-1.5">Cidade</label>
                     <input value={providerForm.city} onChange={e => setProviderForm(p => ({ ...p, city: e.target.value }))}
                       placeholder="Ex: Diamantina, MG" className={inputCls} />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-muted mb-1.5 flex items-center gap-1"><DollarSign className="w-3 h-3" /> Preço a partir de (R$)</label>
+                    <label className="block text-xs text-muted mb-1.5">Preço a partir de (R$)</label>
                     <input value={providerForm.priceFrom} onChange={e => setProviderForm(p => ({ ...p, priceFrom: e.target.value }))}
                       placeholder="Ex: 50" type="number" className={inputCls} />
                   </div>
@@ -609,25 +747,20 @@ export const AdminPage = () => {
                       placeholder="(38) 99999-9999" className={inputCls} />
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-xs text-muted mb-1.5">Bio / Descrição</label>
+                  <label className="block text-xs text-muted mb-1.5">Bio</label>
                   <textarea value={providerForm.bio} onChange={e => setProviderForm(p => ({ ...p, bio: e.target.value }))}
-                    placeholder="Descreva a experiência e diferenciais do prestador..."
-                    rows={3}
+                    placeholder="Descreva a experiência..." rows={3}
                     className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors placeholder:text-muted resize-none"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs text-muted mb-1.5 flex items-center gap-1"><Star className="w-3 h-3" /> Habilidades (separadas por vírgula)</label>
+                  <label className="block text-xs text-muted mb-1.5">Habilidades (separadas por vírgula)</label>
                   <input value={providerForm.skills} onChange={e => setProviderForm(p => ({ ...p, skills: e.target.value }))}
                     placeholder="Violão, Canto, Música Popular" className={inputCls} />
                 </div>
-
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <div
-                    onClick={() => setProviderForm(p => ({ ...p, verified: !p.verified }))}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div onClick={() => setProviderForm(p => ({ ...p, verified: !p.verified }))}
                     className={`w-10 h-6 rounded-full transition-colors flex items-center px-0.5 ${
                       providerForm.verified ? 'bg-green-500' : 'bg-border'
                     }`}
@@ -640,19 +773,15 @@ export const AdminPage = () => {
                   {providerForm.verified && <Check className="w-4 h-4 text-green-400" />}
                 </label>
               </div>
-
               <div className="flex gap-3 mt-6">
                 <button onClick={() => { setProviderModal(false); setEditingProvider(null) }}
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
                 >Cancelar</button>
                 <button onClick={saveProvider}
                   disabled={savingProvider || !providerForm.name.trim() || (!editingProvider && !providerForm.email.trim())}
-                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {savingProvider
-                    ? <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
-                    : <Save className="w-4 h-4" />
-                  }
+                  {savingProvider ? <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
                   {editingProvider ? 'Salvar alterações' : 'Criar prestador'}
                 </button>
               </div>
@@ -661,7 +790,7 @@ export const AdminPage = () => {
         )}
       </AnimatePresence>
 
-      {/* ===== MODAL: CATEGORIA ===== */}
+      {/* MODAL: CATEGORIA */}
       <AnimatePresence>
         {catModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -672,9 +801,7 @@ export const AdminPage = () => {
               onClick={e => e.stopPropagation()}
               className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
             >
-              <h2 className="text-lg font-black text-white mb-4">
-                {editingCat ? 'Editar Categoria' : 'Nova Categoria'}
-              </h2>
+              <h2 className="text-lg font-black text-white mb-4">{editingCat ? 'Editar Categoria' : 'Nova Categoria'}</h2>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm text-muted mb-1.5">Nome</label>
@@ -717,10 +844,9 @@ export const AdminPage = () => {
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
                 >Cancelar</button>
                 <button onClick={saveCategory} disabled={!catForm.name.trim()}
-                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  <Save className="w-4 h-4" />
-                  {editingCat ? 'Salvar' : 'Criar'}
+                  <Save className="w-4 h-4" />{editingCat ? 'Salvar' : 'Criar'}
                 </button>
               </div>
             </motion.div>
