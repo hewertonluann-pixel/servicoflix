@@ -3,7 +3,8 @@ import {
   User,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
   onAuthStateChanged,
@@ -20,6 +21,12 @@ export const useAuth = () => {
       setUser(user)
       setLoading(false)
     })
+
+    // Verifica resultado do redirect do Google
+    getRedirectResult(auth).catch((error) => {
+      console.error('Erro no redirect do Google:', error)
+    })
+
     return unsubscribe
   }, [])
 
@@ -40,7 +47,8 @@ export const useAuth = () => {
     provider.setCustomParameters({
       prompt: 'select_account'
     })
-    return await signInWithPopup(auth, provider)
+    // Usa redirect ao invés de popup para evitar problemas de COOP
+    return await signInWithRedirect(auth, provider)
   }
 
   const signOut = async () => {

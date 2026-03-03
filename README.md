@@ -23,10 +23,11 @@ src/
 │   ├── ProviderCard.tsx     # Card com hover expansivo
 │   └── CategoryGrid.tsx     # Grid de categorias
 ├── pages/
-│   ├── HomePage.tsx         # Página inicial
-│   ├── ProviderProfilePage  # Perfil do profissional
-│   ├── SearchPage.tsx       # Busca e filtros
-│   └── LoginPage.tsx        # Login/Cadastro
+│   ├── HomePage.tsx              # Página inicial
+│   ├── ProviderProfilePage.tsx   # Perfil público do profissional
+│   ├── ProviderDashboardPage.tsx # Dashboard para editar perfil
+│   ├── SearchPage.tsx            # Busca e filtros
+│   └── LoginPage.tsx             # Login/Cadastro
 ├── data/
 │   └── mock.ts              # Dados mock para desenvolvimento
 ├── types/
@@ -90,6 +91,23 @@ Abra [http://localhost:5173](http://localhost:5173)
 **Environment Variables:**
 Adicione todas as variáveis VITE_FIREBASE_* com seus valores do Firebase.
 
+### Configuração do Firebase para Produção
+
+No Firebase Console, adicione o domínio do Render aos domínios autorizados:
+
+1. Acesse **Authentication** → **Settings** → **Authorized domains**
+2. Adicione: `seu-app.onrender.com`
+3. Salve
+
+## Funcionalidades
+
+- ✅ Cadastro e login com email/senha
+- ✅ Login com Google (redirect-based)
+- ✅ Dashboard do prestador para editar perfil
+- ✅ Visualização pública do perfil
+- ✅ Busca e filtros por categoria
+- ✅ Design responsivo estilo Netflix
+
 ## Segurança
 
 ⚠️ **NUNCA** commite o arquivo `.env` no Git!
@@ -100,9 +118,9 @@ As credenciais do Firebase devem estar apenas:
 
 ## Próximos passos
 
-- [ ] Implementar autenticação completa (login/cadastro)
 - [ ] Migrar dados mock para Firestore
 - [ ] Sistema de avaliações
+- [ ] Upload de fotos com Firebase Storage
 - [ ] Chat entre cliente e prestador
 - [ ] Sistema de agendamento
 - [ ] Pagamento integrado
