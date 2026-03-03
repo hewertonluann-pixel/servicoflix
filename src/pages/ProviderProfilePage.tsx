@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, Video as VideoIcon } from 'lucide-react'
 import { mockProviders } from '@/data/mock'
 import { YouTubeEmbed } from '@/components/YouTubeEmbed'
+import { VideoCarousel } from '@/components/VideoCarousel'
 
 export const ProviderProfilePage = () => {
   const { id } = useParams()
@@ -12,6 +13,9 @@ export const ProviderProfilePage = () => {
   const videos = {
     presentation: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     portfolio: [
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     ]
@@ -102,7 +106,7 @@ export const ProviderProfilePage = () => {
               <p className="text-muted leading-relaxed">{provider.bio}</p>
             </motion.div>
 
-            {/* Portfólio de vídeos */}
+            {/* Portfólio de vídeos com carrossel */}
             {videos.portfolio.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -110,20 +114,25 @@ export const ProviderProfilePage = () => {
                 transition={{ delay: 0.3 }}
                 className="bg-surface border border-border rounded-2xl p-6"
               >
-                <div className="flex items-center gap-2 mb-4">
-                  <Briefcase className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-bold text-white">Portfólio de Trabalhos</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-primary" />
+                    <h2 className="text-xl font-bold text-white">Portfólio de Trabalhos</h2>
+                  </div>
+                  <span className="text-xs text-muted">{videos.portfolio.length} vídeo{videos.portfolio.length > 1 ? 's' : ''}</span>
                 </div>
-                <div className="grid sm:grid-cols-2 gap-4">
+                
+                <VideoCarousel>
                   {videos.portfolio.map((url, i) => (
-                    <YouTubeEmbed 
-                      key={i} 
-                      videoUrl={url} 
-                      title={`Trabalho ${i + 1}`} 
-                      showThumbnail 
-                    />
+                    <div key={i} className="flex-none w-[280px] sm:w-[320px] snap-start">
+                      <YouTubeEmbed 
+                        videoUrl={url} 
+                        title={`Trabalho ${i + 1}`} 
+                        showThumbnail 
+                      />
+                    </div>
                   ))}
-                </div>
+                </VideoCarousel>
               </motion.div>
             )}
           </div>
