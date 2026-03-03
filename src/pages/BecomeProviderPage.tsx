@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Briefcase, MapPin, DollarSign, Star, ArrowRight, Check, X } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
+import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { ProviderProfile } from '@/types'
 
 export const BecomeProviderPage = () => {
-  const { user, upgradeToProvider, isProvider } = useAuth()
+  const { user, isProvider } = useSimpleAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -29,6 +31,11 @@ export const BecomeProviderPage = () => {
     e.preventDefault()
     setError('')
 
+    if (!user) {
+      setError('Você precisa estar logado para criar um perfil de prestador')
+      return
+    }
+
     if (!formData.specialty || !formData.city || !formData.bio) {
       setError('Preencha todos os campos obrigatórios')
       return
@@ -42,11 +49,20 @@ export const BecomeProviderPage = () => {
     setLoading(true)
 
     try {
-      await upgradeToProvider(formData)
+      console.log('📝 [BecomeProvider] Criando perfil de prestador...')
+      console.log('📝 [BecomeProvider] User ID:', user.id)
+      
+      // Atualiza documento do usuário no Firestore
+      await updateDoc(doc(db, 'users', user.id), {
+        roles: arrayUnion('provider'),
+        providerProfile: formData,
+      })
+      
+      console.log('✅ [BecomeProvider] Perfil criado com sucesso!')
       navigate('/meu-perfil')
     } catch (err) {
+      console.error('❌ [BecomeProvider] Erro:', err)
       setError('Erro ao criar perfil de prestador. Tente novamente.')
-      console.error(err)
     } finally {
       setLoading(false)
     }
