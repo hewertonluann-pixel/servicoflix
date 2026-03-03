@@ -7,7 +7,9 @@ import { getAnalytics, isSupported } from 'firebase/analytics'
 // Configuração do Firebase usando variáveis de ambiente
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  // 🔴 IMPORTANTE: Usa domínio customizado para evitar problema com cookies de terceiros
+  // authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, // Domínio padrão Firebase (não funciona com redirect)
+  authDomain: 'prontto.onrender.com', // Domínio customizado (necessário para signInWithRedirect)
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
@@ -21,6 +23,8 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
     'Firebase config is missing! Make sure environment variables are set correctly.'
   )
 }
+
+console.log('🔥 [Firebase] Inicializando com authDomain:', firebaseConfig.authDomain)
 
 // Inicializa Firebase
 const app = initializeApp(firebaseConfig)
