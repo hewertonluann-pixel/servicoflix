@@ -26,6 +26,7 @@ const fetchWithRetry = async <T,>(fn: () => Promise<T>, maxRetries = 3, delay = 
 
 export const useSimpleAuth = () => {
   const [user, setUser] = useState<User | null>(null)
+  const [fbUser, setFbUser] = useState<FirebaseUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -35,6 +36,8 @@ export const useSimpleAuth = () => {
       console.log('🔥 [useSimpleAuth] Auth mudou:', firebaseUser?.email || 'sem user')
       
       if (firebaseUser) {
+        setFbUser(firebaseUser)
+        
         // 1️⃣ PRIMEIRO: Seta user básico do Firebase (IMEDIATO)
         const basicUser: User = {
           id: firebaseUser.uid,
@@ -69,17 +72,17 @@ export const useSimpleAuth = () => {
               name: firestoreData.name || firebaseUser.displayName || basicUser.name,
             }
             console.log('✅ [useSimpleAuth] Dados Firestore mesclados')
-            setUser(completeUser) // Atualiza com dados completos
+            setUser(completeUser)
           } else {
             console.log('⚠️ [useSimpleAuth] Doc não existe, usando básico')
           }
         } catch (error) {
           console.error('❌ [useSimpleAuth] Erro Firestore após retries:', error)
-          // Mantém user básico em caso de erro
         }
       } else {
         console.log('❌ [useSimpleAuth] Sem usuário')
         setUser(null)
+        setFbUser(null)
         setLoading(false)
       }
     })
@@ -88,9 +91,9 @@ export const useSimpleAuth = () => {
   }, [])
 
   const signOut = async () => {
-    console.log('🚪 [useSimpleAuth] Logout...')
     await firebaseSignOut(auth)
     setUser(null)
+    setFbUser(null)
   }
 
   const isClient = user?.roles?.includes('client') ?? false
@@ -98,6 +101,7 @@ export const useSimpleAuth = () => {
 
   return {
     user,
+    firebaseUser: fbUser, // ✅ exportado!
     loading,
     isClient,
     isProvider,

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Shield, Users, Briefcase, Tag, Plus, Trash2, Edit2,
-  Search, Check, X, ChevronDown, LogOut, AlertTriangle,
-  ToggleLeft, ToggleRight, Save, RefreshCw
+  Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
+  AlertTriangle, LogOut
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
@@ -13,7 +13,7 @@ import {
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
-// UID do administrador - troque pelo seu UID do Firebase
+// UID do administrador
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1']
 
 type Tab = 'usuarios' | 'prestadores' | 'categorias'
@@ -40,7 +40,7 @@ interface Category {
 const DEFAULT_ICONS = ['🔧', '🏠', '🚿', '⚡', '🌿', '🎨', '🚗', '📦', '🍽️', '🐾', '💻', '📸', '🏋️', '🧹', '🔑', '🪴']
 
 export const AdminPage = () => {
-  const { user, loading: authLoading, firebaseUser } = useSimpleAuth() as any
+  const { user, loading: authLoading } = useSimpleAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<Tab>('usuarios')
   const [users, setUsers] = useState<UserData[]>([])
@@ -48,36 +48,29 @@ export const AdminPage = () => {
   const [loadingData, setLoadingData] = useState(false)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-
-  // Novo estado para modal de categoria
   const [catModal, setCatModal] = useState(false)
   const [catForm, setCatForm] = useState({ name: '', icon: '🔧' })
   const [editingCat, setEditingCat] = useState<Category | null>(null)
 
-  // Verifica se é admin
-  const isAdmin = firebaseUser && ADMIN_UIDS.includes(firebaseUser.uid)
+  // Verifica admin pelo user.id (que é o UID do Firebase)
+  const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  // Carrega usuários
   const loadUsers = async () => {
     setLoadingData(true)
     try {
       const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'))
       const snap = await getDocs(q)
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData))
-      setUsers(data)
-    } catch (err) {
-      console.error('Erro ao carregar usuários:', err)
-      // Tenta sem orderBy
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData)))
+    } catch {
       try {
         const snap = await getDocs(collection(db, 'users'))
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData))
-        setUsers(data)
-      } catch (e) {
+        setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData)))
+      } catch {
         showToast('Erro ao carregar usuários', 'error')
       }
     } finally {
@@ -85,14 +78,12 @@ export const AdminPage = () => {
     }
   }
 
-  // Carrega categorias
   const loadCategories = async () => {
     setLoadingData(true)
     try {
       const snap = await getDocs(collection(db, 'categories'))
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Category))
-      setCategories(data)
-    } catch (err) {
+      setCategories(snap.docs.map(d => ({ id: d.id, ...d.data() } as Category)))
+    } catch {
       showToast('Erro ao carregar categorias', 'error')
     } finally {
       setLoadingData(false)
@@ -106,91 +97,73 @@ export const AdminPage = () => {
     }
   }, [authLoading, isAdmin])
 
-  // Alterna role do usuário
   const toggleRole = async (userId: string, role: string, hasRole: boolean) => {
     try {
       const userDoc = users.find(u => u.id === userId)!
       const newRoles = hasRole
         ? userDoc.roles.filter(r => r !== role)
         : [...userDoc.roles, role]
-
       await updateDoc(doc(db, 'users', userId), { roles: newRoles })
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, roles: newRoles } : u))
-      showToast(`Role '${role}' ${hasRole ? 'removida' : 'adicionada'} com sucesso`)
-    } catch (err) {
+      showToast(`Role '${role}' ${hasRole ? 'removida' : 'adicionada'}!`)
+    } catch {
       showToast('Erro ao atualizar role', 'error')
     }
   }
 
-  // Exclui usuário
   const deleteUser = async (userId: string) => {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) return
     try {
       await deleteDoc(doc(db, 'users', userId))
       setUsers(prev => prev.filter(u => u.id !== userId))
-      showToast('Usuário excluído com sucesso')
-    } catch (err) {
+      showToast('Usuário excluído!')
+    } catch {
       showToast('Erro ao excluir usuário', 'error')
     }
   }
 
-  // Salva categoria
   const saveCategory = async () => {
     if (!catForm.name.trim()) return
-
     try {
       if (editingCat) {
-        await updateDoc(doc(db, 'categories', editingCat.id), {
-          name: catForm.name,
-          icon: catForm.icon,
-        })
-        setCategories(prev => prev.map(c =>
-          c.id === editingCat.id ? { ...c, name: catForm.name, icon: catForm.icon } : c
-        ))
+        await updateDoc(doc(db, 'categories', editingCat.id), { name: catForm.name, icon: catForm.icon })
+        setCategories(prev => prev.map(c => c.id === editingCat.id ? { ...c, ...catForm } : c))
         showToast('Categoria atualizada!')
       } else {
         const newId = catForm.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        await setDoc(doc(db, 'categories', newId), {
-          name: catForm.name,
-          icon: catForm.icon,
-          active: true,
-          createdAt: serverTimestamp(),
-        })
-        setCategories(prev => [...prev, { id: newId, name: catForm.name, icon: catForm.icon, active: true }])
+        await setDoc(doc(db, 'categories', newId), { ...catForm, active: true, createdAt: serverTimestamp() })
+        setCategories(prev => [...prev, { id: newId, ...catForm, active: true }])
         showToast('Categoria criada!')
       }
       setCatModal(false)
       setCatForm({ name: '', icon: '🔧' })
       setEditingCat(null)
-    } catch (err) {
+    } catch {
       showToast('Erro ao salvar categoria', 'error')
     }
   }
 
-  // Toggle categoria ativa/inativa
   const toggleCategory = async (cat: Category) => {
     try {
       await updateDoc(doc(db, 'categories', cat.id), { active: !cat.active })
       setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, active: !c.active } : c))
       showToast(`Categoria ${cat.active ? 'desativada' : 'ativada'}!`)
-    } catch (err) {
+    } catch {
       showToast('Erro ao atualizar categoria', 'error')
     }
   }
 
-  // Exclui categoria
   const deleteCategory = async (catId: string) => {
     if (!confirm('Excluir esta categoria?')) return
     try {
       await deleteDoc(doc(db, 'categories', catId))
       setCategories(prev => prev.filter(c => c.id !== catId))
       showToast('Categoria excluída!')
-    } catch (err) {
+    } catch {
       showToast('Erro ao excluir categoria', 'error')
     }
   }
 
-  // Loading auth
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -199,18 +172,30 @@ export const AdminPage = () => {
     )
   }
 
-  // Não é admin
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center">
+          <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-black text-white mb-2">Login Necessário</h1>
+          <p className="text-muted mb-6">Você precisa estar logado para acessar o painel admin.</p>
+          <button onClick={() => navigate('/entrar')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
+            Fazer Login
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
           <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <h1 className="text-2xl font-black text-white mb-2">Acesso Negado</h1>
-          <p className="text-muted mb-6">Você não tem permissão para acessar esta página.</p>
-          <button
-            onClick={() => navigate('/')}
-            className="px-6 py-3 bg-primary text-background font-bold rounded-xl"
-          >
+          <p className="text-muted mb-4">Você não tem permissão para acessar esta página.</p>
+          <p className="text-xs text-muted font-mono mb-6">UID: {user.id}</p>
+          <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
             Voltar ao Início
           </button>
         </div>
@@ -220,12 +205,10 @@ export const AdminPage = () => {
 
   const providers = users.filter(u => u.roles?.includes('provider'))
   const clients = users.filter(u => !u.roles?.includes('provider'))
-
   const filteredUsers = users.filter(u =>
     u.name?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase())
   )
-
   const filteredProviders = providers.filter(u =>
     u.name?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase())
@@ -261,10 +244,7 @@ export const AdminPage = () => {
               <p className="text-xs text-muted">ServiçoFlix</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors"
-          >
+          <button onClick={() => navigate('/')} className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors">
             <LogOut className="w-4 h-4" />
             Sair do painel
           </button>
@@ -280,11 +260,7 @@ export const AdminPage = () => {
             { label: 'Prestadores', value: providers.length, icon: Briefcase, color: 'text-primary' },
             { label: 'Categorias', value: categories.length, icon: Tag, color: 'text-purple-400' },
           ].map((stat, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
+            <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className="bg-surface border border-border rounded-xl p-4"
             >
               <stat.icon className={`w-5 h-5 ${stat.color} mb-2`} />
@@ -301,9 +277,7 @@ export const AdminPage = () => {
             { id: 'prestadores', label: 'Prestadores', icon: Briefcase },
             { id: 'categorias', label: 'Categorias', icon: Tag },
           ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id as Tab); setSearch('') }}
+            <button key={tab.id} onClick={() => { setActiveTab(tab.id as Tab); setSearch('') }}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
                 activeTab === tab.id ? 'bg-primary text-background' : 'text-muted hover:text-white'
               }`}
@@ -318,17 +292,14 @@ export const AdminPage = () => {
         {activeTab !== 'categorias' && (
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por nome ou email..."
               className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-muted outline-none focus:border-primary transition-colors"
             />
           </div>
         )}
 
-        {/* Botão refresh */}
+        {/* Toolbar */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs text-muted">
             {activeTab === 'usuarios' && `${filteredUsers.length} usuários`}
@@ -336,26 +307,21 @@ export const AdminPage = () => {
             {activeTab === 'categorias' && `${categories.length} categorias`}
           </p>
           <div className="flex gap-2">
-            <button
-              onClick={() => { loadUsers(); loadCategories() }}
+            <button onClick={() => { loadUsers(); loadCategories() }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Atualizar
+              <RefreshCw className="w-3.5 h-3.5" /> Atualizar
             </button>
             {activeTab === 'categorias' && (
-              <button
-                onClick={() => { setEditingCat(null); setCatForm({ name: '', icon: '🔧' }); setCatModal(true) }}
+              <button onClick={() => { setEditingCat(null); setCatForm({ name: '', icon: '🔧' }); setCatModal(true) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Nova Categoria
+                <Plus className="w-3.5 h-3.5" /> Nova Categoria
               </button>
             )}
           </div>
         </div>
 
-        {/* Loading */}
         {loadingData && (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -368,21 +334,15 @@ export const AdminPage = () => {
             {filteredUsers.length === 0 ? (
               <div className="text-center py-12 text-muted">Nenhum usuário encontrado</div>
             ) : filteredUsers.map(u => (
-              <motion.div
-                key={u.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+              <motion.div key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className="bg-surface border border-border rounded-xl p-4 flex items-center gap-4"
               >
-                {/* Avatar */}
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-background shrink-0">
                   {u.avatar
                     ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-muted text-lg">{u.name?.[0]?.toUpperCase()}</div>
                   }
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-white truncate">{u.name || 'Sem nome'}</p>
                   <p className="text-xs text-muted truncate">{u.email}</p>
@@ -396,13 +356,10 @@ export const AdminPage = () => {
                     ))}
                   </div>
                 </div>
-
-                {/* Ações */}
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => toggleRole(u.id, 'provider', u.roles?.includes('provider'))}
+                  <button onClick={() => toggleRole(u.id, 'provider', u.roles?.includes('provider'))}
                     title={u.roles?.includes('provider') ? 'Remover prestador' : 'Tornar prestador'}
-                    className={`p-1.5 rounded-lg text-xs transition-colors ${
+                    className={`p-1.5 rounded-lg transition-colors ${
                       u.roles?.includes('provider')
                         ? 'bg-primary/20 text-primary hover:bg-red-500/20 hover:text-red-400'
                         : 'bg-surface border border-border text-muted hover:bg-primary/20 hover:text-primary'
@@ -410,8 +367,7 @@ export const AdminPage = () => {
                   >
                     <Briefcase className="w-3.5 h-3.5" />
                   </button>
-                  <button
-                    onClick={() => deleteUser(u.id)}
+                  <button onClick={() => deleteUser(u.id)}
                     className="p-1.5 rounded-lg bg-surface border border-border text-muted hover:bg-red-500/20 hover:text-red-400 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -428,22 +384,16 @@ export const AdminPage = () => {
             {filteredProviders.length === 0 ? (
               <div className="text-center py-12 text-muted">Nenhum prestador encontrado</div>
             ) : filteredProviders.map(u => (
-              <motion.div
-                key={u.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+              <motion.div key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className="bg-surface border border-border rounded-xl p-4"
               >
                 <div className="flex items-start gap-4">
-                  {/* Avatar */}
                   <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0">
                     {u.avatar
                       ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                       : <div className="w-full h-full flex items-center justify-center text-muted text-xl">{u.name?.[0]?.toUpperCase()}</div>
                     }
                   </div>
-
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -467,15 +417,13 @@ export const AdminPage = () => {
                             <Check className="w-3 h-3" /> Verificar
                           </button>
                         )}
-                        <button
-                          onClick={() => toggleRole(u.id, 'provider', true)}
+                        <button onClick={() => toggleRole(u.id, 'provider', true)}
                           className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-semibold rounded-full hover:bg-red-500/30 transition-colors"
                         >
                           <X className="w-3 h-3" /> Remover
                         </button>
                       </div>
                     </div>
-
                     {u.providerProfile && (
                       <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {u.providerProfile.specialty && (
@@ -517,11 +465,8 @@ export const AdminPage = () => {
             {categories.length === 0 ? (
               <div className="col-span-3 text-center py-12 text-muted">Nenhuma categoria. Crie uma!</div>
             ) : categories.map(cat => (
-              <motion.div
-                key={cat.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className={`bg-surface border rounded-xl p-4 flex items-center justify-between gap-3 transition-opacity ${
+              <motion.div key={cat.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className={`bg-surface border rounded-xl p-4 flex items-center justify-between gap-3 ${
                   cat.active ? 'border-border' : 'border-border opacity-50'
                 }`}
               >
@@ -533,28 +478,15 @@ export const AdminPage = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => toggleCategory(cat)}
-                    className="p-1.5 rounded-lg hover:bg-background transition-colors"
-                    title={cat.active ? 'Desativar' : 'Ativar'}
-                  >
-                    {cat.active
-                      ? <ToggleRight className="w-5 h-5 text-primary" />
-                      : <ToggleLeft className="w-5 h-5 text-muted" />
-                    }
+                  <button onClick={() => toggleCategory(cat)} className="p-1.5 rounded-lg hover:bg-background transition-colors">
+                    {cat.active ? <ToggleRight className="w-5 h-5 text-primary" /> : <ToggleLeft className="w-5 h-5 text-muted" />}
                   </button>
-                  <button
-                    onClick={() => {
-                      setEditingCat(cat)
-                      setCatForm({ name: cat.name, icon: cat.icon })
-                      setCatModal(true)
-                    }}
+                  <button onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, icon: cat.icon }); setCatModal(true) }}
                     className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => deleteCategory(cat.id)}
+                  <button onClick={() => deleteCategory(cat.id)}
                     className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -569,67 +501,47 @@ export const AdminPage = () => {
       {/* Modal Categoria */}
       <AnimatePresence>
         {catModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setCatModal(false)}
           >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()}
               className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
             >
               <h2 className="text-lg font-black text-white mb-4">
                 {editingCat ? 'Editar Categoria' : 'Nova Categoria'}
               </h2>
-
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm text-muted mb-1.5">Nome</label>
-                  <input
-                    type="text"
-                    value={catForm.name}
-                    onChange={e => setCatForm({ ...catForm, name: e.target.value })}
+                  <input type="text" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
                     placeholder="Ex: Limpeza, Elétrica..."
                     className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors"
                   />
                 </div>
-
                 <div>
                   <label className="block text-sm text-muted mb-2">Ícone</label>
                   <div className="flex flex-wrap gap-2">
                     {DEFAULT_ICONS.map(icon => (
-                      <button
-                        key={icon}
-                        type="button"
-                        onClick={() => setCatForm({ ...catForm, icon })}
+                      <button key={icon} type="button" onClick={() => setCatForm({ ...catForm, icon })}
                         className={`w-10 h-10 rounded-lg text-xl flex items-center justify-center transition-colors ${
                           catForm.icon === icon
                             ? 'bg-primary/30 border-2 border-primary'
                             : 'bg-background border border-border hover:border-primary/50'
                         }`}
-                      >
-                        {icon}
-                      </button>
+                      >{icon}</button>
                     ))}
                   </div>
                 </div>
               </div>
-
               <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setCatModal(false)}
+                <button onClick={() => setCatModal(false)}
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
                 >
                   Cancelar
                 </button>
-                <button
-                  onClick={saveCategory}
-                  disabled={!catForm.name.trim()}
+                <button onClick={saveCategory} disabled={!catForm.name.trim()}
                   className="flex-1 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
