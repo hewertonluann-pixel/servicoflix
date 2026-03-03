@@ -7,9 +7,7 @@ import { getAnalytics, isSupported } from 'firebase/analytics'
 // Configuração do Firebase usando variáveis de ambiente
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  // 🔴 IMPORTANTE: Usa domínio customizado para evitar problema com cookies de terceiros
-  // authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, // Domínio padrão Firebase (não funciona com redirect)
-  authDomain: 'prontto.onrender.com', // Domínio customizado (necessário para signInWithRedirect)
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
