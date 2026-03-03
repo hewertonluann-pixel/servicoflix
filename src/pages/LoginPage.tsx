@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Zap, User, Briefcase, AlertCircle } from 'lucide-react'
@@ -8,7 +8,7 @@ type UserType = 'cliente' | 'prestador' | null
 
 export const LoginPage = () => {
   const navigate = useNavigate()
-  const { signUp, signIn, signInWithGoogle } = useAuth()
+  const { user, signUp, signIn, signInWithGoogle, loading: authLoading } = useAuth()
   
   const [userType, setUserType] = useState<UserType>(null)
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -22,6 +22,13 @@ export const LoginPage = () => {
     email: '',
     password: '',
   })
+
+  // Redireciona se usuário já está logado
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/', { replace: true })
+    }
+  }, [user, authLoading, navigate])
 
   const translateError = (err: any) => {
     const errorMessages: Record<string, string> = {
@@ -49,25 +56,14 @@ export const LoginPage = () => {
         throw new Error('Selecione se você é cliente ou prestador antes de continuar')
       }
 
+      // Firebase redirect vai gerenciar a navegação automaticamente
       await signInWithGoogle()
-      
-      // TODO: Se for cadastro, salvar userType no Firestore
-      // if (mode === 'register') {
-      //   await setDoc(doc(db, 'users', user.uid), { userType, createdAt: new Date() })
-      // }
-
-      // Redirecionar
-      if (mode === 'register' && userType === 'prestador') {
-        navigate('/meu-perfil')
-      } else {
-        navigate('/')
-      }
+      // NÃO navega aqui - deixa o useEffect detectar user e redirecionar
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         setError(translateError(err))
+        setGoogleLoading(false)
       }
-    } finally {
-      setGoogleLoading(false)
     }
   }
 
@@ -91,28 +87,28 @@ export const LoginPage = () => {
 
         // Cadastro
         await signUp(formData.email, formData.password, formData.name)
-        
-        // TODO: Salvar userType no Firestore
-        // await setDoc(doc(db, 'users', user.uid), { userType, createdAt: new Date() })
-
-        // Redirecionar
-        if (userType === 'prestador') {
-          navigate('/meu-perfil')
-        } else {
-          navigate('/')
-        }
+        // useEffect vai redirecionar automaticamente
       } else {
         // Login
         await signIn(formData.email, formData.password)
-        
-        // TODO: Buscar userType do Firestore para saber onde redirecionar
-        navigate('/')
+        // useEffect vai redirecionar automaticamente
       }
     } catch (err: any) {
       setError(translateError(err))
-    } finally {
       setLoading(false)
     }
+  }
+
+  // Mostra loading enquanto verifica autenticação
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted text-sm">Carregando...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -201,7 +197,7 @@ export const LoginPage = () => {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
             {googleLoading 
-              ? 'Conectando...' 
+              ? 'Redirecionando...' 
               : `${mode === 'login' ? 'Entrar' : 'Continuar'} com Google`
             }
           </motion.button>
