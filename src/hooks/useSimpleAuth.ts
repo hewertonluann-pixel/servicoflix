@@ -103,7 +103,8 @@ export const useSimpleAuth = () => {
   const isClient = user?.roles?.includes('client') || false
   const isProvider = user?.roles?.includes('provider') || false
 
-  console.log('🎯 [useSimpleAuth] Estado atual:', { user: user?.email, loading, isClient, isProvider })
+  // ❌ REMOVIDO: console.log que estava causando re-render infinito
+  // console.log('🎯 [useSimpleAuth] Estado atual:', { user: user?.email, loading, isClient, isProvider })
 
   return {
     user,
