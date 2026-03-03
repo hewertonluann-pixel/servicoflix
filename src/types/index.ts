@@ -40,3 +40,32 @@ export interface Review {
   date: string
   images?: string[]
 }
+
+export type ServiceStatus = 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
+
+export interface ServiceRequest {
+  id: string
+  providerId: string
+  providerName: string
+  providerAvatar: string
+  service: string
+  description: string
+  status: ServiceStatus
+  price: number
+  scheduledDate: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ServiceHistory {
+  id: string
+  providerId: string
+  providerName: string
+  providerAvatar: string
+  service: string
+  completedAt: string
+  rating?: number
+  review?: string
+  price: number
+  duration: string
+}
