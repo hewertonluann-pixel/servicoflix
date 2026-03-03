@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { Navbar } from '@/components/Navbar'
 import { HomePage } from '@/pages/HomePage'
 import { ProviderProfilePage } from '@/pages/ProviderProfilePage'
@@ -10,9 +10,12 @@ import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 import { AdminPage } from '@/pages/AdminPage'
 
 function App() {
+  const location = useLocation()
+  const hideNavbar = location.pathname.startsWith('/admin')
+
   return (
     <div className="min-h-screen bg-background text-white font-sans">
-      <Navbar />
+      {!hideNavbar && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/profissional/:id" element={<ProviderProfilePage />} />
