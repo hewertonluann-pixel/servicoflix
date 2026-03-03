@@ -32,31 +32,40 @@ export const ProviderProfilePage = () => {
       </div>
 
       {/* Conteúdo */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 sm:-mt-28 lg:-mt-32 relative z-10">
-        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 sm:-mt-24 lg:-mt-32 relative z-10">
+        {/* Layout: flex-col no mobile, grid no desktop */}
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Coluna principal */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
             {/* Card de perfil */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
             >
-              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start">
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
                 <img 
                   src={provider.avatar} 
                   alt={provider.name} 
-                  className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl object-cover border-4 border-background mx-auto sm:mx-0" 
+                  className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl object-cover border-4 border-background shrink-0" 
                 />
                 <div className="flex-1 w-full">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-3">
-                    <div className="text-center sm:text-left">
-                      <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{provider.name}</h1>
-                      <p className="text-primary text-base sm:text-lg font-semibold">{provider.specialty}</p>
+                  <div className="flex flex-col gap-3 mb-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 text-center sm:text-left">
+                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{provider.name}</h1>
+                        <p className="text-primary text-base sm:text-lg font-semibold">{provider.specialty}</p>
+                      </div>
+                      {provider.verified && (
+                        <div className="hidden sm:flex items-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold shrink-0">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Verificado
+                        </div>
+                      )}
                     </div>
                     {provider.verified && (
-                      <div className="flex items-center justify-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold mx-auto sm:mx-0">
-                        <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <div className="sm:hidden flex items-center justify-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold">
+                        <CheckCircle className="w-3.5 h-3.5" />
                         Verificado
                       </div>
                     )}
@@ -141,43 +150,43 @@ export const ProviderProfilePage = () => {
             )}
           </div>
 
-          {/* Sidebar - Desktop sticky, Mobile fixed bottom */}
-          <div className="space-y-4 sm:space-y-6">
-            {/* Card de ações */}
+          {/* Sidebar - Escondida no mobile, visível apenas os botões fixos */}
+          <div className="hidden lg:block w-full space-y-6">
+            {/* Card de ações - Desktop only */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:sticky lg:top-20"
+              className="bg-surface border border-border rounded-2xl p-6 sticky top-20"
             >
-              <div className="text-center mb-4 sm:mb-6">
-                <p className="text-muted text-xs sm:text-sm mb-1">A partir de</p>
-                <p className="text-2xl sm:text-3xl font-black text-white">
+              <div className="text-center mb-6">
+                <p className="text-muted text-sm mb-1">A partir de</p>
+                <p className="text-3xl font-black text-white">
                   R$ {provider.priceFrom}
-                  <span className="text-base sm:text-lg text-muted font-normal">/serviço</span>
+                  <span className="text-lg text-muted font-normal">/serviço</span>
                 </p>
               </div>
 
-              <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
-                <button className="w-full bg-primary text-background font-bold py-3 sm:py-3.5 rounded-lg sm:rounded-xl hover:bg-primary-dark transition-colors text-sm sm:text-base touch-target">
-                  <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 inline mr-2" />
+              <div className="space-y-3 mb-6">
+                <button className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target">
+                  <MessageCircle className="w-5 h-5 inline mr-2" />
                   Enviar Mensagem
                 </button>
-                <button className="w-full bg-surface border-2 border-primary text-primary font-bold py-3 sm:py-3.5 rounded-lg sm:rounded-xl hover:bg-primary/10 transition-colors text-sm sm:text-base touch-target">
-                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 inline mr-2" />
+                <button className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target">
+                  <Calendar className="w-5 h-5 inline mr-2" />
                   Agendar Serviço
                 </button>
               </div>
 
-              <div className="space-y-3 text-xs sm:text-sm">
+              <div className="space-y-3 text-sm">
                 <div className="flex items-center gap-3 text-muted">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                  <Clock className="w-5 h-5 text-primary shrink-0" />
                   <div>
                     <p className="text-white font-semibold">Tempo de resposta</p>
                     <p>{provider.responseTime}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-muted">
-                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                  <CheckCircle className="w-5 h-5 text-primary shrink-0" />
                   <div>
                     <p className="text-white font-semibold">Trabalhos concluídos</p>
                     <p>{provider.completedJobs}+</p>
@@ -190,16 +199,27 @@ export const ProviderProfilePage = () => {
       </div>
 
       {/* Botões fixos no bottom (mobile only) */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border p-4 z-40">
-        <div className="max-w-2xl mx-auto flex gap-3">
-          <button className="flex-1 bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target">
-            <MessageCircle className="w-4 h-4 inline mr-2" />
-            Mensagem
-          </button>
-          <button className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target">
-            <Calendar className="w-4 h-4 inline mr-2" />
-            Agendar
-          </button>
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border p-3 sm:p-4 z-40">
+        <div className="max-w-2xl mx-auto">
+          {/* Preço */}
+          <div className="text-center mb-3">
+            <p className="text-muted text-xs mb-0.5">A partir de</p>
+            <p className="text-xl font-black text-white">
+              R$ {provider.priceFrom}
+              <span className="text-sm text-muted font-normal">/serviço</span>
+            </p>
+          </div>
+          {/* Botões */}
+          <div className="flex gap-2 sm:gap-3">
+            <button className="flex-1 bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target">
+              <MessageCircle className="w-4 h-4 inline mr-1.5" />
+              Mensagem
+            </button>
+            <button className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target">
+              <Calendar className="w-4 h-4 inline mr-1.5" />
+              Agendar
+            </button>
+          </div>
         </div>
       </div>
     </div>
