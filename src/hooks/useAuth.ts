@@ -3,6 +3,8 @@ import {
   User,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile
@@ -33,6 +35,14 @@ export const useAuth = () => {
     return await signInWithEmailAndPassword(auth, email, password)
   }
 
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    })
+    return await signInWithPopup(auth, provider)
+  }
+
   const signOut = async () => {
     return await firebaseSignOut(auth)
   }
@@ -42,6 +52,7 @@ export const useAuth = () => {
     loading,
     signUp,
     signIn,
+    signInWithGoogle,
     signOut,
   }
 }
