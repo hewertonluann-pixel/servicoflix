@@ -13,7 +13,6 @@ import {
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
-// UID do administrador
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1']
 
 type Tab = 'usuarios' | 'prestadores' | 'categorias'
@@ -37,7 +36,29 @@ interface Category {
   createdAt?: any
 }
 
-const DEFAULT_ICONS = ['🔧', '🏠', '🚿', '⚡', '🌿', '🎨', '🚗', '📦', '🍽️', '🐾', '💻', '📸', '🏋️', '🧹', '🔑', '🪴']
+// Ícones organizados por categoria
+const ICON_GROUPS = [
+  {
+    label: '🎵 Música',
+    icons: ['🎵', '🎶', '🎷', '🎸', '🎹', '🎺', '🎻', '🥁', '🎼', '🎴', '🎰', '🎬']
+  },
+  {
+    label: '🔧 Serviços Gerais',
+    icons: ['🔧', '🏠', '🚿', '⚡', '🌿', '🎨', '🚗', '📦', '🍽️', '🐾', '💻', '📸']
+  },
+  {
+    label: '🏋️ Saúde & Bem-estar',
+    icons: ['🏋️', '🧘', '💪', '🏥', '💊', '🦷', '🚴', '🏊', '🧖', '🤼', '🏃', '🧗']
+  },
+  {
+    label: '📚 Educação',
+    icons: ['📚', '🎓', '✏️', '📝', '💻', '🔬', '🧠', '🏆', '📊', '🗺️', '📰', '💼']
+  },
+  {
+    label: '🌿 Casa & Jardim',
+    icons: ['🌿', '🪴', '🔑', '🧹', '🧰', '🚪', '🛏️', '🛢️', '💧', '🔥', '✂️', '🪣']
+  },
+]
 
 export const AdminPage = () => {
   const { user, loading: authLoading } = useSimpleAuth()
@@ -51,8 +72,8 @@ export const AdminPage = () => {
   const [catModal, setCatModal] = useState(false)
   const [catForm, setCatForm] = useState({ name: '', icon: '🔧' })
   const [editingCat, setEditingCat] = useState<Category | null>(null)
+  const [activeIconGroup, setActiveIconGroup] = useState(0)
 
-  // Verifica admin pelo user.id (que é o UID do Firebase)
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -179,9 +200,7 @@ export const AdminPage = () => {
           <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <h1 className="text-2xl font-black text-white mb-2">Login Necessário</h1>
           <p className="text-muted mb-6">Você precisa estar logado para acessar o painel admin.</p>
-          <button onClick={() => navigate('/entrar')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
-            Fazer Login
-          </button>
+          <button onClick={() => navigate('/entrar')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">Fazer Login</button>
         </div>
       </div>
     )
@@ -195,9 +214,7 @@ export const AdminPage = () => {
           <h1 className="text-2xl font-black text-white mb-2">Acesso Negado</h1>
           <p className="text-muted mb-4">Você não tem permissão para acessar esta página.</p>
           <p className="text-xs text-muted font-mono mb-6">UID: {user.id}</p>
-          <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
-            Voltar ao Início
-          </button>
+          <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">Voltar ao Início</button>
         </div>
       </div>
     )
@@ -216,23 +233,16 @@ export const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Toast */}
       <AnimatePresence>
         {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
+          <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
             className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl font-semibold text-sm shadow-lg ${
               toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
             }`}
-          >
-            {toast.msg}
-          </motion.div>
+          >{toast.msg}</motion.div>
         )}
       </AnimatePresence>
 
-      {/* Header */}
       <div className="bg-surface border-b border-border sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -245,14 +255,12 @@ export const AdminPage = () => {
             </div>
           </div>
           <button onClick={() => navigate('/')} className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors">
-            <LogOut className="w-4 h-4" />
-            Sair do painel
+            <LogOut className="w-4 h-4" /> Sair do painel
           </button>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
-        {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Total Usuários', value: users.length, icon: Users, color: 'text-blue-400' },
@@ -270,7 +278,6 @@ export const AdminPage = () => {
           ))}
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 bg-surface border border-border rounded-xl p-1">
           {[
             { id: 'usuarios', label: 'Usuários', icon: Users },
@@ -288,7 +295,6 @@ export const AdminPage = () => {
           ))}
         </div>
 
-        {/* Busca */}
         {activeTab !== 'categorias' && (
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
@@ -299,7 +305,6 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* Toolbar */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs text-muted">
             {activeTab === 'usuarios' && `${filteredUsers.length} usuários`}
@@ -313,7 +318,7 @@ export const AdminPage = () => {
               <RefreshCw className="w-3.5 h-3.5" /> Atualizar
             </button>
             {activeTab === 'categorias' && (
-              <button onClick={() => { setEditingCat(null); setCatForm({ name: '', icon: '🔧' }); setCatModal(true) }}
+              <button onClick={() => { setEditingCat(null); setCatForm({ name: '', icon: '🔧' }); setActiveIconGroup(0); setCatModal(true) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
               >
                 <Plus className="w-3.5 h-3.5" /> Nova Categoria
@@ -328,7 +333,7 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* ABA: USUÁRIOS */}
+        {/* USUÁRIOS */}
         {activeTab === 'usuarios' && !loadingData && (
           <div className="space-y-3">
             {filteredUsers.length === 0 ? (
@@ -338,10 +343,8 @@ export const AdminPage = () => {
                 className="bg-surface border border-border rounded-xl p-4 flex items-center gap-4"
               >
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-background shrink-0">
-                  {u.avatar
-                    ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-muted text-lg">{u.name?.[0]?.toUpperCase()}</div>
-                  }
+                  {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-muted text-lg">{u.name?.[0]?.toUpperCase()}</div>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-white truncate">{u.name || 'Sem nome'}</p>
@@ -358,27 +361,22 @@ export const AdminPage = () => {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => toggleRole(u.id, 'provider', u.roles?.includes('provider'))}
-                    title={u.roles?.includes('provider') ? 'Remover prestador' : 'Tornar prestador'}
                     className={`p-1.5 rounded-lg transition-colors ${
                       u.roles?.includes('provider')
                         ? 'bg-primary/20 text-primary hover:bg-red-500/20 hover:text-red-400'
                         : 'bg-surface border border-border text-muted hover:bg-primary/20 hover:text-primary'
                     }`}
-                  >
-                    <Briefcase className="w-3.5 h-3.5" />
-                  </button>
+                  ><Briefcase className="w-3.5 h-3.5" /></button>
                   <button onClick={() => deleteUser(u.id)}
                     className="p-1.5 rounded-lg bg-surface border border-border text-muted hover:bg-red-500/20 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  ><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </motion.div>
             ))}
           </div>
         )}
 
-        {/* ABA: PRESTADORES */}
+        {/* PRESTADORES */}
         {activeTab === 'prestadores' && !loadingData && (
           <div className="space-y-3">
             {filteredProviders.length === 0 ? (
@@ -389,10 +387,8 @@ export const AdminPage = () => {
               >
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0">
-                    {u.avatar
-                      ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center text-muted text-xl">{u.name?.[0]?.toUpperCase()}</div>
-                    }
+                    {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-muted text-xl">{u.name?.[0]?.toUpperCase()}</div>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
@@ -406,50 +402,25 @@ export const AdminPage = () => {
                             <Check className="w-3 h-3" /> Verificado
                           </span>
                         ) : (
-                          <button
-                            onClick={async () => {
-                              await updateDoc(doc(db, 'users', u.id), { 'providerProfile.verified': true })
-                              setUsers(prev => prev.map(p => p.id === u.id ? { ...p, providerProfile: { ...p.providerProfile, verified: true } } : p))
-                              showToast('Prestador verificado!')
-                            }}
-                            className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-semibold rounded-full hover:bg-green-500/20 hover:text-green-400 transition-colors"
-                          >
+                          <button onClick={async () => {
+                            await updateDoc(doc(db, 'users', u.id), { 'providerProfile.verified': true })
+                            setUsers(prev => prev.map(p => p.id === u.id ? { ...p, providerProfile: { ...p.providerProfile, verified: true } } : p))
+                            showToast('Prestador verificado!')
+                          }} className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-semibold rounded-full hover:bg-green-500/20 hover:text-green-400 transition-colors">
                             <Check className="w-3 h-3" /> Verificar
                           </button>
                         )}
                         <button onClick={() => toggleRole(u.id, 'provider', true)}
                           className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-semibold rounded-full hover:bg-red-500/30 transition-colors"
-                        >
-                          <X className="w-3 h-3" /> Remover
-                        </button>
+                        ><X className="w-3 h-3" /> Remover</button>
                       </div>
                     </div>
                     {u.providerProfile && (
                       <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {u.providerProfile.specialty && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">Especialidade</p>
-                            <p className="text-xs text-white font-medium">{u.providerProfile.specialty}</p>
-                          </div>
-                        )}
-                        {u.providerProfile.city && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">Cidade</p>
-                            <p className="text-xs text-white font-medium">{u.providerProfile.city}</p>
-                          </div>
-                        )}
-                        {u.providerProfile.priceFrom && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">A partir de</p>
-                            <p className="text-xs text-primary font-bold">R$ {u.providerProfile.priceFrom}</p>
-                          </div>
-                        )}
-                        {u.providerProfile.skills?.length > 0 && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">Skills</p>
-                            <p className="text-xs text-white font-medium">{u.providerProfile.skills.length} habilidades</p>
-                          </div>
-                        )}
+                        {u.providerProfile.specialty && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted">Especialidade</p><p className="text-xs text-white font-medium">{u.providerProfile.specialty}</p></div>}
+                        {u.providerProfile.city && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted">Cidade</p><p className="text-xs text-white font-medium">{u.providerProfile.city}</p></div>}
+                        {u.providerProfile.priceFrom && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted">A partir de</p><p className="text-xs text-primary font-bold">R$ {u.providerProfile.priceFrom}</p></div>}
+                        {u.providerProfile.skills?.length > 0 && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted">Skills</p><p className="text-xs text-white font-medium">{u.providerProfile.skills.length} habilidades</p></div>}
                       </div>
                     )}
                   </div>
@@ -459,7 +430,7 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* ABA: CATEGORIAS */}
+        {/* CATEGORIAS */}
         {activeTab === 'categorias' && !loadingData && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {categories.length === 0 ? (
@@ -481,16 +452,12 @@ export const AdminPage = () => {
                   <button onClick={() => toggleCategory(cat)} className="p-1.5 rounded-lg hover:bg-background transition-colors">
                     {cat.active ? <ToggleRight className="w-5 h-5 text-primary" /> : <ToggleLeft className="w-5 h-5 text-muted" />}
                   </button>
-                  <button onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, icon: cat.icon }); setCatModal(true) }}
+                  <button onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, icon: cat.icon }); setActiveIconGroup(0); setCatModal(true) }}
                     className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                  ><Edit2 className="w-4 h-4" /></button>
                   <button onClick={() => deleteCategory(cat.id)}
                     className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  ><Trash2 className="w-4 h-4" /></button>
                 </div>
               </motion.div>
             ))}
@@ -507,40 +474,69 @@ export const AdminPage = () => {
           >
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()}
-              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
             >
               <h2 className="text-lg font-black text-white mb-4">
                 {editingCat ? 'Editar Categoria' : 'Nova Categoria'}
               </h2>
+
               <div className="space-y-4">
+                {/* Nome */}
                 <div>
                   <label className="block text-sm text-muted mb-1.5">Nome</label>
                   <input type="text" value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })}
-                    placeholder="Ex: Limpeza, Elétrica..."
+                    placeholder="Ex: Aulas de Violão, Limpeza..."
                     className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors"
                   />
                 </div>
+
+                {/* Preview */}
+                <div className="flex items-center gap-3 bg-background rounded-xl px-4 py-3">
+                  <span className="text-3xl">{catForm.icon}</span>
+                  <div>
+                    <p className="text-xs text-muted">Ícone selecionado</p>
+                    <p className="text-sm text-white font-semibold">{catForm.name || 'Nome da categoria'}</p>
+                  </div>
+                </div>
+
+                {/* Grupos de ícones */}
                 <div>
                   <label className="block text-sm text-muted mb-2">Ícone</label>
-                  <div className="flex flex-wrap gap-2">
-                    {DEFAULT_ICONS.map(icon => (
+
+                  {/* Tabs dos grupos */}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {ICON_GROUPS.map((group, i) => (
+                      <button key={i} type="button" onClick={() => setActiveIconGroup(i)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                          activeIconGroup === i
+                            ? 'bg-primary text-background'
+                            : 'bg-background border border-border text-muted hover:text-white'
+                        }`}
+                      >
+                        {group.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Grid de ícones do grupo ativo */}
+                  <div className="grid grid-cols-6 gap-2">
+                    {ICON_GROUPS[activeIconGroup].icons.map(icon => (
                       <button key={icon} type="button" onClick={() => setCatForm({ ...catForm, icon })}
-                        className={`w-10 h-10 rounded-lg text-xl flex items-center justify-center transition-colors ${
+                        className={`w-full aspect-square rounded-xl text-2xl flex items-center justify-center transition-all ${
                           catForm.icon === icon
-                            ? 'bg-primary/30 border-2 border-primary'
-                            : 'bg-background border border-border hover:border-primary/50'
+                            ? 'bg-primary/30 border-2 border-primary scale-110'
+                            : 'bg-background border border-border hover:border-primary/50 hover:scale-105'
                         }`}
                       >{icon}</button>
                     ))}
                   </div>
                 </div>
               </div>
+
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setCatModal(false)}
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
-                >
-                  Cancelar
-                </button>
+                >Cancelar</button>
                 <button onClick={saveCategory} disabled={!catForm.name.trim()}
                   className="flex-1 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
