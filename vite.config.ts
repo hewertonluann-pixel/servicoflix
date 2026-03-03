@@ -10,20 +10,26 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
-    // Define base URL para produção
     base: mode === 'production' ? '/' : '/',
-    // Configuração para SPA routing
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
-      // Garante que todos os caminhos sejam relativos
       rollupOptions: {
         output: {
           manualChunks: undefined,
         },
       },
+      // Aumenta limite de warning de chunk size
+      chunkSizeWarningLimit: 1000,
+      // Garante sourcemap apenas em dev
+      sourcemap: mode === 'development',
     },
-    // Preview (para testar build local)
+    // Configurações do esbuild
+    esbuild: {
+      logOverride: { 'this-is-undefined-in-esm': 'silent' },
+      // Remove console.log em produção
+      drop: mode === 'production' ? ['console', 'debugger'] : [],
+    },
     preview: {
       port: 3000,
     },
