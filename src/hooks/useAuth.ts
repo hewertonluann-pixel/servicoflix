@@ -5,8 +5,9 @@ import {
   signOut as firebaseSignOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
+  getRedirectResult,
   updateProfile
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
@@ -63,6 +64,20 @@ export const useAuth = () => {
       setLoading(false)
     })
 
+    // Verifica resultado do redirect (Google login)
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          loadUserData(result.user)
+        }
+      })
+      .catch((error) => {
+        // Ignora erros comuns de redirect
+        if (error.code !== 'auth/popup-closed-by-user') {
+          console.error('Erro no redirect:', error)
+        }
+      })
+
     return unsubscribe
   }, [])
 
@@ -78,25 +93,12 @@ export const useAuth = () => {
   }
 
   const signInWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider()
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      })
-      
-      // Usa popup ao invés de redirect para evitar problemas no Render
-      const result = await signInWithPopup(auth, provider)
-      
-      if (result.user) {
-        await loadUserData(result.user)
-      }
-    } catch (error: any) {
-      // Ignora erro de popup fechado pelo usuário
-      if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-        console.error('Erro no login com Google:', error)
-        throw error
-      }
-    }
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    })
+    // Usa redirect - mais compatível com diferentes hosts
+    await signInWithRedirect(auth, provider)
   }
 
   const signOut = async () => {
