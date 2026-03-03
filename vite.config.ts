@@ -1,5 +1,5 @@
 import path from "path"
-import react from "@vitejs/plugin-react"
+import react from "@vitejs/plugin-react-swc"
 import { defineConfig } from "vite"
 
 export default defineConfig(({ mode }) => {
@@ -19,15 +19,11 @@ export default defineConfig(({ mode }) => {
           manualChunks: undefined,
         },
       },
-      // Aumenta limite de warning de chunk size
       chunkSizeWarningLimit: 1000,
-      // Garante sourcemap apenas em dev
       sourcemap: mode === 'development',
     },
-    // Configurações do esbuild
     esbuild: {
       logOverride: { 'this-is-undefined-in-esm': 'silent' },
-      // Remove console.log em produção
       drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
     preview: {
