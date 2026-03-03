@@ -9,6 +9,9 @@ services:
         value: 18
     headers:
       - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin-allow-popups
+      - path: /*
         name: X-Content-Type-Options
         value: nosniff
     routes:
