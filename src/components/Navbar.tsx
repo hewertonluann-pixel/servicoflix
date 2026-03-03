@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase, Home, Compass } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export const Navbar = () => {
@@ -31,14 +31,29 @@ export const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Previne scroll quando menu mobile aberto
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => { document.body.style.overflow = 'unset' }
+  }, [menuOpen])
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (query.trim()) navigate(`/buscar?q=${encodeURIComponent(query)}`)
+    if (query.trim()) {
+      navigate(`/buscar?q=${encodeURIComponent(query)}`)
+      setSearchOpen(false)
+      setMenuOpen(false)
+    }
   }
 
   const handleSignOut = async () => {
     await signOut()
     setUserMenuOpen(false)
+    setMenuOpen(false)
     navigate('/')
   }
 
@@ -51,14 +66,15 @@ export const Navbar = () => {
       animate={{ y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Zap className="w-5 h-5 text-background" fill="currentColor" />
+        <Link to="/" className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary flex items-center justify-center">
+            <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-background" fill="currentColor" />
           </div>
-          <span className="text-xl font-black tracking-tight">
-            Serviço<span className="text-primary">Flix</span>
+          <span className="text-lg sm:text-xl font-black tracking-tight">
+            <span className="hidden xs:inline">Serviço</span>
+            <span className="text-primary">Flix</span>
           </span>
         </Link>
 
@@ -71,52 +87,66 @@ export const Navbar = () => {
         </div>
 
         {/* Ações direita */}
-        <div className="flex items-center gap-3">
-          <AnimatePresence>
-            {searchOpen ? (
-              <motion.form
-                onSubmit={handleSearch}
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 240, opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                className="flex items-center bg-surface border border-border rounded-lg overflow-hidden"
-              >
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder="Buscar serviço..."
-                  className="bg-transparent px-3 py-2 text-sm text-white placeholder:text-muted outline-none w-full"
-                />
-                <button type="button" onClick={() => setSearchOpen(false)} className="px-2 text-muted hover:text-white">
-                  <X className="w-4 h-4" />
-                </button>
-              </motion.form>
-            ) : (
-              <motion.button
-                onClick={() => setSearchOpen(true)}
-                className="p-2 text-muted hover:text-white transition-colors"
-                whileHover={{ scale: 1.1 }}
-              >
-                <Search className="w-5 h-5" />
-              </motion.button>
-            )}
-          </AnimatePresence>
+        <div className="flex items-center gap-1 sm:gap-3">
+          {/* Busca mobile - apenas ícone */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="md:hidden p-2 text-muted hover:text-white transition-colors touch-target"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
+          {/* Busca desktop */}
+          <div className="hidden md:block">
+            <AnimatePresence>
+              {searchOpen ? (
+                <motion.form
+                  onSubmit={handleSearch}
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 240, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  className="flex items-center bg-surface border border-border rounded-lg overflow-hidden"
+                >
+                  <input
+                    autoFocus
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="Buscar serviço..."
+                    className="bg-transparent px-3 py-2 text-sm text-white placeholder:text-muted outline-none w-full"
+                  />
+                  <button type="button" onClick={() => setSearchOpen(false)} className="px-2 text-muted hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.form>
+              ) : (
+                <motion.button
+                  onClick={() => setSearchOpen(true)}
+                  className="p-2 text-muted hover:text-white transition-colors"
+                  whileHover={{ scale: 1.1 }}
+                >
+                  <Search className="w-5 h-5" />
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
 
           {user && (
-            <motion.button className="p-2 text-muted hover:text-white relative" whileHover={{ scale: 1.1 }}>
+            <motion.button 
+              className="hidden sm:flex p-2 text-muted hover:text-white relative touch-target" 
+              whileHover={{ scale: 1.1 }}
+            >
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
             </motion.button>
           )}
 
-          {/* Menu do usuário */}
-          <div className="relative" ref={userMenuRef}>
+          {/* Menu do usuário - desktop */}
+          <div className="hidden md:block relative" ref={userMenuRef}>
             {user ? (
               <>
                 <motion.button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-primary transition-colors"
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-primary transition-colors touch-target"
                   whileHover={{ scale: 1.05 }}
                 >
                   {user.photoURL ? (
@@ -128,7 +158,6 @@ export const Navbar = () => {
                   )}
                 </motion.button>
 
-                {/* Dropdown */}
                 <AnimatePresence>
                   {userMenuOpen && (
                     <motion.div
@@ -138,13 +167,10 @@ export const Navbar = () => {
                       transition={{ duration: 0.15 }}
                       className="absolute right-0 top-12 w-56 bg-surface border border-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
                     >
-                      {/* Header do menu */}
                       <div className="px-4 py-3 border-b border-border">
                         <p className="text-sm font-bold text-white truncate">{user.displayName || 'Usuário'}</p>
                         <p className="text-xs text-muted truncate">{user.email}</p>
                       </div>
-
-                      {/* Opções */}
                       <div className="py-2">
                         <Link
                           to="/meu-perfil"
@@ -171,8 +197,6 @@ export const Navbar = () => {
                           Minha Conta
                         </Link>
                       </div>
-
-                      {/* Logout */}
                       <div className="border-t border-border py-2">
                         <button
                           onClick={handleSignOut}
@@ -189,7 +213,7 @@ export const Navbar = () => {
             ) : (
               <Link to="/entrar">
                 <motion.div
-                  className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                  className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors touch-target"
                   whileHover={{ scale: 1.05 }}
                 >
                   <User className="w-4 h-4 text-muted" />
@@ -198,31 +222,158 @@ export const Navbar = () => {
             )}
           </div>
 
-          <button className="md:hidden text-muted hover:text-white" onClick={() => setMenuOpen(!menuOpen)}>
+          {/* Botão menu mobile */}
+          <button 
+            className="md:hidden text-muted hover:text-white p-2 touch-target" 
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-      {/* Menu mobile */}
+      {/* Menu mobile fullscreen */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="md:hidden bg-background/98 border-t border-border px-4 py-4 flex flex-col gap-4 text-sm font-medium"
+            initial={{ opacity: 0, x: '100%' }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: '100%' }}
+            transition={{ type: 'tween', duration: 0.3 }}
+            className="md:hidden fixed inset-0 top-14 bg-background z-40 overflow-y-auto"
           >
-            <Link to="/" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Início</Link>
-            <Link to="/buscar" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Explorar</Link>
-            {user ? (
-              <>
-                <Link to="/meu-perfil" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Meu Perfil</Link>
-                <button onClick={handleSignOut} className="text-left text-red-400 hover:text-red-300">Sair</button>
-              </>
-            ) : (
-              <Link to="/entrar" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Entrar</Link>
-            )}
+            <div className="px-4 py-6 space-y-6">
+              {/* Busca mobile */}
+              <form onSubmit={handleSearch} className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Buscar serviço..."
+                  className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-muted outline-none focus:border-primary transition-colors"
+                />
+              </form>
+
+              {/* Perfil do usuário */}
+              {user && (
+                <div className="flex items-center gap-3 p-4 bg-surface border border-border rounded-xl">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-background">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt={user.displayName || 'Usuário'} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <User className="w-6 h-6 text-muted" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{user.displayName || 'Usuário'}</p>
+                    <p className="text-xs text-muted truncate">{user.email}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Links principais */}
+              <div className="space-y-1">
+                <Link 
+                  to="/" 
+                  onClick={() => setMenuOpen(false)} 
+                  className="flex items-center gap-3 px-4 py-3 text-white font-semibold hover:bg-surface rounded-xl transition-colors touch-target"
+                >
+                  <Home className="w-5 h-5" />
+                  Início
+                </Link>
+                <Link 
+                  to="/buscar" 
+                  onClick={() => setMenuOpen(false)} 
+                  className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
+                >
+                  <Compass className="w-5 h-5" />
+                  Explorar Serviços
+                </Link>
+              </div>
+
+              {/* Links do usuário */}
+              {user ? (
+                <>
+                  <div className="border-t border-border pt-4 space-y-1">
+                    <Link 
+                      to="/meu-perfil" 
+                      onClick={() => setMenuOpen(false)} 
+                      className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
+                    >
+                      <Briefcase className="w-5 h-5" />
+                      Meu Perfil
+                    </Link>
+                    <Link 
+                      to="/configuracoes" 
+                      onClick={() => setMenuOpen(false)} 
+                      className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
+                    >
+                      <Settings className="w-5 h-5" />
+                      Configurações
+                    </Link>
+                    <Link 
+                      to="/minha-conta" 
+                      onClick={() => setMenuOpen(false)} 
+                      className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
+                    >
+                      <UserCircle className="w-5 h-5" />
+                      Minha Conta
+                    </Link>
+                  </div>
+                  <button 
+                    onClick={handleSignOut} 
+                    className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 text-red-400 font-semibold rounded-xl hover:bg-red-500/20 transition-colors touch-target"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    Sair da Conta
+                  </button>
+                </>
+              ) : (
+                <Link 
+                  to="/entrar" 
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors touch-target"
+                >
+                  <User className="w-5 h-5" />
+                  Entrar ou Cadastrar
+                </Link>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de busca mobile */}
+      <AnimatePresence>
+        {searchOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start pt-20 px-4"
+            onClick={() => setSearchOpen(false)}
+          >
+            <motion.form
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+              onSubmit={handleSearch}
+              onClick={e => e.stopPropagation()}
+              className="w-full relative"
+            >
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar serviço..."
+                className="w-full bg-surface border-2 border-primary rounded-xl pl-10 pr-4 py-4 text-white text-lg placeholder:text-muted outline-none"
+              />
+            </motion.form>
           </motion.div>
         )}
       </AnimatePresence>
