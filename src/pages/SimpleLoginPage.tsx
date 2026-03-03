@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
@@ -65,45 +64,6 @@ export const SimpleLoginPage = () => {
     return () => unsubscribe()
   }, [navigate])
 
-  // Verifica resultado do redirect do Google
-  useEffect(() => {
-    const checkRedirectResult = async () => {
-      try {
-        console.log('🔍 [Login] Verificando redirect result...')
-        const result = await getRedirectResult(auth)
-        console.log('📦 [Login] Redirect result:', result)
-        
-        if (result?.user) {
-          console.log('✅ [Login] Usuário do redirect:', result.user.email)
-          console.log('📸 [Login] photoURL:', result.user.photoURL)
-          console.log('👤 [Login] displayName:', result.user.displayName)
-          
-          await createUserProfile(
-            result.user.uid,
-            result.user.email!,
-            result.user.displayName || result.user.email!.split('@')[0]
-          )
-          
-          console.log('🎉 [Login] Login com Google concluído!')
-          // onAuthStateChanged vai redirecionar
-        } else {
-          console.log('⏹️ [Login] Nenhum redirect pendente')
-        }
-      } catch (err: any) {
-        console.error('❌ [Login] Erro no redirect:', err)
-        console.error('❌ [Login] Código do erro:', err.code)
-        console.error('❌ [Login] Mensagem:', err.message)
-        
-        if (err.code !== 'auth/popup-closed-by-user') {
-          setError('Erro ao processar login. Tente novamente.')
-        }
-        setLoading(false)
-      }
-    }
-    
-    checkRedirectResult()
-  }, [])
-
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -143,9 +103,9 @@ export const SimpleLoginPage = () => {
     setLoading(true)
 
     try {
-      console.log('🔵 [Login] Iniciando redirect para Google...')
+      console.log('🔵 [Login] Iniciando popup do Google...')
       
-      // Garante persistência ANTES do redirect
+      // Garante persistência
       await setPersistence(auth, browserLocalPersistence)
       console.log('✅ [Login] Persistência configurada')
       
@@ -154,20 +114,40 @@ export const SimpleLoginPage = () => {
         prompt: 'select_account'
       })
       
-      console.log('🚀 [Login] Chamando signInWithRedirect...')
-      await signInWithRedirect(auth, provider)
-      console.log('✅ [Login] signInWithRedirect executado (página vai recarregar)')
-      // Página vai recarregar e voltar aqui
+      console.log('🚀 [Login] Abrindo popup...')
+      const result = await signInWithPopup(auth, provider)
+      
+      console.log('✅ [Login] Popup retornou com sucesso!')
+      console.log('👤 [Login] Usuário:', result.user.email)
+      console.log('📸 [Login] photoURL:', result.user.photoURL)
+      
+      await createUserProfile(
+        result.user.uid,
+        result.user.email!,
+        result.user.displayName || result.user.email!.split('@')[0]
+      )
+      
+      console.log('🎉 [Login] Login com Google concluído!')
+      // onAuthStateChanged vai redirecionar
     } catch (err: any) {
       console.error('❌ [Login] Erro Google auth:', err)
       console.error('❌ [Login] Código:', err.code)
       console.error('❌ [Login] Mensagem:', err.message)
-      setError('Erro ao iniciar login com Google')
+      
+      if (err.code === 'auth/popup-blocked') {
+        setError('Popup bloqueado! Permita popups para este site.')
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError('Login cancelado.')
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('Domínio não autorizado. Contate o suporte.')
+      } else {
+        setError('Erro ao fazer login com Google. Tente novamente.')
+      }
       setLoading(false)
     }
   }
 
-  // Mostra loading enquanto verifica redirect ou auth
+  // Mostra loading enquanto verifica auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
