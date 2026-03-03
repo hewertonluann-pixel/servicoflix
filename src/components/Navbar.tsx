@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase, Home, Compass, ShoppingBag, Sparkles } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
+import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
 export const Navbar = () => {
-  const { user, signOut, isProvider, isClient } = useAuth()
+  const { user, signOut, isProvider, isClient } = useSimpleAuth()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
