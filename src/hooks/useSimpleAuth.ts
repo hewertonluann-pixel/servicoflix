@@ -4,6 +4,26 @@ import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { User } from '@/types'
 
+// Função helper para retry automático
+const fetchWithRetry = async <T,>(fn: () => Promise<T>, maxRetries = 3, delay = 1000): Promise<T> => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (error: any) {
+      const isLastAttempt = i === maxRetries - 1
+      const isOfflineError = error?.code === 'unavailable' || error?.message?.includes('offline')
+      
+      if (isLastAttempt || !isOfflineError) {
+        throw error
+      }
+      
+      console.log(`🔁 [useSimpleAuth] Tentativa ${i + 1}/${maxRetries} falhou, tentando novamente em ${delay}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  throw new Error('Max retries exceeded')
+}
+
 export const useSimpleAuth = () => {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -30,10 +50,15 @@ export const useSimpleAuth = () => {
         setUser(basicUser)
         setLoading(false) // Libera UI IMEDIATAMENTE
         
-        // 2️⃣ DEPOIS: Busca dados completos do Firestore (em background)
+        // 2️⃣ DEPOIS: Busca dados completos do Firestore (com retry)
         try {
-          console.log('📄 [useSimpleAuth] Buscando Firestore...')
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
+          console.log('📄 [useSimpleAuth] Buscando Firestore (com retry)...')
+          
+          const userDoc = await fetchWithRetry(
+            () => getDoc(doc(db, 'users', firebaseUser.uid)),
+            3, // 3 tentativas
+            1000 // 1 segundo entre tentativas
+          )
           
           if (userDoc.exists()) {
             const firestoreData = userDoc.data() as User
@@ -49,7 +74,7 @@ export const useSimpleAuth = () => {
             console.log('⚠️ [useSimpleAuth] Doc não existe, usando básico')
           }
         } catch (error) {
-          console.error('❌ [useSimpleAuth] Erro Firestore:', error)
+          console.error('❌ [useSimpleAuth] Erro Firestore após retries:', error)
           // Mantém user básico em caso de erro
         }
       } else {
