@@ -69,3 +69,49 @@ export interface ServiceHistory {
   price: number
   duration: string
 }
+
+// Sistema de Roles (Perfil Duplo)
+export type UserRole = 'client' | 'provider'
+
+export interface ClientProfile {
+  phone?: string
+  address?: string
+  city?: string
+  neighborhood?: string
+  preferences?: string[]
+}
+
+export interface ProviderProfile {
+  specialty: string
+  bio: string
+  city: string
+  neighborhood: string
+  priceFrom: number
+  skills: string[]
+  categories: string[]
+  coverImage?: string
+  phone?: string
+  responseTime?: string
+  completedJobs: number
+  rating: number
+  reviewCount: number
+  verified: boolean
+  videos: {
+    presentation?: string
+    portfolio: string[]
+  }
+}
+
+export interface User {
+  id: string
+  email: string
+  name: string
+  avatar?: string
+  roles: UserRole[]
+  createdAt: string
+  updatedAt: string
+  
+  // Perfis opcionais
+  clientProfile?: ClientProfile
+  providerProfile?: ProviderProfile
+}
