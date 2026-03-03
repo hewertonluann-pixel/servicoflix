@@ -1,13 +1,82 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Zap, User, Briefcase } from 'lucide-react'
+import { Zap, User, Briefcase, AlertCircle } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 type UserType = 'cliente' | 'prestador' | null
 
 export const LoginPage = () => {
+  const navigate = useNavigate()
+  const { signUp, signIn } = useAuth()
+  
   const [userType, setUserType] = useState<UserType>(null)
   const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  
+  // Campos do formulário
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      if (mode === 'register') {
+        // Validações
+        if (!formData.name.trim()) {
+          throw new Error('Digite seu nome completo')
+        }
+        if (!userType) {
+          throw new Error('Selecione se você é cliente ou prestador')
+        }
+        if (formData.password.length < 6) {
+          throw new Error('A senha deve ter no mínimo 6 caracteres')
+        }
+
+        // Cadastro
+        await signUp(formData.email, formData.password, formData.name)
+        
+        // TODO: Salvar userType no Firestore
+        // await setDoc(doc(db, 'users', user.uid), { userType, createdAt: new Date() })
+
+        // Redirecionar
+        if (userType === 'prestador') {
+          navigate('/meu-perfil')
+        } else {
+          navigate('/')
+        }
+      } else {
+        // Login
+        await signIn(formData.email, formData.password)
+        
+        // TODO: Buscar userType do Firestore para saber onde redirecionar
+        navigate('/')
+      }
+    } catch (err: any) {
+      // Traduz erros do Firebase
+      const errorMessages: Record<string, string> = {
+        'auth/email-already-in-use': 'Este e-mail já está cadastrado',
+        'auth/invalid-email': 'E-mail inválido',
+        'auth/weak-password': 'Senha muito fraca',
+        'auth/user-not-found': 'Usuário não encontrado',
+        'auth/wrong-password': 'Senha incorreta',
+        'auth/invalid-credential': 'E-mail ou senha incorretos',
+        'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde',
+      }
+      
+      const message = errorMessages[err.code] || err.message || 'Erro ao processar solicitação'
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-16">
@@ -35,7 +104,11 @@ export const LoginPage = () => {
             {(['login', 'register'] as const).map(m => (
               <button
                 key={m}
-                onClick={() => setMode(m)}
+                type="button"
+                onClick={() => {
+                  setMode(m)
+                  setError('')
+                }}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
                   mode === m ? 'bg-primary text-background' : 'text-muted hover:text-white'
                 }`}
@@ -56,6 +129,7 @@ export const LoginPage = () => {
                 ].map(opt => (
                   <motion.button
                     key={opt.label}
+                    type="button"
                     onClick={() => setUserType(opt.type)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -74,36 +148,74 @@ export const LoginPage = () => {
             </div>
           )}
 
+          {/* Mensagem de erro */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2"
+            >
+              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-400">{error}</p>
+            </motion.div>
+          )}
+
           {/* Formulário */}
-          <form className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
               <input
                 type="text"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Seu nome completo"
+                required
                 className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm placeholder:text-muted outline-none focus:border-primary transition-colors"
               />
             )}
             <input
               type="email"
+              value={formData.email}
+              onChange={e => setFormData({ ...formData, email: e.target.value })}
               placeholder="Seu e-mail"
+              required
               className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm placeholder:text-muted outline-none focus:border-primary transition-colors"
             />
             <input
               type="password"
-              placeholder="Senha"
+              value={formData.password}
+              onChange={e => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Senha (mínimo 6 caracteres)"
+              required
+              minLength={6}
               className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm placeholder:text-muted outline-none focus:border-primary transition-colors"
             />
 
             <motion.button
               type="submit"
-              className="w-full bg-primary text-background font-bold py-3 rounded-xl flex items-center justify-center gap-2"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={loading}
+              className="w-full bg-primary text-background font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              whileHover={!loading ? { scale: 1.02 } : {}}
+              whileTap={!loading ? { scale: 0.98 } : {}}
             >
               <Zap className="w-4 h-4" fill="currentColor" />
-              {mode === 'login' ? 'Entrar' : 'Criar Conta'}
+              {loading 
+                ? (mode === 'login' ? 'Entrando...' : 'Criando conta...') 
+                : (mode === 'login' ? 'Entrar' : 'Criar Conta')
+              }
             </motion.button>
           </form>
+
+          {/* Link de recuperação de senha */}
+          {mode === 'login' && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                className="text-sm text-muted hover:text-primary transition-colors"
+              >
+                Esqueceu a senha?
+              </button>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
