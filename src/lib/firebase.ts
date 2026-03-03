@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { getFirestore, enableIndexedDbPersistence, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getAnalytics, isSupported } from 'firebase/analytics'
 
@@ -29,7 +29,27 @@ const app = initializeApp(firebaseConfig)
 
 // Serviços Firebase
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+// 🔴 Firestore com configuração otimizada
+export const db = initializeFirestore(app, {
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+})
+
+// Habilita persistência offline (IndexedDB)
+if (typeof window !== 'undefined') {
+  enableIndexedDbPersistence(db, {
+    forceOwnership: true // Força ownership em múltiplas abas
+  }).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('⚠️ [Firebase] Múltiplas abas abertas, persistência desabilitada')
+    } else if (err.code === 'unimplemented') {
+      console.warn('⚠️ [Firebase] Navegador não suporta persistência')
+    } else {
+      console.error('❌ [Firebase] Erro ao habilitar persistência:', err)
+    }
+  })
+}
+
 export const storage = getStorage(app)
 
 // Analytics (apenas no cliente, não no SSR)
