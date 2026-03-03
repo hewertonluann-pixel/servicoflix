@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 export const Navbar = () => {
+  const { user, signOut } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
+  const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50)
@@ -16,9 +20,26 @@ export const Navbar = () => {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Fecha menu ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (query.trim()) navigate(`/buscar?q=${encodeURIComponent(query)}`)
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
+    setUserMenuOpen(false)
+    navigate('/')
   }
 
   return (
@@ -82,19 +103,100 @@ export const Navbar = () => {
             )}
           </AnimatePresence>
 
-          <motion.button className="p-2 text-muted hover:text-white relative" whileHover={{ scale: 1.1 }}>
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
-          </motion.button>
+          {user && (
+            <motion.button className="p-2 text-muted hover:text-white relative" whileHover={{ scale: 1.1 }}>
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+            </motion.button>
+          )}
 
-          <Link to="/entrar">
-            <motion.div
-              className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
-              whileHover={{ scale: 1.05 }}
-            >
-              <User className="w-4 h-4 text-muted" />
-            </motion.div>
-          </Link>
+          {/* Menu do usuário */}
+          <div className="relative" ref={userMenuRef}>
+            {user ? (
+              <>
+                <motion.button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-primary transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.displayName || 'Usuário'} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-surface flex items-center justify-center">
+                      <User className="w-4 h-4 text-muted" />
+                    </div>
+                  )}
+                </motion.button>
+
+                {/* Dropdown */}
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-12 w-56 bg-surface border border-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
+                    >
+                      {/* Header do menu */}
+                      <div className="px-4 py-3 border-b border-border">
+                        <p className="text-sm font-bold text-white truncate">{user.displayName || 'Usuário'}</p>
+                        <p className="text-xs text-muted truncate">{user.email}</p>
+                      </div>
+
+                      {/* Opções */}
+                      <div className="py-2">
+                        <Link
+                          to="/meu-perfil"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
+                        >
+                          <Briefcase className="w-4 h-4" />
+                          Meu Perfil
+                        </Link>
+                        <Link
+                          to="/configuracoes"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Configurações
+                        </Link>
+                        <Link
+                          to="/minha-conta"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
+                        >
+                          <UserCircle className="w-4 h-4" />
+                          Minha Conta
+                        </Link>
+                      </div>
+
+                      {/* Logout */}
+                      <div className="border-t border-border py-2">
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-background transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Sair
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            ) : (
+              <Link to="/entrar">
+                <motion.div
+                  className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  <User className="w-4 h-4 text-muted" />
+                </motion.div>
+              </Link>
+            )}
+          </div>
 
           <button className="md:hidden text-muted hover:text-white" onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -113,7 +215,14 @@ export const Navbar = () => {
           >
             <Link to="/" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Início</Link>
             <Link to="/buscar" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Explorar</Link>
-            <Link to="/entrar" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Entrar</Link>
+            {user ? (
+              <>
+                <Link to="/meu-perfil" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Meu Perfil</Link>
+                <button onClick={handleSignOut} className="text-left text-red-400 hover:text-red-300">Sair</button>
+              </>
+            ) : (
+              <Link to="/entrar" onClick={() => setMenuOpen(false)} className="text-muted hover:text-white">Entrar</Link>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
