@@ -2,6 +2,12 @@
 
 Marketplace de serviços com layout inspirado no Netflix. Conecta clientes a prestadores de serviços (faxineiras, encanadores, eletricistas, etc.) com uma experiência visual imersiva.
 
+## 🎨 Design
+
+- **Tema:** Dark mode com acentos verde esmeralda (#10b981)
+- **Estilo:** Netflix-inspired UI
+- **Responsivo:** Mobile-first, otimizado para touch
+
 ## Stack
 
 - **React 18** + **TypeScript**
@@ -21,7 +27,9 @@ src/
 │   ├── HeroBillboard.tsx    # Banner principal rotativo
 │   ├── CategoryRow.tsx      # Carrossel de profissionais
 │   ├── ProviderCard.tsx     # Card com hover expansivo
-│   └── CategoryGrid.tsx     # Grid de categorias
+│   ├── CategoryGrid.tsx     # Grid de categorias
+│   ├── YouTubeEmbed.tsx     # Player de vídeos YouTube/Shorts
+│   └── VideoCarousel.tsx    # Carrossel horizontal de vídeos
 ├── pages/
 │   ├── HomePage.tsx              # Página inicial
 │   ├── ProviderProfilePage.tsx   # Perfil público do profissional
@@ -97,16 +105,20 @@ No Firebase Console, adicione o domínio do Render aos domínios autorizados:
 
 1. Acesse **Authentication** → **Settings** → **Authorized domains**
 2. Adicione: `seu-app.onrender.com`
-3. Salve
+3. Habilite **Google Sign-in** em **Sign-in method**
+4. Salve
 
 ## Funcionalidades
 
 - ✅ Cadastro e login com email/senha
 - ✅ Login com Google (redirect-based)
 - ✅ Dashboard do prestador para editar perfil
+- ✅ Upload de vídeos via YouTube (Shorts e vídeos normais)
+- ✅ Carrossel horizontal de vídeos estilo Netflix
 - ✅ Visualização pública do perfil
 - ✅ Busca e filtros por categoria
-- ✅ Design responsivo estilo Netflix
+- ✅ Design responsivo mobile-first
+- ✅ Menu fullscreen touch-friendly
 
 ## Segurança
 
@@ -124,3 +136,17 @@ As credenciais do Firebase devem estar apenas:
 - [ ] Chat entre cliente e prestador
 - [ ] Sistema de agendamento
 - [ ] Pagamento integrado
+- [ ] Notificações push
+- [ ] PWA (Progressive Web App)
+
+## Paleta de Cores
+
+```css
+--background: #0a0f0a      /* Preto esverdeado */
+--surface: #141a14          /* Cinza escuro esverdeado */
+--surface-hover: #1a231a    /* Cinza hover esverdeado */
+--primary: #10b981          /* Verde esmeralda */
+--primary-dark: #059669     /* Verde escuro */
+--muted: #94a3b8            /* Cinza azulado */
+--border: #1e3a2a           /* Verde muito escuro */
+```
