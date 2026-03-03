@@ -93,7 +93,7 @@ export const ProviderDashboardPage = () => {
   return (
     <div className="min-h-screen pt-16 pb-20">
       {/* Header com cover */}
-      <div className="relative h-64 bg-gradient-to-r from-surface to-surface-hover">
+      <div className="relative h-48 sm:h-64 bg-gradient-to-r from-surface to-surface-hover">
         <img 
           src={profile.coverImage} 
           alt="Cover" 
@@ -102,22 +102,22 @@ export const ProviderDashboardPage = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
         
         {editing && (
-          <button className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm hover:bg-black/80 transition-colors">
+          <button className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-black/60 backdrop-blur-sm text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg flex items-center gap-2 text-xs sm:text-sm hover:bg-black/80 transition-colors touch-target">
             <Camera className="w-4 h-4" />
-            Trocar Capa
+            <span className="hidden xs:inline">Trocar Capa</span>
           </button>
         )}
 
-        <div className="absolute -bottom-16 left-8">
+        <div className="absolute -bottom-12 sm:-bottom-16 left-4 sm:left-8">
           <div className="relative">
             <img 
               src={profile.avatar} 
               alt={profile.name}
-              className="w-32 h-32 rounded-2xl border-4 border-background object-cover"
+              className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl sm:rounded-2xl border-4 border-background object-cover"
             />
             {editing && (
-              <button className="absolute bottom-0 right-0 w-10 h-10 bg-primary rounded-full flex items-center justify-center hover:bg-primary-dark transition-colors">
-                <Camera className="w-5 h-5 text-background" />
+              <button className="absolute bottom-0 right-0 w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-full flex items-center justify-center hover:bg-primary-dark transition-colors touch-target">
+                <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-background" />
               </button>
             )}
           </div>
@@ -125,23 +125,23 @@ export const ProviderDashboardPage = () => {
       </div>
 
       {/* Conteúdo */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 mt-20">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 mt-16 sm:mt-20">
         {/* Header da página */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-2xl font-black text-white mb-1">Meu Perfil</h1>
-            <p className="text-muted text-sm">Gerencie suas informações e preferências</p>
+            <h1 className="text-xl sm:text-2xl font-black text-white mb-1">Meu Perfil</h1>
+            <p className="text-muted text-xs sm:text-sm">Gerencie suas informações e preferências</p>
           </div>
-          <div className="flex gap-3">
-            <Link to={`/profissional/${user?.uid || '1'}`}>
-              <button className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-lg text-white text-sm font-semibold hover:border-primary transition-colors">
+          <div className="flex flex-col xs:flex-row gap-2 sm:gap-3">
+            <Link to={`/profissional/${user?.uid || '1'}`} className="flex-1 xs:flex-initial">
+              <button className="w-full xs:w-auto flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-surface border border-border rounded-lg text-white text-sm font-semibold hover:border-primary transition-colors touch-target">
                 Ver Perfil Público
               </button>
             </Link>
             {!editing ? (
               <button 
                 onClick={() => setEditing(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-background rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-primary text-background rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors touch-target"
               >
                 <Edit2 className="w-4 h-4" />
                 Editar Perfil
@@ -150,14 +150,14 @@ export const ProviderDashboardPage = () => {
               <div className="flex gap-2">
                 <button 
                   onClick={() => setEditing(false)}
-                  className="px-4 py-2 bg-surface border border-border rounded-lg text-muted text-sm font-semibold hover:text-white transition-colors"
+                  className="flex-1 xs:flex-initial px-4 py-2.5 sm:py-2 bg-surface border border-border rounded-lg text-muted text-sm font-semibold hover:text-white transition-colors touch-target"
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-background rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors disabled:opacity-50"
+                  className="flex-1 xs:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-primary text-background rounded-lg text-sm font-bold hover:bg-primary-dark transition-colors disabled:opacity-50 touch-target"
                 >
                   <Save className="w-4 h-4" />
                   {saving ? 'Salvando...' : 'Salvar'}
@@ -168,147 +168,150 @@ export const ProviderDashboardPage = () => {
         </div>
 
         {/* Cards de informações */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid gap-4 sm:gap-6">
           {/* Informações Básicas */}
           <motion.div 
-            className="bg-surface border border-border rounded-xl p-6"
+            className="bg-surface border border-border rounded-xl p-4 sm:p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="flex items-center gap-2 mb-4">
               <User className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-white">Informações Básicas</h2>
+              <h2 className="text-base sm:text-lg font-bold text-white">Informações Básicas</h2>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div>
-                <label className="block text-xs text-muted mb-1">Nome Completo</label>
+                <label className="block text-xs sm:text-sm text-muted mb-1.5">Nome Completo</label>
                 <input 
                   type="text"
                   value={profile.name}
                   onChange={e => setProfile({ ...profile, name: e.target.value })}
                   disabled={!editing}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors"
+                  className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors touch-target"
                 />
               </div>
               <div>
-                <label className="block text-xs text-muted mb-1">Especialidade Principal</label>
+                <label className="block text-xs sm:text-sm text-muted mb-1.5">Especialidade Principal</label>
                 <input 
                   type="text"
                   value={profile.specialty}
                   onChange={e => setProfile({ ...profile, specialty: e.target.value })}
                   disabled={!editing}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors"
+                  className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors touch-target"
                 />
               </div>
               <div>
-                <label className="block text-xs text-muted mb-1">Telefone</label>
+                <label className="block text-xs sm:text-sm text-muted mb-1.5">Telefone</label>
                 <input 
                   type="tel"
                   value={profile.phone}
                   onChange={e => setProfile({ ...profile, phone: e.target.value })}
                   disabled={!editing}
                   placeholder="(00) 00000-0000"
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors"
+                  className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors touch-target"
                 />
               </div>
               <div>
-                <label className="block text-xs text-muted mb-1">E-mail</label>
+                <label className="block text-xs sm:text-sm text-muted mb-1.5">E-mail</label>
                 <input 
                   type="email"
                   value={profile.email}
                   disabled
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-muted text-sm opacity-60 cursor-not-allowed"
+                  className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-muted text-sm sm:text-base opacity-60 cursor-not-allowed"
                 />
-                <p className="text-[10px] text-muted mt-1">O e-mail não pode ser alterado</p>
+                <p className="text-[10px] sm:text-xs text-muted mt-1">O e-mail não pode ser alterado</p>
               </div>
             </div>
           </motion.div>
 
-          {/* Localização */}
-          <motion.div 
-            className="bg-surface border border-border rounded-xl p-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <MapPin className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-white">Localização</h2>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-muted mb-1">Cidade</label>
-                <input 
-                  type="text"
-                  value={profile.city}
-                  onChange={e => setProfile({ ...profile, city: e.target.value })}
-                  disabled={!editing}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors"
-                />
+          {/* Localização e Preço - Grid em desktop */}
+          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
+            {/* Localização */}
+            <motion.div 
+              className="bg-surface border border-border rounded-xl p-4 sm:p-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin className="w-5 h-5 text-primary" />
+                <h2 className="text-base sm:text-lg font-bold text-white">Localização</h2>
               </div>
-              <div>
-                <label className="block text-xs text-muted mb-1">Bairro de Atuação</label>
-                <input 
-                  type="text"
-                  value={profile.neighborhood}
-                  onChange={e => setProfile({ ...profile, neighborhood: e.target.value })}
-                  disabled={!editing}
-                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors"
-                />
+              <div className="space-y-3 sm:space-y-4">
+                <div>
+                  <label className="block text-xs sm:text-sm text-muted mb-1.5">Cidade</label>
+                  <input 
+                    type="text"
+                    value={profile.city}
+                    onChange={e => setProfile({ ...profile, city: e.target.value })}
+                    disabled={!editing}
+                    className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors touch-target"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm text-muted mb-1.5">Bairro de Atuação</label>
+                  <input 
+                    type="text"
+                    value={profile.neighborhood}
+                    onChange={e => setProfile({ ...profile, neighborhood: e.target.value })}
+                    disabled={!editing}
+                    className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors touch-target"
+                  />
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
 
-          {/* Preço */}
-          <motion.div 
-            className="bg-surface border border-border rounded-xl p-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <DollarSign className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-white">Preço Base</h2>
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1">Valor mínimo por serviço</label>
-              <div className="flex items-center gap-2">
-                <span className="text-muted text-sm">R$</span>
-                <input 
-                  type="number"
-                  value={profile.priceFrom}
-                  onChange={e => setProfile({ ...profile, priceFrom: parseInt(e.target.value) || 0 })}
-                  disabled={!editing}
-                  min="0"
-                  step="10"
-                  className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors"
-                />
+            {/* Preço */}
+            <motion.div 
+              className="bg-surface border border-border rounded-xl p-4 sm:p-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <DollarSign className="w-5 h-5 text-primary" />
+                <h2 className="text-base sm:text-lg font-bold text-white">Preço Base</h2>
               </div>
-              <p className="text-[10px] text-muted mt-1">Este é o valor inicial que aparecerá no seu perfil</p>
-            </div>
-          </motion.div>
+              <div>
+                <label className="block text-xs sm:text-sm text-muted mb-1.5">Valor mínimo por serviço</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted text-sm sm:text-base">R$</span>
+                  <input 
+                    type="number"
+                    value={profile.priceFrom}
+                    onChange={e => setProfile({ ...profile, priceFrom: parseInt(e.target.value) || 0 })}
+                    disabled={!editing}
+                    min="0"
+                    step="10"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors touch-target"
+                  />
+                </div>
+                <p className="text-[10px] sm:text-xs text-muted mt-1">Este é o valor inicial que aparecerá no seu perfil</p>
+              </div>
+            </motion.div>
+          </div>
 
           {/* Especialidades */}
           <motion.div 
-            className="bg-surface border border-border rounded-xl p-6"
+            className="bg-surface border border-border rounded-xl p-4 sm:p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Briefcase className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-white">Especialidades</h2>
+              <h2 className="text-base sm:text-lg font-bold text-white">Especialidades</h2>
             </div>
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 {profile.skills.map((skill, i) => (
-                  <div key={i} className="flex items-center gap-1 bg-background border border-border text-sm text-white px-3 py-1.5 rounded-full">
+                  <div key={i} className="flex items-center gap-1.5 bg-background border border-border text-xs sm:text-sm text-white px-3 py-2 rounded-full touch-target">
                     <Star className="w-3 h-3 text-primary" />
                     {skill}
                     {editing && (
                       <button 
                         onClick={() => removeSkill(i)}
-                        className="ml-1 text-muted hover:text-red-400 transition-colors"
+                        className="ml-1 text-muted hover:text-red-400 transition-colors text-lg leading-none"
                       >
                         ×
                       </button>
@@ -317,38 +320,38 @@ export const ProviderDashboardPage = () => {
                 ))}
               </div>
               {editing && (
-                <div className="flex gap-2">
+                <div className="flex flex-col xs:flex-row gap-2">
                   <input 
                     type="text"
                     value={newSkill}
                     onChange={e => setNewSkill(e.target.value)}
                     onKeyPress={e => e.key === 'Enter' && addSkill()}
                     placeholder="Nova especialidade"
-                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none transition-colors"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base focus:border-primary outline-none transition-colors touch-target"
                   />
                   <button 
                     onClick={addSkill}
                     disabled={!newSkill.trim() || profile.skills.length >= 8}
-                    className="px-4 py-2 bg-primary text-background text-sm font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-3 bg-primary text-background text-sm sm:text-base font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target"
                   >
                     Adicionar
                   </button>
                 </div>
               )}
-              <p className="text-[10px] text-muted">Máximo de 8 especialidades ({profile.skills.length}/8)</p>
+              <p className="text-[10px] sm:text-xs text-muted">Máximo de 8 especialidades ({profile.skills.length}/8)</p>
             </div>
           </motion.div>
 
-          {/* Bio - ocupa coluna completa */}
+          {/* Bio */}
           <motion.div 
-            className="md:col-span-2 bg-surface border border-border rounded-xl p-6"
+            className="bg-surface border border-border rounded-xl p-4 sm:p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Edit2 className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-white">Sobre Você</h2>
+              <h2 className="text-base sm:text-lg font-bold text-white">Sobre Você</h2>
             </div>
             <textarea 
               value={profile.bio}
@@ -357,31 +360,31 @@ export const ProviderDashboardPage = () => {
               rows={5}
               maxLength={500}
               placeholder="Conte sobre sua experiência, formação e diferenciais..."
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors resize-none"
+              className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed focus:border-primary outline-none transition-colors resize-none"
             />
-            <div className="flex justify-between items-center mt-1">
-              <p className="text-[10px] text-muted">Esta descrição aparece no seu perfil público</p>
-              <p className="text-[10px] text-muted">{profile.bio.length}/500</p>
+            <div className="flex justify-between items-center mt-2">
+              <p className="text-[10px] sm:text-xs text-muted">Esta descrição aparece no seu perfil público</p>
+              <p className="text-[10px] sm:text-xs text-muted">{profile.bio.length}/500</p>
             </div>
           </motion.div>
 
-          {/* Vídeos - ocupa coluna completa */}
+          {/* Vídeos */}
           <motion.div 
-            className="md:col-span-2 bg-surface border border-border rounded-xl p-6"
+            className="bg-surface border border-border rounded-xl p-4 sm:p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Video className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-bold text-white">Vídeos</h2>
+              <h2 className="text-base sm:text-lg font-bold text-white">Vídeos</h2>
             </div>
 
             <div className="space-y-6">
               {/* Vídeo de apresentação */}
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">Vídeo de Apresentação</label>
-                <p className="text-xs text-muted mb-3">Grave um vídeo se apresentando, falando da sua experiência e diferenciais</p>
+                <label className="block text-sm sm:text-base font-semibold text-white mb-2">Vídeo de Apresentação</label>
+                <p className="text-xs sm:text-sm text-muted mb-3">Grave um vídeo se apresentando, falando da sua experiência e diferenciais</p>
                 
                 {editing ? (
                   <input 
@@ -392,31 +395,31 @@ export const ProviderDashboardPage = () => {
                       videos: { ...profile.videos, presentation: e.target.value }
                     })}
                     placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none transition-colors"
+                    className="w-full bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base focus:border-primary outline-none transition-colors touch-target"
                   />
                 ) : profile.videos.presentation ? (
                   <YouTubeEmbed videoUrl={profile.videos.presentation} title="Vídeo de Apresentação" />
                 ) : (
                   <div className="aspect-video w-full bg-background border border-dashed border-border rounded-xl flex items-center justify-center">
-                    <p className="text-muted text-sm">Nenhum vídeo adicionado</p>
+                    <p className="text-muted text-xs sm:text-sm">Nenhum vídeo adicionado</p>
                   </div>
                 )}
               </div>
 
               {/* Vídeos do portfólio */}
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">Portfólio de Serviços</label>
-                <p className="text-xs text-muted mb-3">Adicione até 5 vídeos mostrando seus trabalhos anteriores (máx: 5)</p>
+                <label className="block text-sm sm:text-base font-semibold text-white mb-2">Portfólio de Serviços</label>
+                <p className="text-xs sm:text-sm text-muted mb-3">Adicione até 5 vídeos mostrando seus trabalhos anteriores (máx: 5)</p>
                 
                 {profile.videos.portfolio.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
                     {profile.videos.portfolio.map((url, i) => (
                       <div key={i} className="relative group">
                         <YouTubeEmbed videoUrl={url} title={`Trabalho ${i + 1}`} showThumbnail />
                         {editing && (
                           <button
                             onClick={() => removePortfolioVideo(i)}
-                            className="absolute top-2 right-2 w-8 h-8 bg-red-500/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                            className="absolute top-2 right-2 w-9 h-9 bg-red-500/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 touch-target"
                           >
                             <Trash2 className="w-4 h-4 text-white" />
                           </button>
@@ -428,7 +431,7 @@ export const ProviderDashboardPage = () => {
 
                 {editing && profile.videos.portfolio.length < 5 && (
                   <div className="space-y-2">
-                    <div className="flex gap-2">
+                    <div className="flex flex-col xs:flex-row gap-2">
                       <input 
                         type="url"
                         value={newVideoUrl}
@@ -438,11 +441,11 @@ export const ProviderDashboardPage = () => {
                         }}
                         onKeyPress={e => e.key === 'Enter' && addPortfolioVideo()}
                         placeholder="https://www.youtube.com/watch?v=..."
-                        className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none transition-colors"
+                        className="flex-1 bg-background border border-border rounded-lg px-3 sm:px-4 py-3 text-white text-sm sm:text-base focus:border-primary outline-none transition-colors touch-target"
                       />
                       <button 
                         onClick={addPortfolioVideo}
-                        className="px-4 py-2 bg-primary text-background text-sm font-bold rounded-lg hover:bg-primary-dark transition-colors flex items-center gap-2"
+                        className="px-4 py-3 bg-primary text-background text-sm sm:text-base font-bold rounded-lg hover:bg-primary-dark transition-colors flex items-center justify-center gap-2 touch-target"
                       >
                         <Plus className="w-4 h-4" />
                         Adicionar
@@ -450,13 +453,13 @@ export const ProviderDashboardPage = () => {
                     </div>
                     
                     {videoError && (
-                      <div className="flex items-center gap-2 text-red-400 text-xs">
-                        <AlertCircle className="w-3 h-3" />
+                      <div className="flex items-center gap-2 text-red-400 text-xs sm:text-sm">
+                        <AlertCircle className="w-4 h-4" />
                         {videoError}
                       </div>
                     )}
                     
-                    <p className="text-[10px] text-muted">
+                    <p className="text-[10px] sm:text-xs text-muted">
                       Cole o link de um vídeo do YouTube ({profile.videos.portfolio.length}/5 adicionados)
                     </p>
                   </div>
@@ -464,7 +467,7 @@ export const ProviderDashboardPage = () => {
 
                 {!editing && profile.videos.portfolio.length === 0 && (
                   <div className="aspect-video w-full bg-background border border-dashed border-border rounded-xl flex items-center justify-center">
-                    <p className="text-muted text-sm">Nenhum vídeo no portfólio</p>
+                    <p className="text-muted text-xs sm:text-sm">Nenhum vídeo no portfólio</p>
                   </div>
                 )}
               </div>
