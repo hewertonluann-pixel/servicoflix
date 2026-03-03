@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Briefcase, MapPin, DollarSign, Star, ArrowRight, Check, X, Clock } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
+import { doc, setDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { ProviderProfile } from '@/types'
 
@@ -47,19 +47,26 @@ export const BecomeProviderPage = () => {
 
     setLoading(true)
     try {
-      // Salva com status 'pending' - aguardando aprovação do admin
-      await updateDoc(doc(db, 'users', user.id), {
-        providerProfile: {
-          ...formData,
-          verified: false,
-          status: 'pending', // ⭐ chave do fluxo de aprovação
-          submittedAt: new Date().toISOString(),
+      // setDoc com merge:true funciona mesmo se o doc ainda não existir no Firestore
+      await setDoc(
+        doc(db, 'users', user.id),
+        {
+          name: user.name,
+          email: user.email,
+          roles: ['client'],
+          providerProfile: {
+            ...formData,
+            verified: false,
+            status: 'pending',
+            submittedAt: new Date().toISOString(),
+          },
         },
-        // NÃO adiciona role 'provider' ainda - só após aprovação do admin
-      })
+        { merge: true }
+      )
       setSubmitted(true)
-    } catch (err) {
-      setError('Erro ao enviar solicitação. Tente novamente.')
+    } catch (err: any) {
+      console.error('Erro ao enviar solicitação:', err)
+      setError(err?.message || 'Erro ao enviar solicitação. Tente novamente.')
     } finally {
       setLoading(false)
     }
@@ -76,7 +83,7 @@ export const BecomeProviderPage = () => {
     setFormData({ ...formData, skills: formData.skills.filter(s => s !== skill) })
   }
 
-  // Já aprovado
+  // Já aprovado como prestador
   if (isProvider) {
     return (
       <div className="min-h-screen pt-16 flex items-center justify-center px-4">
@@ -92,8 +99,8 @@ export const BecomeProviderPage = () => {
     )
   }
 
-  // Aguardando aprovação
-  if (submitted || user?.providerProfile?.status === 'pending') {
+  // Solicitação enviada (estado local) ou já pendente no Firestore
+  if (submitted || (user?.providerProfile as any)?.status === 'pending') {
     return (
       <div className="min-h-screen pt-16 flex items-center justify-center px-4">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
@@ -103,16 +110,12 @@ export const BecomeProviderPage = () => {
             <Clock className="w-10 h-10 text-yellow-400" />
           </div>
           <h1 className="text-2xl font-black text-white mb-3">Solicitação Enviada!</h1>
-          <p className="text-muted mb-2">
-            Seu perfil de prestador foi enviado para análise.
-          </p>
-          <p className="text-muted text-sm mb-8">
-            Nossa equipe irá revisar suas informações e você será notificado em breve.
-          </p>
+          <p className="text-muted mb-2">Seu perfil foi enviado para análise.</p>
+          <p className="text-muted text-sm mb-8">Nossa equipe irá revisar suas informações e você será notificado em breve.</p>
           <div className="bg-surface border border-yellow-500/30 rounded-xl p-4 mb-6 text-left">
             <p className="text-xs text-yellow-400 font-semibold mb-2">⏳ Status: Aguardando aprovação</p>
-            <p className="text-xs text-muted">Especialidade: <span className="text-white">{formData.specialty || user?.providerProfile?.specialty}</span></p>
-            <p className="text-xs text-muted">Cidade: <span className="text-white">{formData.city || user?.providerProfile?.city}</span></p>
+            <p className="text-xs text-muted">Especialidade: <span className="text-white">{formData.specialty || (user?.providerProfile as any)?.specialty}</span></p>
+            <p className="text-xs text-muted">Cidade: <span className="text-white">{formData.city || (user?.providerProfile as any)?.city}</span></p>
           </div>
           <button onClick={() => navigate('/')}
             className="px-6 py-3 bg-surface border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
@@ -130,7 +133,7 @@ export const BecomeProviderPage = () => {
             <Briefcase className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white mb-2">Torne-se um Prestador</h1>
-          <p className="text-muted text-sm sm:text-base">Cadastre seu perfil profissional e comece a receber solicitações de serviços</p>
+          <p className="text-muted text-sm sm:text-base">Cadastre seu perfil profissional e comece a receber solicitações</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
@@ -169,7 +172,7 @@ export const BecomeProviderPage = () => {
             </div>
           )}
 
-          {/* Informações básicas */}
+          {/* Informações Profissionais */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-primary" /> Informações Profissionais
@@ -276,8 +279,11 @@ export const BecomeProviderPage = () => {
             <button type="submit" disabled={loading}
               className="flex-1 px-6 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {loading ? 'Enviando...' : 'Enviar para Aprovação'}
-              {!loading && <ArrowRight className="w-5 h-5" />}
+              {loading ? (
+                <><div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" /> Enviando...</>
+              ) : (
+                <>Enviar para Aprovação <ArrowRight className="w-5 h-5" /></>
+              )}
             </button>
           </div>
         </motion.form>
