@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
@@ -33,6 +34,27 @@ export const SimpleLoginPage = () => {
     }
   }
 
+  // Verifica resultado do redirect do Google
+  useEffect(() => {
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth)
+        if (result?.user) {
+          await createUserProfile(
+            result.user.uid,
+            result.user.email!,
+            result.user.displayName || result.user.email!.split('@')[0]
+          )
+          navigate('/')
+        }
+      } catch (err: any) {
+        console.error('Erro no redirect:', err)
+        setError(err.message || 'Erro ao processar login')
+      }
+    }
+    checkRedirectResult()
+  }, [])
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -59,18 +81,13 @@ export const SimpleLoginPage = () => {
 
     try {
       const provider = new GoogleAuthProvider()
-      const result = await signInWithPopup(auth, provider)
-      await createUserProfile(
-        result.user.uid,
-        result.user.email!,
-        result.user.displayName || result.user.email!.split('@')[0]
-      )
-      navigate('/')
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      })
+      // Usa redirect - compatível com COOP
+      await signInWithRedirect(auth, provider)
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setError(err.message || 'Erro no login com Google')
-      }
-    } finally {
+      setError(err.message || 'Erro no login com Google')
       setLoading(false)
     }
   }
@@ -127,7 +144,7 @@ export const SimpleLoginPage = () => {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Continuar com Google
+            {loading ? 'Redirecionando...' : 'Continuar com Google'}
           </button>
 
           <div className="relative mb-6">
