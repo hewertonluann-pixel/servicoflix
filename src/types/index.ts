@@ -1,38 +1,42 @@
 export interface Provider {
   id: string
   name: string
-  avatar: string
-  coverImage: string
   specialty: string
-  category: string
+  avatar: string
+  coverImage?: string
   rating: number
   reviewCount: number
   priceFrom: number
   city: string
   neighborhood: string
-  isOnline: boolean
-  isTopRated: boolean
-  isFeatured: boolean
+  verified: boolean
   bio: string
   skills: string[]
-  completedJobs: number
+  categories: string[]
+  availability: string[]
   responseTime: string
+  completedJobs: number
+  videos?: {
+    presentation?: string
+    portfolio: string[]
+  }
 }
 
 export interface Category {
   id: string
   name: string
   icon: string
-  color: string
-  count: number
+  description: string
+  providerCount: number
 }
 
 export interface Review {
   id: string
-  clientName: string
-  clientAvatar: string
+  providerId: string
+  userName: string
+  userAvatar: string
   rating: number
   comment: string
   date: string
-  serviceType: string
+  images?: string[]
 }

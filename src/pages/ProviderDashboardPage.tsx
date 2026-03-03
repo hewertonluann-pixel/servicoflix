@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Camera, Save, User, MapPin, DollarSign, Briefcase, Star, Edit2, Upload } from 'lucide-react'
+import { Camera, Save, User, MapPin, DollarSign, Briefcase, Star, Edit2, Video, Trash2, Plus, AlertCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 
 export const ProviderDashboardPage = () => {
   const { user } = useAuth()
@@ -22,9 +23,15 @@ export const ProviderDashboardPage = () => {
     coverImage: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&q=80',
     phone: '',
     email: user?.email || '',
+    videos: {
+      presentation: '',
+      portfolio: [] as string[],
+    },
   })
 
   const [newSkill, setNewSkill] = useState('')
+  const [newVideoUrl, setNewVideoUrl] = useState('')
+  const [videoError, setVideoError] = useState('')
 
   const handleSave = async () => {
     setSaving(true)
@@ -45,6 +52,44 @@ export const ProviderDashboardPage = () => {
     setProfile({ ...profile, skills: profile.skills.filter((_, i) => i !== index) })
   }
 
+  const addPortfolioVideo = () => {
+    setVideoError('')
+    
+    if (!newVideoUrl.trim()) {
+      setVideoError('Digite a URL do vídeo')
+      return
+    }
+
+    if (!isValidYouTubeUrl(newVideoUrl)) {
+      setVideoError('URL inválida. Use um link do YouTube')
+      return
+    }
+
+    if (profile.videos.portfolio.length >= 5) {
+      setVideoError('Máximo de 5 vídeos no portfólio')
+      return
+    }
+
+    setProfile({
+      ...profile,
+      videos: {
+        ...profile.videos,
+        portfolio: [...profile.videos.portfolio, newVideoUrl.trim()]
+      }
+    })
+    setNewVideoUrl('')
+  }
+
+  const removePortfolioVideo = (index: number) => {
+    setProfile({
+      ...profile,
+      videos: {
+        ...profile.videos,
+        portfolio: profile.videos.portfolio.filter((_, i) => i !== index)
+      }
+    })
+  }
+
   return (
     <div className="min-h-screen pt-16 pb-20">
       {/* Header com cover */}
@@ -56,7 +101,6 @@ export const ProviderDashboardPage = () => {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
         
-        {/* Botão de trocar cover */}
         {editing && (
           <button className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm hover:bg-black/80 transition-colors">
             <Camera className="w-4 h-4" />
@@ -64,7 +108,6 @@ export const ProviderDashboardPage = () => {
           </button>
         )}
 
-        {/* Avatar */}
         <div className="absolute -bottom-16 left-8">
           <div className="relative">
             <img 
@@ -319,6 +362,112 @@ export const ProviderDashboardPage = () => {
             <div className="flex justify-between items-center mt-1">
               <p className="text-[10px] text-muted">Esta descrição aparece no seu perfil público</p>
               <p className="text-[10px] text-muted">{profile.bio.length}/500</p>
+            </div>
+          </motion.div>
+
+          {/* Vídeos - ocupa coluna completa */}
+          <motion.div 
+            className="md:col-span-2 bg-surface border border-border rounded-xl p-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Video className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-bold text-white">Vídeos</h2>
+            </div>
+
+            <div className="space-y-6">
+              {/* Vídeo de apresentação */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Vídeo de Apresentação</label>
+                <p className="text-xs text-muted mb-3">Grave um vídeo se apresentando, falando da sua experiência e diferenciais</p>
+                
+                {editing ? (
+                  <input 
+                    type="url"
+                    value={profile.videos.presentation}
+                    onChange={e => setProfile({ 
+                      ...profile, 
+                      videos: { ...profile.videos, presentation: e.target.value }
+                    })}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none transition-colors"
+                  />
+                ) : profile.videos.presentation ? (
+                  <YouTubeEmbed videoUrl={profile.videos.presentation} title="Vídeo de Apresentação" />
+                ) : (
+                  <div className="aspect-video w-full bg-background border border-dashed border-border rounded-xl flex items-center justify-center">
+                    <p className="text-muted text-sm">Nenhum vídeo adicionado</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Vídeos do portfólio */}
+              <div>
+                <label className="block text-sm font-semibold text-white mb-2">Portfólio de Serviços</label>
+                <p className="text-xs text-muted mb-3">Adicione até 5 vídeos mostrando seus trabalhos anteriores (máx: 5)</p>
+                
+                {profile.videos.portfolio.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    {profile.videos.portfolio.map((url, i) => (
+                      <div key={i} className="relative group">
+                        <YouTubeEmbed videoUrl={url} title={`Trabalho ${i + 1}`} showThumbnail />
+                        {editing && (
+                          <button
+                            onClick={() => removePortfolioVideo(i)}
+                            className="absolute top-2 right-2 w-8 h-8 bg-red-500/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                          >
+                            <Trash2 className="w-4 h-4 text-white" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {editing && profile.videos.portfolio.length < 5 && (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input 
+                        type="url"
+                        value={newVideoUrl}
+                        onChange={e => {
+                          setNewVideoUrl(e.target.value)
+                          setVideoError('')
+                        }}
+                        onKeyPress={e => e.key === 'Enter' && addPortfolioVideo()}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none transition-colors"
+                      />
+                      <button 
+                        onClick={addPortfolioVideo}
+                        className="px-4 py-2 bg-primary text-background text-sm font-bold rounded-lg hover:bg-primary-dark transition-colors flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Adicionar
+                      </button>
+                    </div>
+                    
+                    {videoError && (
+                      <div className="flex items-center gap-2 text-red-400 text-xs">
+                        <AlertCircle className="w-3 h-3" />
+                        {videoError}
+                      </div>
+                    )}
+                    
+                    <p className="text-[10px] text-muted">
+                      Cole o link de um vídeo do YouTube ({profile.videos.portfolio.length}/5 adicionados)
+                    </p>
+                  </div>
+                )}
+
+                {!editing && profile.videos.portfolio.length === 0 && (
+                  <div className="aspect-video w-full bg-background border border-dashed border-border rounded-xl flex items-center justify-center">
+                    <p className="text-muted text-sm">Nenhum vídeo no portfólio</p>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         </div>
