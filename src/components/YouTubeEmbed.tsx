@@ -7,6 +7,7 @@ interface YouTubeEmbedProps {
   title?: string
   className?: string
   showThumbnail?: boolean
+  forceVertical?: boolean  // Força formato vertical (para Shorts/Reels)
 }
 
 export const YouTubeEmbed = ({ 
@@ -14,10 +15,12 @@ export const YouTubeEmbed = ({
   autoplay = false, 
   title = 'Vídeo', 
   className = '',
-  showThumbnail = false 
+  showThumbnail = false,
+  forceVertical = false
 }: YouTubeEmbedProps) => {
   const [playing, setPlaying] = useState(!showThumbnail)
   const videoId = extractVideoId(videoUrl)
+  const isShort = isYouTubeShort(videoUrl) || forceVertical
 
   if (!videoId) {
     return (
@@ -30,11 +33,16 @@ export const YouTubeEmbed = ({
   const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
   const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=${autoplay ? 1 : 0}&rel=0`
 
+  // Define aspect ratio baseado no tipo de vídeo
+  const aspectClass = isShort 
+    ? 'aspect-[9/16] max-h-[600px] mx-auto' // Vertical (Shorts/Reels)
+    : 'aspect-video' // Horizontal (vídeos normais)
+
   if (showThumbnail && !playing) {
     return (
       <div 
         onClick={() => setPlaying(true)}
-        className={`relative aspect-video w-full rounded-xl overflow-hidden cursor-pointer group ${className}`}
+        className={`relative ${aspectClass} w-full rounded-xl overflow-hidden cursor-pointer group ${className}`}
       >
         <img 
           src={thumbnailUrl} 
@@ -50,12 +58,17 @@ export const YouTubeEmbed = ({
             <Play className="w-8 h-8 text-background ml-1" fill="currentColor" />
           </div>
         </div>
+        {isShort && (
+          <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-sm px-2 py-1 rounded text-xs text-white font-semibold">
+            Short
+          </div>
+        )}
       </div>
     )
   }
 
   return (
-    <div className={`aspect-video w-full rounded-xl overflow-hidden ${className}`}>
+    <div className={`${aspectClass} w-full rounded-xl overflow-hidden ${className}`}>
       <iframe
         src={embedUrl}
         title={title}
@@ -72,9 +85,12 @@ export function extractVideoId(url: string): string | null {
   if (!url) return null
   
   const patterns = [
+    // Vídeos normais
     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\?]+)/,
     /youtube\.com\/embed\/([^&\?]+)/,
     /youtube\.com\/v\/([^&\?]+)/,
+    // YouTube Shorts
+    /youtube\.com\/shorts\/([^&\?]+)/,
   ]
   
   for (const pattern of patterns) {
@@ -83,6 +99,11 @@ export function extractVideoId(url: string): string | null {
   }
   
   return null
+}
+
+// Detecta se é um YouTube Short
+export function isYouTubeShort(url: string): boolean {
+  return url.includes('/shorts/')
 }
 
 // Função para validar URL do YouTube
