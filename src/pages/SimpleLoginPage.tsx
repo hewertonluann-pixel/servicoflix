@@ -7,6 +7,8 @@ import {
   getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
@@ -18,7 +20,7 @@ export const SimpleLoginPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [loading, setLoading] = useState(true) // Inicia como true para verificar redirect
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const createUserProfile = async (userId: string, email: string, displayName: string) => {
@@ -26,7 +28,7 @@ export const SimpleLoginPage = () => {
       const userDoc = await getDoc(doc(db, 'users', userId))
       
       if (!userDoc.exists()) {
-        console.log('Criando perfil para:', email)
+        console.log('📝 [Login] Criando perfil para:', email)
         await setDoc(doc(db, 'users', userId), {
           email,
           name: displayName,
@@ -34,26 +36,28 @@ export const SimpleLoginPage = () => {
           clientProfile: {},
           createdAt: serverTimestamp(),
         })
-        console.log('Perfil criado com sucesso')
+        console.log('✅ [Login] Perfil criado com sucesso')
       } else {
-        console.log('Perfil já existe')
+        console.log('✅ [Login] Perfil já existe')
       }
     } catch (err) {
-      console.error('Erro ao criar perfil:', err)
+      console.error('❌ [Login] Erro ao criar perfil:', err)
       throw err
     }
   }
 
   // Verifica se já está logado
   useEffect(() => {
+    console.log('🔍 [Login] Montando componente...')
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('AuthStateChanged:', user ? user.email : 'sem user')
+      console.log('🔥 [Login] onAuthStateChanged:', user ? user.email : 'sem user')
       
       if (user) {
-        // Já está logado, redireciona
-        console.log('Usuário já logado, redirecionando...')
+        console.log('✅ [Login] Usuário já logado, redirecionando...')
         navigate('/', { replace: true })
       } else {
+        console.log('⏹️ [Login] Não há usuário, mostrando tela de login')
         setLoading(false)
       }
     })
@@ -65,21 +69,31 @@ export const SimpleLoginPage = () => {
   useEffect(() => {
     const checkRedirectResult = async () => {
       try {
-        console.log('Verificando redirect result...')
+        console.log('🔍 [Login] Verificando redirect result...')
         const result = await getRedirectResult(auth)
-        console.log('Redirect result:', result)
+        console.log('📦 [Login] Redirect result:', result)
         
         if (result?.user) {
-          console.log('Usuário do redirect:', result.user.email)
+          console.log('✅ [Login] Usuário do redirect:', result.user.email)
+          console.log('📸 [Login] photoURL:', result.user.photoURL)
+          console.log('👤 [Login] displayName:', result.user.displayName)
+          
           await createUserProfile(
             result.user.uid,
             result.user.email!,
             result.user.displayName || result.user.email!.split('@')[0]
           )
-          // Não precisa navegar aqui, onAuthStateChanged vai fazer
+          
+          console.log('🎉 [Login] Login com Google concluído!')
+          // onAuthStateChanged vai redirecionar
+        } else {
+          console.log('⏹️ [Login] Nenhum redirect pendente')
         }
       } catch (err: any) {
-        console.error('Erro no redirect:', err)
+        console.error('❌ [Login] Erro no redirect:', err)
+        console.error('❌ [Login] Código do erro:', err.code)
+        console.error('❌ [Login] Mensagem:', err.message)
+        
         if (err.code !== 'auth/popup-closed-by-user') {
           setError('Erro ao processar login. Tente novamente.')
         }
@@ -96,15 +110,22 @@ export const SimpleLoginPage = () => {
     setLoading(true)
 
     try {
+      console.log('📧 [Login] Autenticando com email...')
+      
+      // Garante persistência
+      await setPersistence(auth, browserLocalPersistence)
+      
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password)
+        console.log('✅ [Login] Login com email bem-sucedido')
       } else {
         const result = await createUserWithEmailAndPassword(auth, email, password)
+        console.log('✅ [Login] Conta criada com email')
         await createUserProfile(result.user.uid, email, name || email.split('@')[0])
       }
       // onAuthStateChanged vai redirecionar
     } catch (err: any) {
-      console.error('Erro email auth:', err)
+      console.error('❌ [Login] Erro email auth:', err)
       const errorMessages: Record<string, string> = {
         'auth/user-not-found': 'Usuário não encontrado',
         'auth/wrong-password': 'Senha incorreta',
@@ -122,21 +143,31 @@ export const SimpleLoginPage = () => {
     setLoading(true)
 
     try {
-      console.log('Iniciando redirect para Google...')
+      console.log('🔵 [Login] Iniciando redirect para Google...')
+      
+      // Garante persistência ANTES do redirect
+      await setPersistence(auth, browserLocalPersistence)
+      console.log('✅ [Login] Persistência configurada')
+      
       const provider = new GoogleAuthProvider()
       provider.setCustomParameters({
         prompt: 'select_account'
       })
+      
+      console.log('🚀 [Login] Chamando signInWithRedirect...')
       await signInWithRedirect(auth, provider)
+      console.log('✅ [Login] signInWithRedirect executado (página vai recarregar)')
       // Página vai recarregar e voltar aqui
     } catch (err: any) {
-      console.error('Erro Google auth:', err)
+      console.error('❌ [Login] Erro Google auth:', err)
+      console.error('❌ [Login] Código:', err.code)
+      console.error('❌ [Login] Mensagem:', err.message)
       setError('Erro ao iniciar login com Google')
       setLoading(false)
     }
   }
 
-  // Mostra loading enquanto verifica redirect
+  // Mostra loading enquanto verifica redirect ou auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
