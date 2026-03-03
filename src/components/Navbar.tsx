@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase, Home, Compass } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase, Home, Compass, ShoppingBag, Sparkles } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export const Navbar = () => {
-  const { user, signOut } = useAuth()
+  const { user, signOut, isProvider, isClient } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -88,6 +88,20 @@ export const Navbar = () => {
 
         {/* Ações direita */}
         <div className="flex items-center gap-1 sm:gap-3">
+          {/* Botão "Tornar-se Prestador" - desktop */}
+          {user && !isProvider && (
+            <Link to="/tornar-se-prestador" className="hidden lg:block">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Ser Prestador
+              </motion.button>
+            </Link>
+          )}
+
           {/* Busca mobile - apenas ícone */}
           <button
             onClick={() => setSearchOpen(true)}
@@ -149,8 +163,8 @@ export const Navbar = () => {
                   className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-primary transition-colors touch-target"
                   whileHover={{ scale: 1.05 }}
                 >
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt={user.displayName || 'Usuário'} className="w-full h-full object-cover" />
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-surface flex items-center justify-center">
                       <User className="w-4 h-4 text-muted" />
@@ -167,19 +181,56 @@ export const Navbar = () => {
                       transition={{ duration: 0.15 }}
                       className="absolute right-0 top-12 w-56 bg-surface border border-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
                     >
+                      {/* Header com info do usuário */}
                       <div className="px-4 py-3 border-b border-border">
-                        <p className="text-sm font-bold text-white truncate">{user.displayName || 'Usuário'}</p>
+                        <p className="text-sm font-bold text-white truncate">{user.name}</p>
                         <p className="text-xs text-muted truncate">{user.email}</p>
+                        {isProvider && isClient && (
+                          <div className="flex gap-1 mt-2">
+                            <span className="px-2 py-0.5 bg-primary/20 border border-primary/30 text-primary text-[10px] font-semibold rounded">Prestador</span>
+                            <span className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-[10px] font-semibold rounded">Cliente</span>
+                          </div>
+                        )}
                       </div>
+
                       <div className="py-2">
-                        <Link
-                          to="/meu-perfil"
-                          onClick={() => setUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
-                        >
-                          <Briefcase className="w-4 h-4" />
-                          Meu Perfil
-                        </Link>
+                        {/* Links de Prestador */}
+                        {isProvider && (
+                          <>
+                            <div className="px-3 py-1">
+                              <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Área do Prestador</p>
+                            </div>
+                            <Link
+                              to="/meu-perfil"
+                              onClick={() => setUserMenuOpen(false)}
+                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
+                            >
+                              <Briefcase className="w-4 h-4 text-primary" />
+                              <span>Meu Perfil</span>
+                            </Link>
+                          </>
+                        )}
+
+                        {/* Links de Cliente */}
+                        {isClient && (
+                          <>
+                            {isProvider && <div className="border-t border-border my-2" />}
+                            <div className="px-3 py-1">
+                              <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Área do Cliente</p>
+                            </div>
+                            <Link
+                              to="/minha-conta"
+                              onClick={() => setUserMenuOpen(false)}
+                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
+                            >
+                              <ShoppingBag className="w-4 h-4 text-blue-400" />
+                              <span>Minha Conta</span>
+                            </Link>
+                          </>
+                        )}
+
+                        {/* Configurações */}
+                        <div className="border-t border-border my-2" />
                         <Link
                           to="/configuracoes"
                           onClick={() => setUserMenuOpen(false)}
@@ -188,15 +239,21 @@ export const Navbar = () => {
                           <Settings className="w-4 h-4" />
                           Configurações
                         </Link>
-                        <Link
-                          to="/minha-conta"
-                          onClick={() => setUserMenuOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
-                        >
-                          <UserCircle className="w-4 h-4" />
-                          Minha Conta
-                        </Link>
+
+                        {/* Tornar-se Prestador */}
+                        {!isProvider && (
+                          <Link
+                            to="/tornar-se-prestador"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            <span className="font-semibold">Tornar-se Prestador</span>
+                          </Link>
+                        )}
                       </div>
+
+                      {/* Sair */}
                       <div className="border-t border-border py-2">
                         <button
                           onClick={handleSignOut}
@@ -257,20 +314,28 @@ export const Navbar = () => {
 
               {/* Perfil do usuário */}
               {user && (
-                <div className="flex items-center gap-3 p-4 bg-surface border border-border rounded-xl">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-background">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt={user.displayName || 'Usuário'} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <User className="w-6 h-6 text-muted" />
-                      </div>
-                    )}
+                <div className="p-4 bg-surface border border-border rounded-xl">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <User className="w-6 h-6 text-muted" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{user.name}</p>
+                      <p className="text-xs text-muted truncate">{user.email}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{user.displayName || 'Usuário'}</p>
-                    <p className="text-xs text-muted truncate">{user.email}</p>
-                  </div>
+                  {isProvider && isClient && (
+                    <div className="flex gap-2">
+                      <span className="px-2.5 py-1 bg-primary/20 border border-primary/30 text-primary text-xs font-semibold rounded-full">Prestador</span>
+                      <span className="px-2.5 py-1 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-semibold rounded-full">Cliente</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -297,15 +362,42 @@ export const Navbar = () => {
               {/* Links do usuário */}
               {user ? (
                 <>
+                  {/* Área do Prestador */}
+                  {isProvider && (
+                    <div className="border-t border-border pt-4">
+                      <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Prestador</p>
+                      <div className="space-y-1">
+                        <Link 
+                          to="/meu-perfil" 
+                          onClick={() => setMenuOpen(false)} 
+                          className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
+                        >
+                          <Briefcase className="w-5 h-5 text-primary" />
+                          <span>Meu Perfil</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Área do Cliente */}
+                  {isClient && (
+                    <div className="border-t border-border pt-4">
+                      <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Cliente</p>
+                      <div className="space-y-1">
+                        <Link 
+                          to="/minha-conta" 
+                          onClick={() => setMenuOpen(false)} 
+                          className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
+                        >
+                          <ShoppingBag className="w-5 h-5 text-blue-400" />
+                          <span>Minha Conta</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Configurações */}
                   <div className="border-t border-border pt-4 space-y-1">
-                    <Link 
-                      to="/meu-perfil" 
-                      onClick={() => setMenuOpen(false)} 
-                      className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
-                    >
-                      <Briefcase className="w-5 h-5" />
-                      Meu Perfil
-                    </Link>
                     <Link 
                       to="/configuracoes" 
                       onClick={() => setMenuOpen(false)} 
@@ -314,15 +406,21 @@ export const Navbar = () => {
                       <Settings className="w-5 h-5" />
                       Configurações
                     </Link>
-                    <Link 
-                      to="/minha-conta" 
-                      onClick={() => setMenuOpen(false)} 
-                      className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
-                    >
-                      <UserCircle className="w-5 h-5" />
-                      Minha Conta
-                    </Link>
                   </div>
+
+                  {/* Tornar-se Prestador */}
+                  {!isProvider && (
+                    <Link 
+                      to="/tornar-se-prestador" 
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary/20 border-2 border-primary/30 text-primary font-bold rounded-xl hover:bg-primary/30 transition-colors touch-target"
+                    >
+                      <Sparkles className="w-5 h-5" />
+                      Tornar-se Prestador
+                    </Link>
+                  )}
+
+                  {/* Sair */}
                   <button 
                     onClick={handleSignOut} 
                     className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 text-red-400 font-semibold rounded-xl hover:bg-red-500/20 transition-colors touch-target"
