@@ -6,7 +6,7 @@ import { ProviderDashboardPage } from '@/pages/ProviderDashboardPage'
 import { MyAccountPage } from '@/pages/MyAccountPage'
 import { BecomeProviderPage } from '@/pages/BecomeProviderPage'
 import { SearchPage } from '@/pages/SearchPage'
-import { LoginPage } from '@/pages/LoginPage'
+import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 
 function App() {
   return (
@@ -19,7 +19,7 @@ function App() {
         <Route path="/minha-conta" element={<MyAccountPage />} />
         <Route path="/tornar-se-prestador" element={<BecomeProviderPage />} />
         <Route path="/buscar" element={<SearchPage />} />
-        <Route path="/entrar" element={<LoginPage />} />
+        <Route path="/entrar" element={<SimpleLoginPage />} />
       </Routes>
     </div>
   )
