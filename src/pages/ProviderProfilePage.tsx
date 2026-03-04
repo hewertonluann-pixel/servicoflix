@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, 
-  Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle
+  Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle, Sparkles
 } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -11,12 +11,14 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
 import { RequestServiceModal } from '@/components/RequestServiceModal'
+import { mockProviders } from '@/data/mock'
 
 interface ProviderData {
   id: string
   name: string
   avatar: string
   email: string
+  isMock?: boolean
   providerProfile: {
     specialty: string
     bio: string
@@ -39,6 +41,22 @@ interface ProviderData {
   }
 }
 
+// Fotos de exemplo para perfis mockados
+const mockPhotos = [
+  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80',
+  'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&q=80',
+  'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=400&q=80',
+  'https://images.unsplash.com/photo-1471478331149-c72f17e33c73?w=400&q=80',
+  'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=400&q=80',
+  'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=400&q=80',
+]
+
+// Vídeos de exemplo (YouTube)
+const mockVideos = [
+  'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+]
+
 export const ProviderProfilePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -59,6 +77,50 @@ export const ProviderProfilePage = () => {
       setLoading(true)
       setError('')
       
+      // Verifica se é um perfil mockado
+      if (id.startsWith('mock-')) {
+        console.log('🎭 Carregando perfil de exemplo:', id)
+        const mockProvider = mockProviders.find(p => p.id === id)
+        
+        if (mockProvider) {
+          // Converte mock para formato ProviderData
+          setProvider({
+            id: mockProvider.id,
+            name: mockProvider.name,
+            avatar: mockProvider.avatar,
+            email: '',
+            isMock: true,
+            providerProfile: {
+              specialty: mockProvider.specialty,
+              bio: mockProvider.bio,
+              city: mockProvider.city,
+              neighborhood: mockProvider.neighborhood,
+              priceFrom: mockProvider.priceFrom,
+              skills: mockProvider.skills,
+              phone: mockProvider.whatsapp || '',
+              coverImage: mockProvider.coverImage,
+              responseTime: mockProvider.responseTime,
+              completedJobs: mockProvider.completedJobs,
+              rating: mockProvider.rating,
+              reviewCount: mockProvider.reviewCount,
+              verified: mockProvider.isTopRated,
+              media: {
+                photos: mockPhotos,
+                videos: mockVideos,
+                audios: []
+              }
+            }
+          })
+          setLoading(false)
+          return
+        } else {
+          setError('Perfil de exemplo não encontrado')
+          setLoading(false)
+          return
+        }
+      }
+      
+      // Perfil real - busca no Firestore
       try {
         console.log('🔍 Buscando perfil:', id)
         const docRef = doc(db, 'users', id)
@@ -68,7 +130,6 @@ export const ProviderProfilePage = () => {
           const data = docSnap.data()
           console.log('✅ Perfil encontrado:', data)
           
-          // Verifica se tem providerProfile
           if (!data.providerProfile) {
             console.warn('⚠️ Usuário não é prestador de serviços')
             setError('Este usuário não é um prestador de serviços')
@@ -81,6 +142,7 @@ export const ProviderProfilePage = () => {
             name: data.name || 'Sem nome',
             avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
             email: data.email || '',
+            isMock: false,
             providerProfile: {
               specialty: data.providerProfile.specialty || 'Profissional',
               bio: data.providerProfile.bio || 'Sem descrição',
@@ -169,8 +231,19 @@ export const ProviderProfilePage = () => {
 
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
+      {/* Banner de perfil de exemplo */}
+      {provider.isMock && (
+        <div className="fixed top-16 left-0 right-0 z-50 bg-gradient-to-r from-red-500/90 to-orange-500/90 backdrop-blur-sm py-2 px-4 text-center">
+          <div className="flex items-center justify-center gap-2 text-white text-sm font-bold">
+            <Sparkles className="w-4 h-4" />
+            PERFIL DE EXEMPLO - Dados fictícios para demonstração
+            <Sparkles className="w-4 h-4" />
+          </div>
+        </div>
+      )}
+
       {/* Hero com cover */}
-      <div className="relative h-48 sm:h-64 lg:h-80 bg-gradient-to-br from-primary/20 to-background">
+      <div className={`relative h-48 sm:h-64 lg:h-80 bg-gradient-to-br from-primary/20 to-background ${provider.isMock ? 'mt-10' : ''}`}>
         {provider.providerProfile.coverImage ? (
           <img 
             src={provider.providerProfile.coverImage} 
@@ -185,7 +258,6 @@ export const ProviderProfilePage = () => {
 
       {/* Conteúdo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 sm:-mt-24 lg:-mt-32 relative z-10">
-        {/* Layout: flex-col no mobile, grid no desktop */}
         <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Coluna principal */}
           <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
@@ -284,7 +356,7 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* Portfólio de Vídeos */}
+            {/* Vídeos */}
             {videos.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -355,14 +427,12 @@ export const ProviderProfilePage = () => {
             )}
           </div>
 
-          {/* Sidebar - Escondida no mobile, visível apenas os botões fixos */}
+          {/* Sidebar */}
           <div className="hidden lg:block w-full space-y-6">
-            {/* Card de ações - Desktop only */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="bg-surface border border-border rounded-2xl p-6 sticky top-20"
-            >
+              className="bg-surface border border-border rounded-2xl p-6 sticky top-20">
               <div className="text-center mb-6">
                 <p className="text-muted text-sm mb-1">A partir de</p>
                 <p className="text-3xl font-black text-white">
@@ -373,15 +443,19 @@ export const ProviderProfilePage = () => {
 
               <div className="space-y-3 mb-6">
                 <button 
-                  onClick={() => setModalOpen(true)}
-                  className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target"
+                  onClick={() => !provider.isMock && setModalOpen(true)}
+                  disabled={provider.isMock}
+                  className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Calendar className="w-5 h-5 inline mr-2" />
-                  Solicitar Serviço
+                  {provider.isMock ? 'Perfil de Exemplo' : 'Solicitar Serviço'}
                 </button>
-                <button className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target">
+                <button 
+                  disabled={provider.isMock}
+                  className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <MessageCircle className="w-5 h-5 inline mr-2" />
-                  Enviar Mensagem
+                  {provider.isMock ? 'Perfil de Exemplo' : 'Enviar Mensagem'}
                 </button>
               </div>
 
@@ -406,10 +480,9 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
-      {/* Botões fixos no bottom (mobile only) */}
+      {/* Botões fixos (mobile) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border p-3 sm:p-4 z-40">
         <div className="max-w-2xl mx-auto">
-          {/* Preço */}
           <div className="text-center mb-3">
             <p className="text-muted text-xs mb-0.5">A partir de</p>
             <p className="text-xl font-black text-white">
@@ -417,35 +490,40 @@ export const ProviderProfilePage = () => {
               <span className="text-sm text-muted font-normal">/serviço</span>
             </p>
           </div>
-          {/* Botões */}
           <div className="flex gap-2 sm:gap-3">
             <button 
-              onClick={() => setModalOpen(true)}
-              className="flex-1 bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target"
+              onClick={() => !provider.isMock && setModalOpen(true)}
+              disabled={provider.isMock}
+              className="flex-1 bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target disabled:opacity-50"
             >
               <Calendar className="w-4 h-4 inline mr-1.5" />
-              Solicitar
+              {provider.isMock ? 'Exemplo' : 'Solicitar'}
             </button>
-            <button className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target">
+            <button 
+              disabled={provider.isMock}
+              className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target disabled:opacity-50"
+            >
               <MessageCircle className="w-4 h-4 inline mr-1.5" />
-              Mensagem
+              {provider.isMock ? 'Exemplo' : 'Mensagem'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Modal de solicitação */}
-      <RequestServiceModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        provider={{
-          id: provider.id,
-          name: provider.name,
-          avatar: provider.avatar,
-          specialty: provider.providerProfile.specialty,
-          priceFrom: provider.providerProfile.priceFrom,
-        }}
-      />
+      {/* Modal */}
+      {!provider.isMock && (
+        <RequestServiceModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          provider={{
+            id: provider.id,
+            name: provider.name,
+            avatar: provider.avatar,
+            specialty: provider.providerProfile.specialty,
+            priceFrom: provider.providerProfile.priceFrom,
+          }}
+        />
+      )}
     </div>
   )
 }
