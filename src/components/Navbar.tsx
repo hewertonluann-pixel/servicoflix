@@ -3,16 +3,21 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { useNotifications } from '@/hooks/useNotifications'
+import { NotificationsDropdown } from './NotificationsDropdown'
 
 export const Navbar = () => {
   const { user, signOut, isProvider, isClient } = useSimpleAuth()
+  const { count: notificationsCount } = useNotifications()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const notificationsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50)
@@ -25,6 +30,9 @@ export const Navbar = () => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false)
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -144,14 +152,27 @@ export const Navbar = () => {
             </AnimatePresence>
           </div>
 
-          {user && (
-            <motion.button 
-              className="hidden sm:flex p-2 text-muted hover:text-white relative touch-target" 
-              whileHover={{ scale: 1.1 }}
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
-            </motion.button>
+          {/* Notificações */}
+          {user && isProvider && (
+            <div className="relative" ref={notificationsRef}>
+              <motion.button
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="p-2 text-muted hover:text-white relative touch-target"
+                whileHover={{ scale: 1.1 }}
+              >
+                <Bell className="w-5 h-5" />
+                {notificationsCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-primary text-background text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                    {notificationsCount > 9 ? '9+' : notificationsCount}
+                  </span>
+                )}
+              </motion.button>
+
+              <NotificationsDropdown
+                isOpen={notificationsOpen}
+                onClose={() => setNotificationsOpen(false)}
+              />
+            </div>
           )}
 
           {/* Menu do usuário - desktop */}
@@ -215,7 +236,11 @@ export const Navbar = () => {
                             >
                               <MessageCircle className="w-4 h-4 text-primary" />
                               <span>Solicitações</span>
-                              <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">3</span>
+                              {notificationsCount > 0 && (
+                                <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">
+                                  {notificationsCount}
+                                </span>
+                              )}
                             </Link>
                           </>
                         )}
@@ -391,7 +416,11 @@ export const Navbar = () => {
                         >
                           <MessageCircle className="w-5 h-5 text-primary" />
                           <span>Solicitações</span>
-                          <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">3</span>
+                          {notificationsCount > 0 && (
+                            <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">
+                              {notificationsCount}
+                            </span>
+                          )}
                         </Link>
                       </div>
                     </div>
