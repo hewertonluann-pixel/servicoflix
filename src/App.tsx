@@ -8,6 +8,7 @@ import { BecomeProviderPage } from '@/pages/BecomeProviderPage'
 import { SearchPage } from '@/pages/SearchPage'
 import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 import { AdminPage } from '@/pages/AdminPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 
 function App() {
   const location = useLocation()
@@ -21,6 +22,7 @@ function App() {
         <Route path="/profissional/:id" element={<ProviderProfilePage />} />
         <Route path="/meu-perfil" element={<ProviderDashboardPage />} />
         <Route path="/minha-conta" element={<MyAccountPage />} />
+        <Route path="/configuracoes" element={<SettingsPage />} />
         <Route path="/tornar-se-prestador" element={<BecomeProviderPage />} />
         <Route path="/buscar" element={<SearchPage />} />
         <Route path="/entrar" element={<SimpleLoginPage />} />
