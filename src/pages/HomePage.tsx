@@ -31,7 +31,7 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
   isOnline: true,
   isTopRated: data.providerProfile?.verified || false,
-  isFeatured: data.providerProfile?.verified || false,
+  isFeatured: data.providerProfile?.featured || false,
   bio: data.providerProfile?.bio || '',
   skills: data.providerProfile?.skills || [],
   completedJobs: data.providerProfile?.completedJobs || 0,
@@ -159,11 +159,12 @@ export const HomePage = () => {
   // Seção online
   const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
 
-  // Destaque - owner sempre em primeiro se existir
-  const destaque = applyFilters([
+  // DESTAQUE - prestadores marcados como featured + owner sempre primeiro
+  const featuredProviders = [
     ...(ownerCard ? [ownerCard] : []),
-    ...realProviders.filter(p => p.isTopRated),
-  ])
+    ...realProviders.filter(p => p.isFeatured === true)
+  ]
+  const destaque = applyFilters(featuredProviders)
 
   const allForHero = [
     ...(ownerCard ? [ownerCard] : []),
