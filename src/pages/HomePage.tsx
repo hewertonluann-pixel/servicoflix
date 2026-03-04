@@ -6,7 +6,7 @@ import { HeroBillboard } from '@/components/HeroBillboard'
 import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { FilterBar, Filters } from '@/components/FilterBar'
-import { mockProviders, mocksByCategory, realOwnerProvider, MockProvider } from '@/data/mock'
+import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
 
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
 
@@ -31,7 +31,7 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
   isOnline: true,
   isTopRated: data.providerProfile?.verified || false,
-  isFeatured: false,
+  isFeatured: data.providerProfile?.verified || false,
   bio: data.providerProfile?.bio || '',
   skills: data.providerProfile?.skills || [],
   completedJobs: data.providerProfile?.completedJobs || 0,
@@ -44,7 +44,7 @@ export const HomePage = () => {
   const { user } = useSimpleAuth()
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [ownerExistsInFirestore, setOwnerExistsInFirestore] = useState(false)
+  const [ownerCard, setOwnerCard] = useState<MockProvider | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [filters, setFilters] = useState<Filters>({
     categories: [],
@@ -60,12 +60,18 @@ export const HomePage = () => {
         // Carrega usuários
         const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
-        let ownerFound = false
+        let owner: MockProvider | null = null
 
         usersSnap.docs.forEach(d => {
           const data = d.data()
-          if (d.id === OWNER_UID) ownerFound = true
+          
+          // Se é o owner, guarda separadamente
+          if (d.id === OWNER_UID && data.providerProfile) {
+            owner = docToProvider(d.id, data)
+            return
+          }
 
+          // Outros prestadores aprovados
           if (
             data.roles?.includes('provider') &&
             data.providerProfile?.status === 'approved'
@@ -75,7 +81,7 @@ export const HomePage = () => {
         })
 
         setRealProviders(providers)
-        setOwnerExistsInFirestore(ownerFound)
+        setOwnerCard(owner)
 
         // Carrega categorias do Firestore
         const catSnap = await getDocs(collection(db, 'categories'))
@@ -146,25 +152,24 @@ export const HomePage = () => {
   // Todos os prestadores (reais + mocks) com filtros aplicados
   const allProviders = applyFilters([
     ...realProviders,
+    ...(ownerCard ? [ownerCard] : []),
     ...mockProviders.filter(p => p.isMock),
   ])
 
   // Seção online
   const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
 
-  // Destaque
-  const ownerCard = ownerExistsInFirestore
-    ? realProviders.find(p => p.id === OWNER_UID)
-    : realOwnerProvider
-
+  // Destaque - owner sempre em primeiro se existir
   const destaque = applyFilters([
-    ...(ownerCard ? [ownerCard] : [realOwnerProvider]),
-    ...realProviders.filter(p => p.isTopRated && p.id !== OWNER_UID),
+    ...(ownerCard ? [ownerCard] : []),
+    ...realProviders.filter(p => p.isTopRated),
   ])
 
-  const allForHero = realProviders.length > 0
-    ? [...realProviders, ...mockProviders.filter(p => p.isMock)]
-    : mockProviders
+  const allForHero = [
+    ...(ownerCard ? [ownerCard] : []),
+    ...realProviders,
+    ...mockProviders.filter(p => p.isMock)
+  ]
 
   // Categorias para exibir (se filtro ativo, mostra apenas as selecionadas)
   const categoriesToShow = filters.categories.length > 0
