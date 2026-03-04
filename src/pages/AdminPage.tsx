@@ -4,11 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Shield, Users, Briefcase, Tag, Plus, Trash2, Edit2,
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
-  AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock
+  AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, query, orderBy, arrayUnion, where
+  setDoc, serverTimestamp, arrayUnion
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
@@ -71,30 +71,30 @@ export const AdminPage = () => {
   const [editingProvider, setEditingProvider] = useState<UserData | null>(null)
   const [rejectModal, setRejectModal] = useState<UserData | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  // IDs dos prestadores sendo aprovados/recusados (para loading state)
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
 
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
-    setTimeout(() => setToast(null), 3500)
+    setTimeout(() => setToast(null), 4000)
   }
 
-  // Carrega TODOS os usuários sem orderBy para evitar falha por índice ausente
   const loadUsers = async () => {
     setLoadingData(true)
     try {
       const snap = await getDocs(collection(db, 'users'))
       const allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData))
-      // Ordena no cliente: mais recentes primeiro
       allUsers.sort((a, b) => {
-        const ta = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0
-        const tb = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0
+        const ta = a.createdAt?.toMillis?.() || (a.createdAt?.seconds ?? 0) * 1000
+        const tb = b.createdAt?.toMillis?.() || (b.createdAt?.seconds ?? 0) * 1000
         return tb - ta
       })
       setUsers(allUsers)
     } catch (err: any) {
       console.error('Erro ao carregar usuários:', err)
-      showToast('Erro ao carregar usuários: ' + (err?.message || ''), 'error')
+      showToast('Erro ao carregar: ' + (err?.message || err?.code || 'desconhecido'), 'error')
     } finally {
       setLoadingData(false)
     }
@@ -113,41 +113,71 @@ export const AdminPage = () => {
     if (!authLoading && isAdmin) { loadUsers(); loadCategories() }
   }, [authLoading, isAdmin])
 
+  // Usa setDoc merge:true para garantir que funciona mesmo com estrutura incompleta
   const approveProvider = async (u: UserData) => {
+    setProcessingIds(prev => new Set(prev).add(u.id))
     try {
-      await updateDoc(doc(db, 'users', u.id), {
-        roles: arrayUnion('provider'),
-        'providerProfile.status': 'approved',
-        'providerProfile.verified': true,
-        'providerProfile.approvedAt': new Date().toISOString(),
-      })
+      const currentRoles: string[] = Array.isArray(u.roles) ? u.roles : ['client']
+      const newRoles = currentRoles.includes('provider') ? currentRoles : [...currentRoles, 'provider']
+
+      await setDoc(
+        doc(db, 'users', u.id),
+        {
+          roles: newRoles,
+          providerProfile: {
+            ...(u.providerProfile || {}),
+            status: 'approved',
+            verified: true,
+            approvedAt: new Date().toISOString(),
+          },
+        },
+        { merge: true }
+      )
+
       setUsers(prev => prev.map(p => p.id === u.id ? {
         ...p,
-        roles: [...(p.roles || []), 'provider'],
-        providerProfile: { ...p.providerProfile, status: 'approved', verified: true }
+        roles: newRoles,
+        providerProfile: { ...p.providerProfile, status: 'approved', verified: true },
       } : p))
       showToast(`✅ ${u.name} aprovado como prestador!`)
     } catch (err: any) {
-      showToast('Erro ao aprovar: ' + (err?.message || ''), 'error')
+      console.error('Erro ao aprovar:', err)
+      showToast('❌ Erro ao aprovar: ' + (err?.message || err?.code || 'verifique as regras do Firestore'), 'error')
+    } finally {
+      setProcessingIds(prev => { const s = new Set(prev); s.delete(u.id); return s })
     }
   }
 
   const rejectProvider = async () => {
     if (!rejectModal) return
+    const u = rejectModal
+    setProcessingIds(prev => new Set(prev).add(u.id))
     try {
-      await updateDoc(doc(db, 'users', rejectModal.id), {
-        'providerProfile.status': 'rejected',
-        'providerProfile.rejectedAt': new Date().toISOString(),
-        'providerProfile.rejectionReason': rejectReason,
-      })
-      setUsers(prev => prev.map(p => p.id === rejectModal.id ? {
+      await setDoc(
+        doc(db, 'users', u.id),
+        {
+          providerProfile: {
+            ...(u.providerProfile || {}),
+            status: 'rejected',
+            rejectedAt: new Date().toISOString(),
+            rejectionReason: rejectReason,
+          },
+        },
+        { merge: true }
+      )
+      setUsers(prev => prev.map(p => p.id === u.id ? {
         ...p,
-        providerProfile: { ...p.providerProfile, status: 'rejected' }
+        providerProfile: { ...p.providerProfile, status: 'rejected' },
       } : p))
-      showToast(`Solicitação de ${rejectModal.name} rejeitada`)
+      showToast(`Solicitação de ${u.name} rejeitada`)
       setRejectModal(null)
       setRejectReason('')
-    } catch { showToast('Erro ao rejeitar', 'error') }
+    } catch (err: any) {
+      console.error('Erro ao rejeitar:', err)
+      showToast('❌ Erro ao rejeitar: ' + (err?.message || err?.code || ''), 'error')
+    } finally {
+      setProcessingIds(prev => { const s = new Set(prev); s.delete(u.id); return s })
+    }
   }
 
   const toggleRole = async (userId: string, role: string, hasRole: boolean) => {
@@ -311,7 +341,7 @@ export const AdminPage = () => {
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
-            className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl font-semibold text-sm shadow-lg max-w-xs ${
+            className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl font-semibold text-sm shadow-lg max-w-sm ${
               toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
             }`}
           >{toast.msg}</motion.div>
@@ -427,79 +457,95 @@ export const AdminPage = () => {
                 <p className="text-white font-semibold">Tudo em dia!</p>
                 <p className="text-muted text-sm mt-1">Nenhuma solicitação pendente.</p>
               </div>
-            ) : pendingProviders.map(u => (
-              <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-surface border border-yellow-500/30 rounded-xl p-5"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0">
-                    {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center text-muted text-xl font-bold">{u.name?.[0]?.toUpperCase()}</div>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-white">{u.name}</p>
-                      <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold rounded-full flex items-center gap-1">
-                        <Clock className="w-2.5 h-2.5" /> Pendente
-                      </span>
+            ) : pendingProviders.map(u => {
+              const isProcessing = processingIds.has(u.id)
+              return (
+                <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  className="bg-surface border border-yellow-500/30 rounded-xl p-5"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0">
+                      {u.avatar
+                        ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-muted text-xl font-bold">{u.name?.[0]?.toUpperCase()}</div>}
                     </div>
-                    <p className="text-xs text-muted mb-3">{u.email}</p>
-                    {u.providerProfile && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                        {u.providerProfile.specialty && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">Especialidade</p>
-                            <p className="text-xs text-white font-medium">{u.providerProfile.specialty}</p>
-                          </div>
-                        )}
-                        {u.providerProfile.city && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">Cidade</p>
-                            <p className="text-xs text-white font-medium">{u.providerProfile.city}</p>
-                          </div>
-                        )}
-                        {u.providerProfile.priceFrom && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">Preço a partir de</p>
-                            <p className="text-xs text-primary font-bold">R$ {u.providerProfile.priceFrom}</p>
-                          </div>
-                        )}
-                        {u.providerProfile.submittedAt && (
-                          <div className="bg-background rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-muted">Enviado em</p>
-                            <p className="text-xs text-white font-medium">{new Date(u.providerProfile.submittedAt).toLocaleDateString('pt-BR')}</p>
-                          </div>
-                        )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-sm font-bold text-white">{u.name}</p>
+                        <span className="px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold rounded-full flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5" /> Pendente
+                        </span>
                       </div>
-                    )}
-                    {u.providerProfile?.bio && (
-                      <p className="text-xs text-muted bg-background rounded-lg px-3 py-2 mb-3 line-clamp-2">
-                        {u.providerProfile.bio}
-                      </p>
-                    )}
-                    {u.providerProfile?.skills?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-4">
-                        {u.providerProfile.skills.map((s: string) => (
-                          <span key={s} className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[10px] rounded-full">{s}</span>
-                        ))}
+                      <p className="text-xs text-muted mb-3">{u.email}</p>
+
+                      {u.providerProfile && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                          {u.providerProfile.specialty && (
+                            <div className="bg-background rounded-lg px-3 py-2">
+                              <p className="text-[10px] text-muted">Especialidade</p>
+                              <p className="text-xs text-white font-medium">{u.providerProfile.specialty}</p>
+                            </div>
+                          )}
+                          {u.providerProfile.city && (
+                            <div className="bg-background rounded-lg px-3 py-2">
+                              <p className="text-[10px] text-muted">Cidade</p>
+                              <p className="text-xs text-white font-medium">{u.providerProfile.city}</p>
+                            </div>
+                          )}
+                          {u.providerProfile.priceFrom && (
+                            <div className="bg-background rounded-lg px-3 py-2">
+                              <p className="text-[10px] text-muted">Preço a partir de</p>
+                              <p className="text-xs text-primary font-bold">R$ {u.providerProfile.priceFrom}</p>
+                            </div>
+                          )}
+                          {u.providerProfile.submittedAt && (
+                            <div className="bg-background rounded-lg px-3 py-2">
+                              <p className="text-[10px] text-muted">Enviado em</p>
+                              <p className="text-xs text-white font-medium">
+                                {new Date(u.providerProfile.submittedAt).toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {u.providerProfile?.bio && (
+                        <p className="text-xs text-muted bg-background rounded-lg px-3 py-2 mb-3 line-clamp-2">
+                          {u.providerProfile.bio}
+                        </p>
+                      )}
+
+                      {u.providerProfile?.skills?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-4">
+                          {u.providerProfile.skills.map((s: string) => (
+                            <span key={s} className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-primary text-[10px] rounded-full">{s}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => approveProvider(u)}
+                          disabled={isProcessing}
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500 hover:bg-green-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors"
+                        >
+                          {isProcessing
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Aprovando...</>
+                            : <><Check className="w-4 h-4" /> Aprovar</>}
+                        </button>
+                        <button
+                          onClick={() => { setRejectModal(u); setRejectReason('') }}
+                          disabled={isProcessing}
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 disabled:opacity-60 disabled:cursor-not-allowed text-red-400 text-sm font-bold rounded-xl transition-colors"
+                        >
+                          <X className="w-4 h-4" /> Recusar
+                        </button>
                       </div>
-                    )}
-                    <div className="flex gap-2">
-                      <button onClick={() => approveProvider(u)}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-xl transition-colors"
-                      >
-                        <Check className="w-4 h-4" /> Aprovar
-                      </button>
-                      <button onClick={() => { setRejectModal(u); setRejectReason('') }}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 text-sm font-bold rounded-xl transition-colors"
-                      >
-                        <X className="w-4 h-4" /> Recusar
-                      </button>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              )
+            })}
           </div>
         )}
 
@@ -668,10 +714,12 @@ export const AdminPage = () => {
                 <button onClick={() => setRejectModal(null)}
                   className="flex-1 py-3 bg-background border border-border text-muted rounded-xl hover:text-white transition-colors font-semibold"
                 >Cancelar</button>
-                <button onClick={rejectProvider}
-                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                <button onClick={rejectProvider} disabled={processingIds.has(rejectModal.id)}
+                  className="flex-1 py-3 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
-                  <X className="w-4 h-4" /> Recusar
+                  {processingIds.has(rejectModal.id)
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Recusando...</>
+                    : <><X className="w-4 h-4" /> Recusar</>}
                 </button>
               </div>
             </motion.div>
