@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapPin, ChevronDown, Check } from 'lucide-react'
+import { MapPin, ChevronDown, Check, Navigation, Loader2, AlertCircle } from 'lucide-react'
+import { useGeoLocation } from '@/hooks/useGeoLocation'
 
 const CITIES = [
   'Diamantina',
@@ -20,17 +21,19 @@ interface CitySelectorProps {
 }
 
 export const CitySelector = ({ onChange }: CitySelectorProps) => {
-  const [selectedCity, setSelectedCity] = useState<string>('Diamantina')
   const [isOpen, setIsOpen] = useState(false)
+  const [showGeoPrompt, setShowGeoPrompt] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  
+  const { city, location, loading, error, detectLocation, setManualCity } = useGeoLocation()
 
-  // Carrega cidade do localStorage
+  // Mostra prompt de geolocalização na primeira vez
   useEffect(() => {
-    const saved = localStorage.getItem('selectedCity')
-    if (saved && CITIES.includes(saved)) {
-      setSelectedCity(saved)
+    const hasPrompted = localStorage.getItem('geoLocationPrompted')
+    if (!hasPrompted && !loading && location?.method === 'default') {
+      setShowGeoPrompt(true)
     }
-  }, [])
+  }, [loading, location])
 
   // Fecha dropdown ao clicar fora
   useEffect(() => {
@@ -43,11 +46,22 @@ export const CitySelector = ({ onChange }: CitySelectorProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleSelectCity = (city: string) => {
-    setSelectedCity(city)
-    localStorage.setItem('selectedCity', city)
+  const handleSelectCity = (selectedCity: string) => {
+    setManualCity(selectedCity)
     setIsOpen(false)
+    onChange?.(selectedCity)
+  }
+
+  const handleDetectLocation = async () => {
+    setShowGeoPrompt(false)
+    localStorage.setItem('geoLocationPrompted', 'true')
+    await detectLocation()
     onChange?.(city)
+  }
+
+  const handleDismissGeoPrompt = () => {
+    setShowGeoPrompt(false)
+    localStorage.setItem('geoLocationPrompted', 'true')
   }
 
   return (
@@ -55,18 +69,66 @@ export const CitySelector = ({ onChange }: CitySelectorProps) => {
       {/* Botão */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-primary/20 border border-primary/30 text-primary rounded-lg hover:bg-primary/30 transition-colors group"
+        disabled={loading}
+        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-primary/20 border border-primary/30 text-primary rounded-lg hover:bg-primary/30 transition-colors group disabled:opacity-50"
       >
-        <MapPin className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+        {loading ? (
+          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+        ) : (
+          <MapPin className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+        )}
         <span className="text-xs sm:text-sm font-bold truncate max-w-[80px] sm:max-w-none">
-          {selectedCity}
+          {city}
         </span>
+        {location?.method === 'gps' && (
+          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" title="Localização automática" />
+        )}
         <ChevronDown
           className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform flex-shrink-0 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
       </button>
+
+      {/* Prompt de geolocalização */}
+      <AnimatePresence>
+        {showGeoPrompt && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: -10 }}
+            className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-72 bg-surface border border-primary/30 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 p-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
+                <Navigation className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-white mb-1">
+                  Ativar localização?
+                </h3>
+                <p className="text-xs text-muted mb-3">
+                  Encontre prestadores próximos a você automaticamente
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDetectLocation}
+                    className="flex-1 px-3 py-2 bg-primary text-background text-xs font-bold rounded-lg hover:bg-primary-dark transition-colors"
+                  >
+                    Permitir
+                  </button>
+                  <button
+                    onClick={handleDismissGeoPrompt}
+                    className="px-3 py-2 bg-surface border border-border text-muted text-xs font-semibold rounded-lg hover:text-white transition-colors"
+                  >
+                    Agora não
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Dropdown */}
       <AnimatePresence>
@@ -80,26 +142,64 @@ export const CitySelector = ({ onChange }: CitySelectorProps) => {
           >
             {/* Header */}
             <div className="px-4 py-3 border-b border-border">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                <p className="text-sm font-bold text-white">Selecione sua cidade</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  <p className="text-sm font-bold text-white">Selecione sua cidade</p>
+                </div>
+                {location?.method !== 'manual' && (
+                  <button
+                    onClick={detectLocation}
+                    disabled={loading}
+                    className="p-1 text-primary hover:text-primary-dark transition-colors disabled:opacity-50"
+                    title="Detectar localização"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Navigation className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
               </div>
+              {location && location.method !== 'default' && (
+                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted">
+                  {location.method === 'gps' && (
+                    <>
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full" />
+                      Localização precisa (GPS)
+                    </>
+                  )}
+                  {location.method === 'ip' && (
+                    <>
+                      <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full" />
+                      Localização aproximada (IP)
+                    </>
+                  )}
+                  {location.method === 'manual' && (
+                    <>
+                      <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                      Selecionado manualmente
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Lista de cidades */}
             <div className="py-2 max-h-[280px] overflow-y-auto custom-scrollbar">
-              {CITIES.map(city => (
+              {CITIES.map(cityName => (
                 <button
-                  key={city}
-                  onClick={() => handleSelectCity(city)}
+                  key={cityName}
+                  onClick={() => handleSelectCity(cityName)}
                   className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
-                    city === selectedCity
+                    cityName === city
                       ? 'bg-primary/10 text-primary font-semibold'
                       : 'text-muted hover:text-white hover:bg-background'
                   }`}
                 >
-                  <span>{city}</span>
-                  {city === selectedCity && (
+                  <span>{cityName}</span>
+                  {cityName === city && (
                     <Check className="w-4 h-4" />
                   )}
                 </button>
@@ -108,9 +208,16 @@ export const CitySelector = ({ onChange }: CitySelectorProps) => {
 
             {/* Footer */}
             <div className="px-4 py-3 border-t border-border bg-background/50">
-              <p className="text-[10px] text-muted text-center">
-                Serviços filtrados para {selectedCity}
-              </p>
+              {error ? (
+                <div className="flex items-center gap-2 text-[10px] text-yellow-400">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>{error}</span>
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted text-center">
+                  Serviços filtrados para {city}
+                </p>
+              )}
             </div>
           </motion.div>
         )}
@@ -119,27 +226,8 @@ export const CitySelector = ({ onChange }: CitySelectorProps) => {
   )
 }
 
-// Hook para usar a cidade selecionada
+// Hook para usar a cidade selecionada em outros componentes
 export const useSelectedCity = () => {
-  const [city, setCity] = useState<string>('Diamantina')
-
-  useEffect(() => {
-    const saved = localStorage.getItem('selectedCity')
-    if (saved && CITIES.includes(saved)) {
-      setCity(saved)
-    }
-
-    // Listener para mudanças
-    const handleStorageChange = () => {
-      const newCity = localStorage.getItem('selectedCity')
-      if (newCity && CITIES.includes(newCity)) {
-        setCity(newCity)
-      }
-    }
-
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [])
-
+  const { city } = useGeoLocation()
   return city
 }
