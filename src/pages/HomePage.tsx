@@ -4,10 +4,16 @@ import { db } from '@/lib/firebase'
 import { HeroBillboard } from '@/components/HeroBillboard'
 import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
-import { mockProviders, mockCategories, mocksByCategory, realOwnerProvider, MockProvider } from '@/data/mock'
+import { mockProviders, mocksByCategory, realOwnerProvider, MockProvider } from '@/data/mock'
 
-// UID real do dono no Firebase Auth (Hewerton)
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
+
+interface Category {
+  id: string
+  name: string
+  icon: string
+  active: boolean
+}
 
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
@@ -34,19 +40,20 @@ const docToProvider = (id: string, data: any): MockProvider => ({
 
 export const HomePage = () => {
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [ownerExistsInFirestore, setOwnerExistsInFirestore] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     const load = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'))
+        // Carrega usuários
+        const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
         let ownerFound = false
 
-        snap.docs.forEach(d => {
+        usersSnap.docs.forEach(d => {
           const data = d.data()
-          // Verifica se o dono já tem perfil real no Firestore
           if (d.id === OWNER_UID) ownerFound = true
 
           if (
@@ -59,8 +66,17 @@ export const HomePage = () => {
 
         setRealProviders(providers)
         setOwnerExistsInFirestore(ownerFound)
+
+        // Carrega categorias do Firestore
+        const catSnap = await getDocs(collection(db, 'categories'))
+        const cats: Category[] = catSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Category))
+          .filter(c => c.active) // apenas ativas
+          .sort((a, b) => a.name.localeCompare(b.name))
+
+        setCategories(cats)
       } catch (err) {
-        console.warn('Erro ao carregar prestadores reais:', err)
+        console.warn('Erro ao carregar dados:', err)
       } finally {
         setLoaded(true)
       }
@@ -68,11 +84,11 @@ export const HomePage = () => {
     load()
   }, [])
 
-  // Para cada categoria, usa reais primeiro; completa com mocks se necessário
-  const getMerged = (category: string) => {
-    const reais = realProviders.filter(p => p.category === category)
-    const mocks = mocksByCategory[category] || []
-    const mocksNeeded = mocks.slice(reais.length)
+  // Para cada categoria do Firestore, pega prestadores reais; se <5, completa com mocks
+  const getMerged = (categoryId: string) => {
+    const reais = realProviders.filter(p => p.category === categoryId)
+    const mocks = mocksByCategory[categoryId] || []
+    const mocksNeeded = reais.length < 5 ? mocks.slice(0, 5 - reais.length) : []
     return [...reais, ...mocksNeeded]
   }
 
@@ -82,10 +98,10 @@ export const HomePage = () => {
     ...mockProviders.filter(p => p.isMock && p.isOnline),
   ].slice(0, 10)
 
-  // Destaque: usa perfil real do dono se existir no Firestore, senão usa o mock fixo
+  // Destaque: usa perfil real do dono se existir aprovado, senão usa mock fixo
   const ownerCard = ownerExistsInFirestore
-    ? realProviders.find(p => p.id === OWNER_UID) // perfil real aprovado
-    : realOwnerProvider // fallback: mock fixo sem faixa EXEMPLO
+    ? realProviders.find(p => p.id === OWNER_UID)
+    : realOwnerProvider
 
   const destaque = [
     ...(ownerCard ? [ownerCard] : [realOwnerProvider]),
@@ -109,14 +125,33 @@ export const HomePage = () => {
           <CategoryRow title="🟢 Disponíveis Agora" providers={onlineProviders} badge="ao vivo" />
         )}
 
-        <CategoryGrid categories={mockCategories} />
+        {/* Grid de categorias */}
+        <CategoryGrid categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
 
-        <CategoryRow title="🎵 Música" providers={getMerged('musica')} />
-        <CategoryRow title="🧹 Limpeza e Organização" providers={getMerged('limpeza')} />
-        <CategoryRow title="🏠 Reformas e Reparos" providers={getMerged('reformas')} />
-        <CategoryRow title="📚 Educação" providers={getMerged('educacao')} />
-        <CategoryRow title="💊 Saúde e Bem-Estar" providers={getMerged('saude')} />
-        <CategoryRow title="🌿 Casa e Lar" providers={getMerged('casa')} />
+        {/* Linhas de categorias dinâmicas */}
+        {categories.map(cat => {
+          const providers = getMerged(cat.id)
+          if (providers.length === 0) return null
+          return (
+            <CategoryRow
+              key={cat.id}
+              title={`${cat.icon} ${cat.name}`}
+              providers={providers}
+            />
+          )
+        })}
+
+        {/* Se não houver categorias no Firestore, mostra fallback */}
+        {categories.length === 0 && (
+          <>
+            <CategoryRow title="🎵 Música" providers={getMerged('musica')} />
+            <CategoryRow title="🧹 Limpeza e Organização" providers={getMerged('limpeza')} />
+            <CategoryRow title="🏠 Reformas e Reparos" providers={getMerged('reformas')} />
+            <CategoryRow title="📚 Educação" providers={getMerged('educacao')} />
+            <CategoryRow title="💊 Saúde e Bem-Estar" providers={getMerged('saude')} />
+            <CategoryRow title="🌿 Casa e Lar" providers={getMerged('casa')} />
+          </>
+        )}
       </div>
     </main>
   )
