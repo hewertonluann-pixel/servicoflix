@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Briefcase, MapPin, DollarSign, Star, ArrowRight, Check, X, Clock } from 'lucide-react'
+import { Briefcase, MapPin, DollarSign, Star, ArrowRight, Check, X, Clock, User } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -24,6 +24,7 @@ export const BecomeProviderPage = () => {
     categories: [],
     completedJobs: 0,
     verified: false,
+    professionalName: '', // Nome profissional (banda, grupo, nome artístico)
   })
 
   const [newSkill, setNewSkill] = useState('')
@@ -50,18 +51,20 @@ export const BecomeProviderPage = () => {
       await setDoc(
         doc(db, 'users', user.id),
         {
-          name: user.name,
+          name: user.name, // Nome pessoal (cliente)
           email: user.email,
           roles: ['client'],
-          createdAt: serverTimestamp(), // garante que createdAt existe para o admin listar
+          createdAt: serverTimestamp(),
           providerProfile: {
             ...formData,
             verified: false,
             status: 'pending',
             submittedAt: new Date().toISOString(),
+            // Se não especificou nome profissional, usa o nome pessoal
+            professionalName: formData.professionalName.trim() || user.name,
           },
         },
-        { merge: true } // não sobrescreve campos existentes
+        { merge: true }
       )
       setSubmitted(true)
     } catch (err: any) {
@@ -169,6 +172,37 @@ export const BecomeProviderPage = () => {
             </div>
           )}
 
+          {/* SEÇÃO: IDENTIFICAÇÃO */}
+          <div>
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <User className="w-5 h-5 text-primary" /> Identificação
+            </h3>
+            <div className="space-y-4">
+              <div className="bg-background/50 border border-border/50 rounded-lg p-4">
+                <label className="block text-sm text-muted mb-1">Nome Pessoal (Cliente)</label>
+                <p className="text-white font-semibold">{user?.name || 'Seu nome'}</p>
+                <p className="text-xs text-muted mt-1">👤 Este é o nome usado quando você contrata serviços</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm text-muted mb-1.5">
+                  Nome Profissional <span className="text-xs opacity-70">(Opcional)</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={formData.professionalName}
+                  onChange={e => setFormData({ ...formData, professionalName: e.target.value })}
+                  placeholder={`Deixe vazio para usar "${user?.name || 'seu nome'}"`}
+                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors"
+                />
+                <p className="text-xs text-muted mt-1.5">
+                  🎭 Aparece no seu perfil de prestador. Ex: "Banda XYZ", "Conjunto Musical ABC", "Dupla Sertaneja", etc.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* SEÇÃO: INFORMAÇÕES PROFISSIONAIS */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-primary" /> Informações Profissionais
@@ -194,6 +228,7 @@ export const BecomeProviderPage = () => {
             </div>
           </div>
 
+          {/* SEÇÃO: LOCALIZAÇÃO */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-primary" /> Localização
@@ -216,6 +251,7 @@ export const BecomeProviderPage = () => {
             </div>
           </div>
 
+          {/* SEÇÃO: ESPECIALIDADES */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Star className="w-5 h-5 text-primary" /> Especialidades
@@ -248,6 +284,7 @@ export const BecomeProviderPage = () => {
             </div>
           </div>
 
+          {/* SEÇÃO: PREÇO */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-primary" /> Preço Base
@@ -265,6 +302,7 @@ export const BecomeProviderPage = () => {
             </div>
           </div>
 
+          {/* BOTÕES */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button type="button" onClick={() => navigate(-1)}
               className="flex-1 px-6 py-3 bg-surface border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
