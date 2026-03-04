@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Shield, Users, Briefcase, Tag, Plus, Trash2, Edit2,
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
-  AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2
+  AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2, Sparkles
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
@@ -42,7 +42,7 @@ const ICON_GROUPS = [
   { label: '🔧 Serviços', icons: ['🔧', '🏠', '🚿', '⚡', '🌿', '🎨', '🚗', '📦', '🍽️', '🐾', '💻', '📸'] },
   { label: '🏋️ Saúde', icons: ['🏋️', '🧘', '💪', '🏥', '💊', '🦷', '🚴', '🏊', '🧖', '🤼', '🏃', '🧗'] },
   { label: '📚 Educação', icons: ['📚', '🎓', '✏️', '📝', '💻', '🔬', '🧠', '🏆', '📊', '🗺️', '📰', '💼'] },
-  { label: '🌿 Casa', icons: ['🌿', '🪴', '🔑', '🧹', '🧰', '🚪', '🛏️', '🛢️', '💧', '🔥', '✂️', '🪣'] },
+  { label: '🌿 Casa', icons: ['🌿', '🪴', '🔑', '🧹', '🧪', '🚪', '🛌️', '🛢️', '💧', '🔥', '✂️', '🪣'] },
 ]
 
 const EMPTY_PROVIDER_FORM = {
@@ -71,7 +71,6 @@ export const AdminPage = () => {
   const [editingProvider, setEditingProvider] = useState<UserData | null>(null)
   const [rejectModal, setRejectModal] = useState<UserData | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  // IDs dos prestadores sendo aprovados/recusados (para loading state)
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
 
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
@@ -113,7 +112,6 @@ export const AdminPage = () => {
     if (!authLoading && isAdmin) { loadUsers(); loadCategories() }
   }, [authLoading, isAdmin])
 
-  // Usa setDoc merge:true para garantir que funciona mesmo com estrutura incompleta
   const approveProvider = async (u: UserData) => {
     setProcessingIds(prev => new Set(prev).add(u.id))
     try {
@@ -188,6 +186,19 @@ export const AdminPage = () => {
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, roles: newRoles } : u))
       showToast(`Role '${role}' ${hasRole ? 'removida' : 'adicionada'}!`)
     } catch { showToast('Erro ao atualizar role', 'error') }
+  }
+
+  const toggleFeatured = async (userId: string, isFeatured: boolean) => {
+    try {
+      await updateDoc(doc(db, 'users', userId), { 'providerProfile.featured': !isFeatured })
+      setUsers(prev => prev.map(u => u.id === userId ? {
+        ...u,
+        providerProfile: { ...u.providerProfile, featured: !isFeatured }
+      } : u))
+      showToast(`${!isFeatured ? '⭐ Adicionado aos' : '❌ Removido dos'} destaques!`)
+    } catch (err: any) {
+      showToast('❌ Erro ao atualizar destaque: ' + (err?.message || ''), 'error')
+    }
   }
 
   const deleteUser = async (userId: string) => {
@@ -325,6 +336,7 @@ export const AdminPage = () => {
   const providers = users.filter(u => u.roles?.includes('provider'))
   const clients = users.filter(u => !u.roles?.includes('provider'))
   const pendingProviders = users.filter(u => u.providerProfile?.status === 'pending')
+  const featuredProviders = providers.filter(u => u.providerProfile?.featured === true)
   const filteredUsers = users.filter(u =>
     u.name?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase())
@@ -420,7 +432,14 @@ export const AdminPage = () => {
           <p className="text-xs text-muted">
             {activeTab === 'pendentes' && `${pendingProviders.length} aguardando aprovação`}
             {activeTab === 'usuarios' && `${filteredUsers.length} usuários`}
-            {activeTab === 'prestadores' && `${filteredProviders.length} prestadores`}
+            {activeTab === 'prestadores' && (
+              <span>
+                {filteredProviders.length} prestadores
+                {featuredProviders.length > 0 && (
+                  <span className="ml-2 text-yellow-400">• {featuredProviders.length} em destaque</span>
+                )}
+              </span>
+            )}
             {activeTab === 'categorias' && `${categories.length} categorias`}
           </p>
           <div className="flex gap-2">
@@ -605,55 +624,85 @@ export const AdminPage = () => {
                 <p className="font-semibold">Nenhum prestador ainda</p>
                 <p className="text-xs mt-1">Clique em "Novo Prestador" para adicionar</p>
               </div>
-            ) : filteredProviders.map(u => (
-              <motion.div key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="bg-surface border border-border rounded-xl p-4"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0">
-                    {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center text-muted text-xl">{u.name?.[0]?.toUpperCase()}</div>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-bold text-white">{u.name}</p>
-                        <p className="text-xs text-muted">{u.email}</p>
-                      </div>
-                      <div className="flex gap-2 flex-wrap justify-end">
-                        {u.providerProfile?.verified ? (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 border border-green-500/30 text-green-400 text-[10px] font-semibold rounded-full">
-                            <Check className="w-3 h-3" /> Verificado
-                          </span>
-                        ) : (
-                          <button onClick={async () => {
-                            await updateDoc(doc(db, 'users', u.id), { 'providerProfile.verified': true })
-                            setUsers(prev => prev.map(p => p.id === u.id ? { ...p, providerProfile: { ...p.providerProfile, verified: true } } : p))
-                            showToast('Prestador verificado!')
-                          }} className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-semibold rounded-full hover:bg-green-500/20 hover:text-green-400 transition-colors">
-                            <Check className="w-3 h-3" /> Verificar
-                          </button>
-                        )}
-                        <button onClick={() => openEditProvider(u)}
-                          className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-[10px] font-semibold rounded-full hover:bg-blue-500/30 transition-colors"
-                        ><Edit2 className="w-3 h-3" /> Editar</button>
-                        <button onClick={() => toggleRole(u.id, 'provider', true)}
-                          className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-semibold rounded-full hover:bg-red-500/30 transition-colors"
-                        ><X className="w-3 h-3" /> Remover</button>
-                      </div>
+            ) : filteredProviders.map(u => {
+              const isFeatured = u.providerProfile?.featured === true
+              return (
+                <motion.div key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className={`bg-surface border rounded-xl p-4 ${isFeatured ? 'border-yellow-500/50' : 'border-border'}`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-background shrink-0 relative">
+                      {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-muted text-xl">{u.name?.[0]?.toUpperCase()}</div>}
+                      {isFeatured && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center border-2 border-background">
+                          <Star className="w-3 h-3 text-background" fill="currentColor" />
+                        </div>
+                      )}
                     </div>
-                    {u.providerProfile && (
-                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        {u.providerProfile.specialty && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted">Especialidade</p><p className="text-xs text-white font-medium">{u.providerProfile.specialty}</p></div>}
-                        {u.providerProfile.city && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted flex items-center gap-1"><MapPin className="w-2.5 h-2.5" />Cidade</p><p className="text-xs text-white font-medium">{u.providerProfile.city}</p></div>}
-                        {u.providerProfile.priceFrom && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted flex items-center gap-1"><DollarSign className="w-2.5 h-2.5" />A partir de</p><p className="text-xs text-primary font-bold">R$ {u.providerProfile.priceFrom}</p></div>}
-                        {u.providerProfile.skills?.length > 0 && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted flex items-center gap-1"><Star className="w-2.5 h-2.5" />Skills</p><p className="text-xs text-white font-medium">{u.providerProfile.skills.length} habilidades</p></div>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-white">{u.name}</p>
+                            {isFeatured && (
+                              <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold rounded-full">
+                                <Star className="w-2.5 h-2.5" fill="currentColor" /> Destaque
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted">{u.email}</p>
+                        </div>
+                        <div className="flex gap-2 flex-wrap justify-end">
+                          <button
+                            onClick={() => toggleFeatured(u.id, isFeatured)}
+                            className={`flex items-center gap-1 px-2 py-0.5 border text-[10px] font-semibold rounded-full transition-colors ${
+                              isFeatured
+                                ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30'
+                                : 'bg-surface border-border text-muted hover:bg-yellow-500/20 hover:text-yellow-400 hover:border-yellow-500/30'
+                            }`}
+                            title={isFeatured ? 'Remover dos destaques' : 'Adicionar aos destaques'}
+                          >
+                            {isFeatured ? (
+                              <><X className="w-3 h-3" /> Rem. Destaque</>
+                            ) : (
+                              <><Star className="w-3 h-3" /> Destacar</>
+                            )}
+                          </button>
+                          {u.providerProfile?.verified ? (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 border border-green-500/30 text-green-400 text-[10px] font-semibold rounded-full">
+                              <Check className="w-3 h-3" /> Verificado
+                            </span>
+                          ) : (
+                            <button onClick={async () => {
+                              await updateDoc(doc(db, 'users', u.id), { 'providerProfile.verified': true })
+                              setUsers(prev => prev.map(p => p.id === u.id ? { ...p, providerProfile: { ...p.providerProfile, verified: true } } : p))
+                              showToast('Prestador verificado!')
+                            }} className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-semibold rounded-full hover:bg-green-500/20 hover:text-green-400 transition-colors">
+                              <Check className="w-3 h-3" /> Verificar
+                            </button>
+                          )}
+                          <button onClick={() => openEditProvider(u)}
+                            className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-400 text-[10px] font-semibold rounded-full hover:bg-blue-500/30 transition-colors"
+                          ><Edit2 className="w-3 h-3" /> Editar</button>
+                          <button onClick={() => toggleRole(u.id, 'provider', true)}
+                            className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-semibold rounded-full hover:bg-red-500/30 transition-colors"
+                          ><X className="w-3 h-3" /> Remover</button>
+                        </div>
                       </div>
-                    )}
+                      {u.providerProfile && (
+                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {u.providerProfile.specialty && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted">Especialidade</p><p className="text-xs text-white font-medium">{u.providerProfile.specialty}</p></div>}
+                          {u.providerProfile.city && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted flex items-center gap-1"><MapPin className="w-2.5 h-2.5" />Cidade</p><p className="text-xs text-white font-medium">{u.providerProfile.city}</p></div>}
+                          {u.providerProfile.priceFrom && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted flex items-center gap-1"><DollarSign className="w-2.5 h-2.5" />A partir de</p><p className="text-xs text-primary font-bold">R$ {u.providerProfile.priceFrom}</p></div>}
+                          {u.providerProfile.skills?.length > 0 && <div className="bg-background rounded-lg px-3 py-2"><p className="text-[10px] text-muted flex items-center gap-1"><Star className="w-2.5 h-2.5" />Skills</p><p className="text-xs text-white font-medium">{u.providerProfile.skills.length} habilidades</p></div>}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              )
+            })}
           </div>
         )}
 
@@ -692,7 +741,7 @@ export const AdminPage = () => {
         )}
       </div>
 
-      {/* MODAL: RECUSAR */}
+      {/* MODAIS (Rejeitar, Prestador, Categoria) - mantidos iguais */}
       <AnimatePresence>
         {rejectModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
