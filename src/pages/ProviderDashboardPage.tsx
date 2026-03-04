@@ -317,31 +317,31 @@ export const ProviderDashboardPage = () => {
         </div>
       )}
 
-      {/* Banner NOVO: Portfólio Multimídia */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-primary/20 via-purple-500/20 to-primary/20 border border-primary/30 rounded-xl p-4 flex items-center gap-4"
-        >
-          <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-bold text-white mb-0.5">🎉 Novo! Portfólio Multimídia</h3>
-            <p className="text-xs text-muted">Agora você pode adicionar fotos, vídeos E áudios no seu perfil!</p>
-          </div>
-          <button
-            onClick={() => navigate('/meu-perfil/editar')}
-            className="px-4 py-2 bg-primary text-background font-bold text-sm rounded-lg hover:bg-primary-dark transition-colors shrink-0"
-          >
-            Editar Agora
-          </button>
-        </motion.div>
-      </div>
-
       {/* Conteúdo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 sm:-mt-24 lg:-mt-32 relative z-10">
+        {/* Banner NOVO: Portfólio Multimídia - MOVIDO PARA DENTRO DO CONTAINER */}
+        <div className="mb-4 relative z-20">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-primary/20 via-purple-500/20 to-primary/20 border border-primary/30 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4"
+          >
+            <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-white mb-0.5">🎉 Novo! Portfólio Multimídia</h3>
+              <p className="text-xs text-muted">Adicione fotos, vídeos e áudios no seu perfil!</p>
+            </div>
+            <button
+              onClick={() => navigate('/meu-perfil/editar')}
+              className="w-full sm:w-auto px-4 py-2 bg-primary text-background font-bold text-sm rounded-lg hover:bg-primary-dark transition-colors shrink-0"
+            >
+              Editar Agora
+            </button>
+          </motion.div>
+        </div>
+
         {/* Botões de ação no topo (mobile) */}
         <div className="lg:hidden flex justify-end gap-2 mb-4">
           <Link to={`/profissional/${user?.id || '1'}`}>
