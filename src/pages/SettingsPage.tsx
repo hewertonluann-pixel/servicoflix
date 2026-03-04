@@ -4,17 +4,29 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   User, Bell, Lock, Palette, LogOut, Trash2, Camera,
   ChevronRight, Check, Sun, Moon, Monitor, Eye, EyeOff,
-  Mail, Phone, AlertTriangle, Loader2, Shield, Save
+  Mail, Phone, AlertTriangle, Loader2, Shield, Save,
+  CreditCard, Plus, X, MapPin, Sliders, HelpCircle,
+  FileText, MessageCircle, ExternalLink, Download,
+  Tag, DollarSign, Compass
 } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { doc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage, auth } from '@/lib/firebase'
 import { deleteUser } from 'firebase/auth'
 
-type Section = 'conta' | 'notificacoes' | 'privacidade' | 'aparencia'
+type Section = 'conta' | 'notificacoes' | 'privacidade' | 'aparencia' | 'pagamentos' | 'preferencias' | 'suporte'
 type Theme = 'dark' | 'light' | 'system'
 type ProfileVisibility = 'public' | 'providers-only' | 'private'
+
+interface PaymentMethod {
+  id: string
+  type: 'card' | 'pix'
+  last4?: string
+  brand?: string
+  pixKey?: string
+  isDefault: boolean
+}
 
 interface UserSettings {
   theme: Theme
@@ -30,6 +42,13 @@ interface UserSettings {
     showPhone: boolean
     showEmail: boolean
   }
+  preferences: {
+    favoriteCategories: string[]
+    priceRange: { min: number; max: number }
+    searchRadius: number
+    onlyVerified: boolean
+    minRating: number
+  }
 }
 
 export const SettingsPage = () => {
@@ -41,6 +60,9 @@ export const SettingsPage = () => {
   const [deleteModal, setDeleteModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [addPaymentModal, setAddPaymentModal] = useState(false)
+  const [categories, setCategories] = useState<any[]>([])
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const [profile, setProfile] = useState({
@@ -63,6 +85,13 @@ export const SettingsPage = () => {
       showPhone: true,
       showEmail: false,
     },
+    preferences: {
+      favoriteCategories: [],
+      priceRange: { min: 50, max: 500 },
+      searchRadius: 20,
+      onlyVerified: false,
+      minRating: 4.0,
+    },
   })
 
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
@@ -72,14 +101,25 @@ export const SettingsPage = () => {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // Carrega configurações do usuário do Firestore
+  // Carrega categorias do Firestore
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'categories'))
+        setCategories(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      } catch (err) {
+        console.error('Erro ao carregar categorias:', err)
+      }
+    }
+    loadCategories()
+  }, [])
+
   useEffect(() => {
     if (user?.settings) {
       setSettings({ ...settings, ...user.settings })
     }
   }, [user])
 
-  // Aplica tema
   useEffect(() => {
     const root = document.documentElement
     if (settings.theme === 'system') {
@@ -165,11 +205,8 @@ export const SettingsPage = () => {
     
     setDeleting(true)
     try {
-      // 1. Exclui documento do Firestore
       await deleteDoc(doc(db, 'users', user.id))
-      // 2. Exclui autenticação do Firebase
       await deleteUser(firebaseUser)
-      // 3. Redireciona
       navigate('/')
       showToast('✅ Conta excluída')
     } catch (err: any) {
@@ -182,6 +219,41 @@ export const SettingsPage = () => {
     } finally {
       setDeleting(false)
     }
+  }
+
+  const toggleFavoriteCategory = (catId: string) => {
+    setSettings(s => ({
+      ...s,
+      preferences: {
+        ...s.preferences,
+        favoriteCategories: s.preferences.favoriteCategories.includes(catId)
+          ? s.preferences.favoriteCategories.filter(c => c !== catId)
+          : [...s.preferences.favoriteCategories, catId].slice(0, 5)
+      }
+    }))
+  }
+
+  const exportData = async () => {
+    if (!user) return
+    const data = {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        roles: user.roles,
+        createdAt: user.createdAt,
+      },
+      settings,
+      exportedAt: new Date().toISOString(),
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `servicoflix-dados-${user.id}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('✅ Dados exportados!')
   }
 
   if (!user) {
@@ -204,6 +276,9 @@ export const SettingsPage = () => {
     { id: 'notificacoes', icon: Bell, label: 'Notificações', desc: 'Emails e alertas' },
     { id: 'privacidade', icon: Lock, label: 'Privacidade', desc: 'Visibilidade do perfil' },
     { id: 'aparencia', icon: Palette, label: 'Aparência', desc: 'Tema escuro/claro' },
+    { id: 'pagamentos', icon: CreditCard, label: 'Pagamentos', desc: 'Métodos e histórico' },
+    { id: 'preferencias', icon: Sliders, label: 'Preferências', desc: 'Categorias e filtros' },
+    { id: 'suporte', icon: HelpCircle, label: 'Suporte', desc: 'Ajuda e contato' },
   ] as const
 
   return (
@@ -463,6 +538,225 @@ export const SettingsPage = () => {
           )}
         </AnimatePresence>
 
+        {/* SEÇÃO: PAGAMENTOS */}
+        <AnimatePresence>
+          {activeSection === 'pagamentos' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              className="mt-4 bg-surface border border-border rounded-xl p-6 space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">Métodos de pagamento</p>
+                  <p className="text-xs text-muted mt-0.5">Gerencie seus cartões e Pix</p>
+                </div>
+                <button
+                  onClick={() => setAddPaymentModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Adicionar
+                </button>
+              </div>
+
+              {paymentMethods.length === 0 ? (
+                <div className="text-center py-12 bg-background rounded-xl">
+                  <CreditCard className="w-12 h-12 text-muted mx-auto mb-3" />
+                  <p className="text-sm text-muted">Nenhum método de pagamento cadastrado</p>
+                  <p className="text-xs text-muted mt-1">Adicione um cartão ou chave Pix</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {paymentMethods.map(method => (
+                    <div key={method.id} className="flex items-center gap-3 p-4 bg-background rounded-lg border border-border">
+                      <CreditCard className="w-6 h-6 text-primary" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-white">
+                          {method.type === 'card' ? `${method.brand} •••• ${method.last4}` : `Pix: ${method.pixKey}`}
+                        </p>
+                        {method.isDefault && <span className="text-xs text-primary">Padrão</span>}
+                      </div>
+                      <button className="p-2 text-muted hover:text-red-400 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="border-t border-border pt-5">
+                <p className="text-sm font-semibold text-white mb-3">Histórico de transações</p>
+                <div className="text-center py-8 bg-background rounded-xl">
+                  <FileText className="w-10 h-10 text-muted mx-auto mb-2" />
+                  <p className="text-xs text-muted">Nenhuma transação ainda</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SEÇÃO: PREFERÊNCIAS */}
+        <AnimatePresence>
+          {activeSection === 'preferencias' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              className="mt-4 bg-surface border border-border rounded-xl p-6 space-y-5"
+            >
+              <div>
+                <label className="block text-sm font-semibold text-white mb-3">Categorias favoritas (até 5)</label>
+                <div className="flex flex-wrap gap-2">
+                  {categories.filter(c => c.active).map(cat => {
+                    const isFavorite = settings.preferences.favoriteCategories.includes(cat.id)
+                    return (
+                      <button key={cat.id}
+                        onClick={() => toggleFavoriteCategory(cat.id)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all ${
+                          isFavorite
+                            ? 'bg-primary/10 border-primary text-primary'
+                            : 'bg-background border-border text-muted hover:border-primary/50'
+                        }`}
+                      >
+                        <span>{cat.icon}</span>
+                        <span className="text-xs font-semibold">{cat.name}</span>
+                        {isFavorite && <Check className="w-3 h-3" />}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted mt-2">
+                  {settings.preferences.favoriteCategories.length}/5 selecionadas
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-white mb-3">Faixa de preço (R$)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-muted mb-1.5">Mínimo</label>
+                    <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
+                      <DollarSign className="w-4 h-4 text-muted" />
+                      <input type="number" value={settings.preferences.priceRange.min}
+                        onChange={e => setSettings(s => ({ ...s, preferences: { ...s.preferences, priceRange: { ...s.preferences.priceRange, min: +e.target.value } } }))}
+                        className="flex-1 bg-transparent text-white text-sm outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted mb-1.5">Máximo</label>
+                    <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
+                      <DollarSign className="w-4 h-4 text-muted" />
+                      <input type="number" value={settings.preferences.priceRange.max}
+                        onChange={e => setSettings(s => ({ ...s, preferences: { ...s.preferences, priceRange: { ...s.preferences.priceRange, max: +e.target.value } } }))}
+                        className="flex-1 bg-transparent text-white text-sm outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-white mb-3">Raio de busca: {settings.preferences.searchRadius}km</label>
+                <input type="range" min="5" max="100" step="5" value={settings.preferences.searchRadius}
+                  onChange={e => setSettings(s => ({ ...s, preferences: { ...s.preferences, searchRadius: +e.target.value } }))}
+                  className="w-full h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
+                />
+                <div className="flex justify-between text-xs text-muted mt-1">
+                  <span>5km</span>
+                  <span>100km</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center justify-between gap-4 p-3 bg-background rounded-lg cursor-pointer">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Apenas verificados</p>
+                    <p className="text-xs text-muted mt-0.5">Mostrar apenas prestadores com selo de verificação</p>
+                  </div>
+                  <div onClick={() => setSettings(s => ({ ...s, preferences: { ...s.preferences, onlyVerified: !s.preferences.onlyVerified } }))}
+                    className={`w-11 h-6 rounded-full transition-colors flex items-center px-0.5 ${settings.preferences.onlyVerified ? 'bg-green-500' : 'bg-border'}`}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.preferences.onlyVerified ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </div>
+                </label>
+
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-2">Avaliação mínima: {settings.preferences.minRating.toFixed(1)} ⭐</label>
+                  <input type="range" min="0" max="5" step="0.5" value={settings.preferences.minRating}
+                    onChange={e => setSettings(s => ({ ...s, preferences: { ...s.preferences, minRating: +e.target.value } }))}
+                    className="w-full h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                </div>
+              </div>
+
+              <button onClick={saveSettings} disabled={saving}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50"
+              >
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : <><Save className="w-4 h-4" /> Salvar preferências</>}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SEÇÃO: SUPORTE */}
+        <AnimatePresence>
+          {activeSection === 'suporte' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              className="mt-4 bg-surface border border-border rounded-xl p-6 space-y-4"
+            >
+              <a href="mailto:suporte@servicoflix.com"
+                className="flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors"
+              >
+                <Mail className="w-5 h-5 text-primary" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">Contatar suporte</p>
+                  <p className="text-xs text-muted">suporte@servicoflix.com</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-muted" />
+              </a>
+
+              <button
+                onClick={() => navigate('/faq')}
+                className="w-full flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors text-left"
+              >
+                <HelpCircle className="w-5 h-5 text-primary" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">Central de Ajuda</p>
+                  <p className="text-xs text-muted">Perguntas frequentes e tutoriais</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted" />
+              </button>
+
+              <button
+                onClick={() => window.open('https://wa.me/5538999999999', '_blank')}
+                className="w-full flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors text-left"
+              >
+                <MessageCircle className="w-5 h-5 text-green-400" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">WhatsApp</p>
+                  <p className="text-xs text-muted">(38) 99999-9999</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-muted" />
+              </button>
+
+              <div className="border-t border-border pt-4">
+                <button
+                  onClick={exportData}
+                  className="w-full flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors text-left"
+                >
+                  <Download className="w-5 h-5 text-primary" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-white">Baixar meus dados</p>
+                    <p className="text-xs text-muted">Exportar em JSON (LGPD)</p>
+                  </div>
+                </button>
+              </div>
+
+              <div className="bg-background rounded-lg p-4">
+                <p className="text-xs text-muted mb-2">ℹ️ Sobre</p>
+                <p className="text-xs text-white mb-1"><span className="font-semibold">Versão:</span> 1.0.0</p>
+                <p className="text-xs text-white"><span className="font-semibold">Desenvolvido por:</span> Hewerton Assunção</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* BOTÕES DE AÇÃO */}
         <div className="mt-8 space-y-3">
           <button onClick={handleLogout}
@@ -527,6 +821,31 @@ export const SettingsPage = () => {
                   {deleting ? <><Loader2 className="w-4 h-4 animate-spin" /> Excluindo...</> : <><Trash2 className="w-4 h-4" /> Excluir conta</>}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: ADICIONAR PAGAMENTO */}
+      <AnimatePresence>
+        {addPaymentModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setAddPaymentModal(false)}
+          >
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
+            >
+              <h2 className="text-lg font-black text-white mb-4">Adicionar método de pagamento</h2>
+              <p className="text-sm text-muted mb-4">🚧 Integração com Stripe em desenvolvimento</p>
+              <div className="text-center py-8 bg-background rounded-xl">
+                <CreditCard className="w-12 h-12 text-muted mx-auto mb-3" />
+                <p className="text-xs text-muted">Em breve você poderá adicionar cartões e Pix</p>
+              </div>
+              <button onClick={() => setAddPaymentModal(false)}
+                className="w-full mt-4 py-3 bg-primary text-background font-bold rounded-xl"
+              >Fechar</button>
             </motion.div>
           </motion.div>
         )}
