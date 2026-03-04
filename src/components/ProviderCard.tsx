@@ -2,7 +2,24 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Star, MapPin, Clock, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Provider } from '@/types'
+
+interface Provider {
+  id: string
+  name: string
+  avatar: string
+  coverImage?: string
+  specialty: string
+  rating: number
+  reviewCount: number
+  priceFrom: number
+  city?: string
+  neighborhood: string
+  isOnline?: boolean
+  isTopRated?: boolean
+  completedJobs: number
+  responseTime: string
+  isMock?: boolean // se true, exibe faixa vermelha "EXEMPLO"
+}
 
 interface Props {
   provider: Provider
@@ -22,7 +39,6 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
       onMouseLeave={() => setHovered(false)}
     >
       <Link to={`/profissional/${provider.id}`}>
-        {/* Card base */}
         <motion.div
           className="relative rounded-xl overflow-hidden bg-surface border border-border"
           animate={hovered ? { scale: 1.08, zIndex: 10, y: -8 } : { scale: 1, zIndex: 1, y: 0 }}
@@ -31,23 +47,53 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
           {/* Imagem de capa */}
           <div className="relative h-28 sm:h-32">
             <img
-              src={provider.coverImage}
+              src={provider.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80'}
               alt={provider.name}
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-card" />
 
+            {/* ── FAIXA DE EXEMPLO ── */}
+            {provider.isMock && (
+              <div
+                className="absolute inset-0 overflow-hidden pointer-events-none"
+                style={{ zIndex: 20 }}
+              >
+                {/* Faixa diagonal vermelha */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: -28,
+                    width: 110,
+                    transform: 'rotate(35deg)',
+                    backgroundColor: '#DC2626',
+                    color: 'white',
+                    fontSize: 9,
+                    fontWeight: 900,
+                    textAlign: 'center',
+                    padding: '3px 0',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+                  }}
+                >
+                  Exemplo
+                </div>
+              </div>
+            )}
+
             {/* Badge online */}
             {provider.isOnline && (
-              <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-primary text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ zIndex: 10 }}>
                 <span className="w-1.5 h-1.5 bg-primary rounded-full" />
                 Online
               </div>
             )}
 
             {/* Top rated */}
-            {provider.isTopRated && (
-              <div className="absolute top-2 right-2 bg-yellow-500/90 text-black text-[10px] font-black px-2 py-0.5 rounded-full">
+            {provider.isTopRated && !provider.isMock && (
+              <div className="absolute top-2 right-2 bg-yellow-500/90 text-black text-[10px] font-black px-2 py-0.5 rounded-full" style={{ zIndex: 10 }}>
                 TOP
               </div>
             )}
@@ -57,23 +103,30 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
               <img
                 src={provider.avatar}
                 alt={provider.name}
-                className="w-10 h-10 rounded-full border-2 border-surface object-cover"
+                className={`w-10 h-10 rounded-full border-2 object-cover ${
+                  provider.isMock ? 'border-red-600/60 grayscale-[30%]' : 'border-surface'
+                }`}
               />
             </div>
           </div>
 
           {/* Info base */}
           <div className="pt-6 pb-3 px-3">
-            <p className="text-white text-xs font-bold truncate">{provider.name}</p>
+            <p className={`text-xs font-bold truncate ${
+              provider.isMock ? 'text-white/70' : 'text-white'
+            }`}>{provider.name}</p>
             <p className="text-muted text-[11px] truncate">{provider.specialty}</p>
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
               <span className="text-white text-[11px] font-semibold">{provider.rating}</span>
               <span className="text-muted text-[10px]">({provider.reviewCount})</span>
+              {provider.isMock && (
+                <span className="ml-auto text-[9px] text-red-400 font-bold">exemplo</span>
+              )}
             </div>
           </div>
 
-          {/* Expanded hover info */}
+          {/* Hover expandido */}
           <AnimatePresence>
             {hovered && (
               <motion.div
@@ -84,9 +137,15 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
                 className="overflow-hidden border-t border-border"
               >
                 <div className="px-3 py-3 space-y-2">
+                  {provider.isMock && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-2 py-1.5 text-center">
+                      <p className="text-red-400 text-[10px] font-bold">⚠️ Perfil de Exemplo</p>
+                      <p className="text-red-300/70 text-[9px] mt-0.5">Será substituído por um real</p>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1 text-[11px] text-muted">
                     <MapPin className="w-3 h-3" />
-                    {provider.neighborhood}
+                    {provider.neighborhood}{provider.city ? `, ${provider.city}` : ''}
                   </div>
                   <div className="flex items-center gap-1 text-[11px] text-muted">
                     <Clock className="w-3 h-3" />
@@ -97,12 +156,19 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
                     <span className="text-primary text-xs font-bold">R$ {provider.priceFrom}+</span>
                   </div>
                   <motion.button
-                    className="w-full bg-primary text-background text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    className={`w-full text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1 ${
+                      provider.isMock
+                        ? 'bg-surface border border-border text-muted cursor-default'
+                        : 'bg-primary text-background'
+                    }`}
+                    whileHover={provider.isMock ? {} : { scale: 1.02 }}
+                    whileTap={provider.isMock ? {} : { scale: 0.98 }}
                   >
-                    <Zap className="w-3 h-3" fill="currentColor" />
-                    Contratar
+                    {provider.isMock ? (
+                      '— Perfil de Exemplo —'
+                    ) : (
+                      <><Zap className="w-3 h-3" fill="currentColor" /> Contratar</>
+                    )}
                   </motion.button>
                 </div>
               </motion.div>
