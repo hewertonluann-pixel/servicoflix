@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, Video as VideoIcon } from 'lucide-react'
 import { mockProviders } from '@/data/mock'
 import { YouTubeEmbed } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
+import { RequestServiceModal } from '@/components/RequestServiceModal'
 
 export const ProviderProfilePage = () => {
   const { id } = useParams()
   const provider = mockProviders.find(p => p.id === id) || mockProviders[0]
+  const [modalOpen, setModalOpen] = useState(false)
 
   // Mock de vídeos (depois virá do Firestore)
   const videos = {
@@ -167,13 +170,16 @@ export const ProviderProfilePage = () => {
               </div>
 
               <div className="space-y-3 mb-6">
-                <button className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target">
-                  <MessageCircle className="w-5 h-5 inline mr-2" />
-                  Enviar Mensagem
+                <button 
+                  onClick={() => setModalOpen(true)}
+                  className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target"
+                >
+                  <Calendar className="w-5 h-5 inline mr-2" />
+                  Solicitar Serviço
                 </button>
                 <button className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target">
-                  <Calendar className="w-5 h-5 inline mr-2" />
-                  Agendar Serviço
+                  <MessageCircle className="w-5 h-5 inline mr-2" />
+                  Enviar Mensagem
                 </button>
               </div>
 
@@ -211,17 +217,33 @@ export const ProviderProfilePage = () => {
           </div>
           {/* Botões */}
           <div className="flex gap-2 sm:gap-3">
-            <button className="flex-1 bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target">
-              <MessageCircle className="w-4 h-4 inline mr-1.5" />
-              Mensagem
+            <button 
+              onClick={() => setModalOpen(true)}
+              className="flex-1 bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target"
+            >
+              <Calendar className="w-4 h-4 inline mr-1.5" />
+              Solicitar
             </button>
             <button className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target">
-              <Calendar className="w-4 h-4 inline mr-1.5" />
-              Agendar
+              <MessageCircle className="w-4 h-4 inline mr-1.5" />
+              Mensagem
             </button>
           </div>
         </div>
       </div>
+
+      {/* Modal de solicitação */}
+      <RequestServiceModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        provider={{
+          id: provider.id,
+          name: provider.name,
+          avatar: provider.avatar,
+          specialty: provider.specialty,
+          priceFrom: provider.priceFrom,
+        }}
+      />
     </div>
   )
 }
