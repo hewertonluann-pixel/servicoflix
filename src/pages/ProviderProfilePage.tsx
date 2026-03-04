@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, 
-  Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle, Sparkles
+  Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle, Sparkles,
+  X, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -41,17 +42,15 @@ interface ProviderData {
   }
 }
 
-// Fotos de exemplo para perfis mockados
 const mockPhotos = [
-  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80',
-  'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=400&q=80',
-  'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=400&q=80',
-  'https://images.unsplash.com/photo-1471478331149-c72f17e33c73?w=400&q=80',
-  'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=400&q=80',
-  'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=400&q=80',
+  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80',
+  'https://images.unsplash.com/photo-1514320291840-2e0a9bf2a9ae?w=800&q=80',
+  'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=800&q=80',
+  'https://images.unsplash.com/photo-1471478331149-c72f17e33c73?w=800&q=80',
+  'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=800&q=80',
+  'https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?w=800&q=80',
 ]
 
-// Vídeos de exemplo (YouTube)
 const mockVideos = [
   'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
   'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
@@ -65,6 +64,8 @@ export const ProviderProfilePage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
 
   useEffect(() => {
     const loadProvider = async () => {
@@ -77,13 +78,11 @@ export const ProviderProfilePage = () => {
       setLoading(true)
       setError('')
       
-      // Verifica se é um perfil mockado
       if (id.startsWith('mock-')) {
         console.log('🎭 Carregando perfil de exemplo:', id)
         const mockProvider = mockProviders.find(p => p.id === id)
         
         if (mockProvider) {
-          // Converte mock para formato ProviderData
           setProvider({
             id: mockProvider.id,
             name: mockProvider.name,
@@ -120,7 +119,6 @@ export const ProviderProfilePage = () => {
         }
       }
       
-      // Perfil real - busca no Firestore
       try {
         console.log('🔍 Buscando perfil:', id)
         const docRef = doc(db, 'users', id)
@@ -179,6 +177,41 @@ export const ProviderProfilePage = () => {
     loadProvider()
   }, [id])
 
+  // Controle do lightbox com teclado
+  useEffect(() => {
+    if (!lightboxOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const photos = provider?.providerProfile.media?.photos || []
+      
+      if (e.key === 'Escape') {
+        setLightboxOpen(false)
+      } else if (e.key === 'ArrowLeft') {
+        setCurrentPhotoIndex(prev => prev > 0 ? prev - 1 : photos.length - 1)
+      } else if (e.key === 'ArrowRight') {
+        setCurrentPhotoIndex(prev => prev < photos.length - 1 ? prev + 1 : 0)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [lightboxOpen, provider])
+
+  const openLightbox = (index: number) => {
+    setCurrentPhotoIndex(index)
+    setLightboxOpen(true)
+  }
+
+  const goToPrevPhoto = () => {
+    const photos = provider?.providerProfile.media?.photos || []
+    setCurrentPhotoIndex(prev => prev > 0 ? prev - 1 : photos.length - 1)
+  }
+
+  const goToNextPhoto = () => {
+    const photos = provider?.providerProfile.media?.photos || []
+    setCurrentPhotoIndex(prev => prev < photos.length - 1 ? prev + 1 : 0)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
@@ -231,7 +264,6 @@ export const ProviderProfilePage = () => {
 
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
-      {/* Banner de perfil de exemplo */}
       {provider.isMock && (
         <div className="fixed top-16 left-0 right-0 z-50 bg-gradient-to-r from-red-500/90 to-orange-500/90 backdrop-blur-sm py-2 px-4 text-center">
           <div className="flex items-center justify-center gap-2 text-white text-sm font-bold">
@@ -242,7 +274,6 @@ export const ProviderProfilePage = () => {
         </div>
       )}
 
-      {/* Hero com cover */}
       <div className={`relative h-48 sm:h-64 lg:h-80 bg-gradient-to-br from-primary/20 to-background ${provider.isMock ? 'mt-10' : ''}`}>
         {provider.providerProfile.coverImage ? (
           <img 
@@ -256,12 +287,9 @@ export const ProviderProfilePage = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
       </div>
 
-      {/* Conteúdo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 sm:-mt-24 lg:-mt-32 relative z-10">
         <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-          {/* Coluna principal */}
           <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
-            {/* Card de perfil */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -316,7 +344,6 @@ export const ProviderProfilePage = () => {
               </div>
             </motion.div>
 
-            {/* Sobre */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -327,7 +354,6 @@ export const ProviderProfilePage = () => {
               <p className="text-muted text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{provider.providerProfile.bio}</p>
             </motion.div>
 
-            {/* Galeria de Fotos */}
             {photos.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -344,19 +370,25 @@ export const ProviderProfilePage = () => {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                   {photos.map((url, i) => (
-                    <div key={i} className="aspect-square rounded-lg overflow-hidden group cursor-pointer">
+                    <div 
+                      key={i} 
+                      onClick={() => openLightbox(i)}
+                      className="aspect-square rounded-lg overflow-hidden group cursor-pointer relative"
+                    >
                       <img
                         src={url}
                         alt={`Foto ${i + 1}`}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
                       />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                     </div>
                   ))}
                 </div>
               </motion.div>
             )}
 
-            {/* Vídeos */}
             {videos.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -396,7 +428,6 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* Áudios */}
             {audios.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -427,12 +458,12 @@ export const ProviderProfilePage = () => {
             )}
           </div>
 
-          {/* Sidebar */}
           <div className="hidden lg:block w-full space-y-6">
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="bg-surface border border-border rounded-2xl p-6 sticky top-20">
+              className="bg-surface border border-border rounded-2xl p-6 sticky top-20"
+            >
               <div className="text-center mb-6">
                 <p className="text-muted text-sm mb-1">A partir de</p>
                 <p className="text-3xl font-black text-white">
@@ -480,7 +511,6 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
-      {/* Botões fixos (mobile) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border p-3 sm:p-4 z-40">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-3">
@@ -510,7 +540,107 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* LIGHTBOX - MODAL DE VISUALIZAÇÃO DE FOTOS */}
+      <AnimatePresence>
+        {lightboxOpen && photos.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center"
+            onClick={() => setLightboxOpen(false)}
+          >
+            {/* Botão fechar */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setLightboxOpen(false)
+              }}
+              className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+              aria-label="Fechar"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Contador */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm font-semibold">
+              {currentPhotoIndex + 1} / {photos.length}
+            </div>
+
+            {/* Botão anterior */}
+            {photos.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  goToPrevPhoto()
+                }}
+                className="absolute left-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+                aria-label="Foto anterior"
+              >
+                <ChevronLeft className="w-7 h-7" />
+              </button>
+            )}
+
+            {/* Botão próximo */}
+            {photos.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  goToNextPhoto()
+                }}
+                className="absolute right-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+                aria-label="Próxima foto"
+              >
+                <ChevronRight className="w-7 h-7" />
+              </button>
+            )}
+
+            {/* Imagem */}
+            <motion.div
+              key={currentPhotoIndex}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={photos[currentPhotoIndex]}
+                alt={`Foto ${currentPhotoIndex + 1}`}
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              />
+            </motion.div>
+
+            {/* Miniaturas (apenas no desktop) */}
+            {photos.length > 1 && (
+              <div className="hidden md:flex absolute bottom-4 left-1/2 -translate-x-1/2 z-10 gap-2 bg-black/50 backdrop-blur-sm p-2 rounded-xl max-w-[80vw] overflow-x-auto">
+                {photos.map((photo, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setCurrentPhotoIndex(i)
+                    }}
+                    className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                      i === currentPhotoIndex
+                        ? 'border-primary scale-110'
+                        : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <img
+                      src={photo}
+                      alt={`Miniatura ${i + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {!provider.isMock && (
         <RequestServiceModal
           isOpen={modalOpen}
