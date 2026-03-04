@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { 
   Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, 
-  Video as VideoIcon, Image as ImageIcon, Music, Loader2
+  Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle
 } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
 import { RequestServiceModal } from '@/components/RequestServiceModal'
@@ -40,50 +41,74 @@ interface ProviderData {
 
 export const ProviderProfilePage = () => {
   const { id } = useParams()
+  const navigate = useNavigate()
+  const { user } = useSimpleAuth()
   const [provider, setProvider] = useState<ProviderData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
     const loadProvider = async () => {
-      if (!id) return
+      if (!id) {
+        setError('ID não fornecido')
+        setLoading(false)
+        return
+      }
       
       setLoading(true)
+      setError('')
+      
       try {
+        console.log('🔍 Buscando perfil:', id)
         const docRef = doc(db, 'users', id)
         const docSnap = await getDoc(docRef)
         
         if (docSnap.exists()) {
           const data = docSnap.data()
+          console.log('✅ Perfil encontrado:', data)
+          
+          // Verifica se tem providerProfile
+          if (!data.providerProfile) {
+            console.warn('⚠️ Usuário não é prestador de serviços')
+            setError('Este usuário não é um prestador de serviços')
+            setLoading(false)
+            return
+          }
+          
           setProvider({
             id: docSnap.id,
             name: data.name || 'Sem nome',
             avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
             email: data.email || '',
-            providerProfile: data.providerProfile || {
-              specialty: 'Profissional',
-              bio: 'Sem descrição',
-              city: 'Diamantina',
-              neighborhood: 'Centro',
-              priceFrom: 100,
-              skills: [],
-              phone: '',
-              coverImage: '',
-              responseTime: 'Menos de 1 hora',
-              completedJobs: 0,
-              rating: 5.0,
-              reviewCount: 0,
-              verified: false,
-              media: {
+            providerProfile: {
+              specialty: data.providerProfile.specialty || 'Profissional',
+              bio: data.providerProfile.bio || 'Sem descrição',
+              city: data.providerProfile.city || 'Diamantina',
+              neighborhood: data.providerProfile.neighborhood || 'Centro',
+              priceFrom: data.providerProfile.priceFrom || 100,
+              skills: data.providerProfile.skills || [],
+              phone: data.providerProfile.phone || '',
+              coverImage: data.providerProfile.coverImage || '',
+              responseTime: data.providerProfile.responseTime || 'Menos de 1 hora',
+              completedJobs: data.providerProfile.completedJobs || 0,
+              rating: data.providerProfile.rating || 5.0,
+              reviewCount: data.providerProfile.reviewCount || 0,
+              verified: data.providerProfile.verified !== false,
+              media: data.providerProfile.media || {
                 photos: [],
                 videos: [],
                 audios: []
               }
             }
           })
+        } else {
+          console.error('❌ Perfil não encontrado no Firestore')
+          setError('Perfil não encontrado')
         }
-      } catch (error) {
-        console.error('Erro ao carregar perfil:', error)
+      } catch (err) {
+        console.error('🔥 Erro ao carregar perfil:', err)
+        setError('Erro ao carregar perfil')
       } finally {
         setLoading(false)
       }
@@ -95,17 +120,44 @@ export const ProviderProfilePage = () => {
   if (loading) {
     return (
       <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted text-sm">Carregando perfil...</p>
+        </div>
       </div>
     )
   }
 
-  if (!provider) {
+  if (error || !provider) {
     return (
       <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted mb-4">Perfil não encontrado</p>
-          <a href="/" className="text-primary hover:underline">Voltar para home</a>
+        <div className="text-center max-w-md mx-auto px-4">
+          <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-10 h-10 text-muted" />
+          </div>
+          <h2 className="text-2xl font-black text-white mb-2">Perfil não encontrado</h2>
+          <p className="text-muted mb-2 text-sm">{error || 'Este perfil não existe ou foi removido'}</p>
+          {id && (
+            <p className="text-xs text-muted/60 mb-6 font-mono bg-surface px-3 py-2 rounded border border-border inline-block">
+              ID: {id}
+            </p>
+          )}
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"
+            >
+              Voltar para Home
+            </button>
+            {user?.id === id && (
+              <button
+                onClick={() => navigate('/tornar-se-prestador')}
+                className="px-6 py-3 bg-surface border border-primary text-primary font-bold rounded-xl hover:bg-primary/10 transition-colors"
+              >
+                Criar Perfil
+              </button>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -119,12 +171,14 @@ export const ProviderProfilePage = () => {
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
       {/* Hero com cover */}
       <div className="relative h-48 sm:h-64 lg:h-80 bg-gradient-to-br from-primary/20 to-background">
-        {provider.providerProfile.coverImage && (
+        {provider.providerProfile.coverImage ? (
           <img 
             src={provider.providerProfile.coverImage} 
             alt="" 
             className="absolute inset-0 w-full h-full object-cover opacity-20" 
           />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-background" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
       </div>
@@ -198,7 +252,7 @@ export const ProviderProfilePage = () => {
               className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
             >
               <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white mb-3 sm:mb-4">Sobre</h2>
-              <p className="text-muted text-sm sm:text-base leading-relaxed">{provider.providerProfile.bio}</p>
+              <p className="text-muted text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{provider.providerProfile.bio}</p>
             </motion.div>
 
             {/* Galeria de Fotos */}
