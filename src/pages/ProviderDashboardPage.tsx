@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Camera, Save, User, MapPin, DollarSign, Briefcase, Star, Edit2, Video, Trash2, Plus, AlertCircle, Loader2, CheckCircle, Clock } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Camera, Save, User, MapPin, DollarSign, Briefcase, Star, Edit2, Video, Trash2, Plus, AlertCircle, Loader2, CheckCircle, Clock, Sparkles } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
@@ -11,6 +11,7 @@ import { storage, db } from '@/lib/firebase'
 
 export const ProviderDashboardPage = () => {
   const { user } = useSimpleAuth()
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -315,6 +316,29 @@ export const ProviderDashboardPage = () => {
           </div>
         </div>
       )}
+
+      {/* Banner NOVO: Portfólio Multimídia */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-primary/20 via-purple-500/20 to-primary/20 border border-primary/30 rounded-xl p-4 flex items-center gap-4"
+        >
+          <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
+            <Sparkles className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-white mb-0.5">🎉 Novo! Portfólio Multimídia</h3>
+            <p className="text-xs text-muted">Agora você pode adicionar fotos, vídeos E áudios no seu perfil!</p>
+          </div>
+          <button
+            onClick={() => navigate('/meu-perfil/editar')}
+            className="px-4 py-2 bg-primary text-background font-bold text-sm rounded-lg hover:bg-primary-dark transition-colors shrink-0"
+          >
+            Editar Agora
+          </button>
+        </motion.div>
+      </div>
 
       {/* Conteúdo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 sm:-mt-24 lg:-mt-32 relative z-10">
@@ -655,6 +679,15 @@ export const ProviderDashboardPage = () => {
 
               {/* Botões de ação */}
               <div className="space-y-3 mb-6">
+                {/* BOTÃO NOVO: Editar com MediaUploader */}
+                <button
+                  onClick={() => navigate('/meu-perfil/editar')}
+                  className="w-full bg-gradient-to-r from-primary to-purple-500 text-white font-bold py-3.5 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Editar Perfil Completo
+                </button>
+
                 <Link to={`/profissional/${user?.id || '1'}`}>
                   <button className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors">
                     Ver Perfil Público
@@ -666,7 +699,7 @@ export const ProviderDashboardPage = () => {
                     className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors flex items-center justify-center gap-2"
                   >
                     <Edit2 className="w-5 h-5" />
-                    Editar Perfil
+                    Edição Rápida
                   </button>
                 ) : (
                   <div className="flex gap-2">
