@@ -3,6 +3,7 @@ import { Navbar } from '@/components/Navbar'
 import { HomePage } from '@/pages/HomePage'
 import { ProviderProfilePage } from '@/pages/ProviderProfilePage'
 import { ProviderDashboardPage } from '@/pages/ProviderDashboardPage'
+import { ProviderRequestsPage } from '@/pages/ProviderRequestsPage'
 import { MyAccountPage } from '@/pages/MyAccountPage'
 import { BecomeProviderPage } from '@/pages/BecomeProviderPage'
 import { SearchPage } from '@/pages/SearchPage'
@@ -21,6 +22,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/profissional/:id" element={<ProviderProfilePage />} />
         <Route path="/meu-perfil" element={<ProviderDashboardPage />} />
+        <Route path="/prestador/solicitacoes" element={<ProviderRequestsPage />} />
         <Route path="/minha-conta" element={<MyAccountPage />} />
         <Route path="/configuracoes" element={<SettingsPage />} />
         <Route path="/tornar-se-prestador" element={<BecomeProviderPage />} />
