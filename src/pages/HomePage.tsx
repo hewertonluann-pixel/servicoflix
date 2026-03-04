@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { HeroBillboard } from '@/components/HeroBillboard'
 import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
+import { FilterBar, Filters } from '@/components/FilterBar'
 import { mockProviders, mocksByCategory, realOwnerProvider, MockProvider } from '@/data/mock'
 
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
@@ -39,10 +41,18 @@ const docToProvider = (id: string, data: any): MockProvider => ({
 })
 
 export const HomePage = () => {
+  const { user } = useSimpleAuth()
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [ownerExistsInFirestore, setOwnerExistsInFirestore] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [filters, setFilters] = useState<Filters>({
+    categories: [],
+    priceRange: { min: 0, max: 1000 },
+    searchRadius: 50,
+    onlyVerified: false,
+    minRating: 0,
+  })
 
   useEffect(() => {
     const load = async () => {
@@ -71,7 +81,7 @@ export const HomePage = () => {
         const catSnap = await getDocs(collection(db, 'categories'))
         const cats: Category[] = catSnap.docs
           .map(d => ({ id: d.id, ...d.data() } as Category))
-          .filter(c => c.active) // apenas ativas
+          .filter(c => c.active)
           .sort((a, b) => a.name.localeCompare(b.name))
 
         setCategories(cats)
@@ -84,39 +94,106 @@ export const HomePage = () => {
     load()
   }, [])
 
+  // Carrega preferências salvas do usuário
+  useEffect(() => {
+    if (user?.settings?.preferences) {
+      setFilters({
+        categories: user.settings.preferences.favoriteCategories || [],
+        priceRange: user.settings.preferences.priceRange || { min: 0, max: 1000 },
+        searchRadius: user.settings.preferences.searchRadius || 50,
+        onlyVerified: user.settings.preferences.onlyVerified || false,
+        minRating: user.settings.preferences.minRating || 0,
+      })
+    }
+  }, [user])
+
+  // Aplica filtros aos prestadores
+  const applyFilters = (providers: MockProvider[]): MockProvider[] => {
+    return providers.filter(p => {
+      // Filtro de categoria
+      if (filters.categories.length > 0 && !filters.categories.includes(p.category)) {
+        return false
+      }
+
+      // Filtro de preço
+      if (p.priceFrom < filters.priceRange.min || p.priceFrom > filters.priceRange.max) {
+        return false
+      }
+
+      // Filtro de verificação
+      if (filters.onlyVerified && !p.isTopRated) {
+        return false
+      }
+
+      // Filtro de avaliação
+      if (p.rating < filters.minRating) {
+        return false
+      }
+
+      return true
+    })
+  }
+
   // Para cada categoria do Firestore, pega prestadores reais; se <5, completa com mocks
   const getMerged = (categoryId: string) => {
     const reais = realProviders.filter(p => p.category === categoryId)
     const mocks = mocksByCategory[categoryId] || []
     const mocksNeeded = reais.length < 5 ? mocks.slice(0, 5 - reais.length) : []
-    return [...reais, ...mocksNeeded]
+    const merged = [...reais, ...mocksNeeded]
+    return applyFilters(merged)
   }
 
-  // Seção online: reais online + mocks online
-  const onlineProviders = [
-    ...realProviders.filter(p => p.isOnline),
-    ...mockProviders.filter(p => p.isMock && p.isOnline),
-  ].slice(0, 10)
+  // Todos os prestadores (reais + mocks) com filtros aplicados
+  const allProviders = applyFilters([
+    ...realProviders,
+    ...mockProviders.filter(p => p.isMock),
+  ])
 
-  // Destaque: usa perfil real do dono se existir aprovado, senão usa mock fixo
+  // Seção online
+  const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
+
+  // Destaque
   const ownerCard = ownerExistsInFirestore
     ? realProviders.find(p => p.id === OWNER_UID)
     : realOwnerProvider
 
-  const destaque = [
+  const destaque = applyFilters([
     ...(ownerCard ? [ownerCard] : [realOwnerProvider]),
     ...realProviders.filter(p => p.isTopRated && p.id !== OWNER_UID),
-  ]
+  ])
 
   const allForHero = realProviders.length > 0
     ? [...realProviders, ...mockProviders.filter(p => p.isMock)]
     : mockProviders
+
+  // Categorias para exibir (se filtro ativo, mostra apenas as selecionadas)
+  const categoriesToShow = filters.categories.length > 0
+    ? categories.filter(c => filters.categories.includes(c.id))
+    : categories
 
   return (
     <main>
       <HeroBillboard providers={allForHero} />
 
       <div className="relative z-10 -mt-8">
+        {/* Barra de filtros */}
+        <FilterBar
+          onFilterChange={setFilters}
+          categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
+          initialFilters={filters}
+        />
+
+        {/* Indicador de filtros ativos */}
+        {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
+          <div className="px-4 sm:px-8 mb-4">
+            <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 flex items-center gap-2">
+              <span className="text-primary text-sm font-semibold">
+                🎯 Filtros ativos: {allProviders.length} prestadores encontrados
+              </span>
+            </div>
+          </div>
+        )}
+
         {destaque.length > 0 && (
           <CategoryRow title="⭐ Em Destaque" providers={destaque} badge="top" />
         )}
@@ -126,10 +203,10 @@ export const HomePage = () => {
         )}
 
         {/* Grid de categorias */}
-        <CategoryGrid categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
+        <CategoryGrid categories={categoriesToShow.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
 
         {/* Linhas de categorias dinâmicas */}
-        {categories.map(cat => {
+        {categoriesToShow.map(cat => {
           const providers = getMerged(cat.id)
           if (providers.length === 0) return null
           return (
@@ -140,6 +217,33 @@ export const HomePage = () => {
             />
           )
         })}
+
+        {/* Mensagem se nenhum prestador atender aos filtros */}
+        {allProviders.length === 0 && (
+          <div className="px-4 sm:px-8 py-16 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl">🔍</span>
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">Nenhum prestador encontrado</h3>
+              <p className="text-muted text-sm mb-6">
+                Tente ajustar os filtros para encontrar mais opções
+              </p>
+              <button
+                onClick={() => setFilters({
+                  categories: [],
+                  priceRange: { min: 0, max: 1000 },
+                  searchRadius: 50,
+                  onlyVerified: false,
+                  minRating: 0,
+                })}
+                className="px-6 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"
+              >
+                Limpar Filtros
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Se não houver categorias no Firestore, mostra fallback */}
         {categories.length === 0 && (
