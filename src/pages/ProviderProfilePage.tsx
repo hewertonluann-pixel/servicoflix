@@ -17,11 +17,13 @@ import { mockProviders } from '@/data/mock'
 
 interface ProviderData {
   id: string
-  name: string
+  name: string // Nome pessoal (cliente)
+  professionalName?: string // Nome profissional (prestador)
   avatar: string
   email: string
   isMock?: boolean
   providerProfile: {
+    professionalName?: string // Nome que aparece no perfil de prestador
     specialty: string
     bio: string
     city: string
@@ -88,10 +90,12 @@ export const ProviderProfilePage = () => {
           setProvider({
             id: mockProvider.id,
             name: mockProvider.name,
+            professionalName: mockProvider.name,
             avatar: mockProvider.avatar,
             email: '',
             isMock: true,
             providerProfile: {
+              professionalName: mockProvider.name,
               specialty: mockProvider.specialty,
               bio: mockProvider.bio,
               city: mockProvider.city,
@@ -137,13 +141,18 @@ export const ProviderProfilePage = () => {
             return
           }
           
+          // Nome profissional: usa professionalName do providerProfile, ou fallback para o nome pessoal
+          const professionalName = data.providerProfile.professionalName || data.name || 'Sem nome'
+          
           setProvider({
             id: docSnap.id,
-            name: data.name || 'Sem nome',
+            name: data.name || 'Sem nome', // Nome pessoal
+            professionalName, // Nome profissional (para exibir no perfil)
             avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
             email: data.email || '',
             isMock: false,
             providerProfile: {
+              professionalName,
               specialty: data.providerProfile.specialty || 'Profissional',
               bio: data.providerProfile.bio || 'Sem descrição',
               city: data.providerProfile.city || 'Diamantina',
@@ -201,7 +210,6 @@ export const ProviderProfilePage = () => {
   const openLightbox = (index: number) => {
     setCurrentPhotoIndex(index)
     setLightboxOpen(true)
-    // Marca que esta foto HD deve ser carregada
     setHdPhotoLoaded(prev => ({ ...prev, [index]: true }))
   }
 
@@ -268,6 +276,9 @@ export const ProviderProfilePage = () => {
   const photos = provider.providerProfile.media?.photos || []
   const videos = provider.providerProfile.media?.videos || []
   const audios = provider.providerProfile.media?.audios || []
+  
+  // Usa nome profissional no perfil público
+  const displayName = provider.professionalName || provider.name
 
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
@@ -305,14 +316,14 @@ export const ProviderProfilePage = () => {
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
                 <img 
                   src={provider.avatar} 
-                  alt={provider.name} 
+                  alt={displayName} 
                   className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl object-cover border-4 border-background shrink-0" 
                 />
                 <div className="flex-1 w-full">
                   <div className="flex flex-col gap-3 mb-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex-1 text-center sm:text-left">
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{provider.name}</h1>
+                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{displayName}</h1>
                         <p className="text-primary text-base sm:text-lg font-semibold">{provider.providerProfile.specialty}</p>
                       </div>
                       {provider.providerProfile.verified && (
@@ -361,7 +372,6 @@ export const ProviderProfilePage = () => {
               <p className="text-muted text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{provider.providerProfile.bio}</p>
             </motion.div>
 
-            {/* GALERIA COM PROGRESSIVE LOADING */}
             {photos.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -541,7 +551,6 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
-      {/* LIGHTBOX COM HD LOADING */}
       <AnimatePresence>
         {lightboxOpen && photos.length > 0 && (
           <motion.div
@@ -567,29 +576,29 @@ export const ProviderProfilePage = () => {
             </div>
 
             {photos.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  goToPrevPhoto()
-                }}
-                className="absolute left-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
-                aria-label="Foto anterior"
-              >
-                <ChevronLeft className="w-7 h-7" />
-              </button>
-            )}
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    goToPrevPhoto()
+                  }}
+                  className="absolute left-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+                  aria-label="Foto anterior"
+                >
+                  <ChevronLeft className="w-7 h-7" />
+                </button>
 
-            {photos.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  goToNextPhoto()
-                }}
-                className="absolute right-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
-                aria-label="Próxima foto"
-              >
-                <ChevronRight className="w-7 h-7" />
-              </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    goToNextPhoto()
+                  }}
+                  className="absolute right-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+                  aria-label="Próxima foto"
+                >
+                  <ChevronRight className="w-7 h-7" />
+                </button>
+              </>
             )}
 
             <motion.div
@@ -601,7 +610,6 @@ export const ProviderProfilePage = () => {
               className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Carrega HD apenas quando o lightbox abre */}
               {hdPhotoLoaded[currentPhotoIndex] ? (
                 <img
                   src={photos[currentPhotoIndex]}
@@ -650,7 +658,7 @@ export const ProviderProfilePage = () => {
           onClose={() => setModalOpen(false)}
           provider={{
             id: provider.id,
-            name: provider.name,
+            name: displayName,
             avatar: provider.avatar,
             specialty: provider.providerProfile.specialty,
             priceFrom: provider.providerProfile.priceFrom,
