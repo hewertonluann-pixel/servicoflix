@@ -1,35 +1,130 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, Video as VideoIcon } from 'lucide-react'
-import { mockProviders } from '@/data/mock'
-import { YouTubeEmbed } from '@/components/YouTubeEmbed'
+import { 
+  Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, 
+  Video as VideoIcon, Image as ImageIcon, Music, Loader2
+} from 'lucide-react'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
 import { RequestServiceModal } from '@/components/RequestServiceModal'
 
+interface ProviderData {
+  id: string
+  name: string
+  avatar: string
+  email: string
+  providerProfile: {
+    specialty: string
+    bio: string
+    city: string
+    neighborhood: string
+    priceFrom: number
+    skills: string[]
+    phone: string
+    coverImage: string
+    responseTime: string
+    completedJobs: number
+    rating: number
+    reviewCount: number
+    verified: boolean
+    media?: {
+      photos: string[]
+      videos: string[]
+      audios: string[]
+    }
+  }
+}
+
 export const ProviderProfilePage = () => {
   const { id } = useParams()
-  const provider = mockProviders.find(p => p.id === id) || mockProviders[0]
+  const [provider, setProvider] = useState<ProviderData | null>(null)
+  const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Mock de vídeos (depois virá do Firestore)
-  const videos = {
-    presentation: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    portfolio: [
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    ]
+  useEffect(() => {
+    const loadProvider = async () => {
+      if (!id) return
+      
+      setLoading(true)
+      try {
+        const docRef = doc(db, 'users', id)
+        const docSnap = await getDoc(docRef)
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data()
+          setProvider({
+            id: docSnap.id,
+            name: data.name || 'Sem nome',
+            avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
+            email: data.email || '',
+            providerProfile: data.providerProfile || {
+              specialty: 'Profissional',
+              bio: 'Sem descrição',
+              city: 'Diamantina',
+              neighborhood: 'Centro',
+              priceFrom: 100,
+              skills: [],
+              phone: '',
+              coverImage: '',
+              responseTime: 'Menos de 1 hora',
+              completedJobs: 0,
+              rating: 5.0,
+              reviewCount: 0,
+              verified: false,
+              media: {
+                photos: [],
+                videos: [],
+                audios: []
+              }
+            }
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadProvider()
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
   }
+
+  if (!provider) {
+    return (
+      <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted mb-4">Perfil não encontrado</p>
+          <a href="/" className="text-primary hover:underline">Voltar para home</a>
+        </div>
+      </div>
+    )
+  }
+
+  const photos = provider.providerProfile.media?.photos || []
+  const videos = provider.providerProfile.media?.videos || []
+  const audios = provider.providerProfile.media?.audios || []
 
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
       {/* Hero com cover */}
       <div className="relative h-48 sm:h-64 lg:h-80 bg-gradient-to-br from-primary/20 to-background">
-        {provider.coverImage && (
-          <img src={provider.coverImage} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
+        {provider.providerProfile.coverImage && (
+          <img 
+            src={provider.providerProfile.coverImage} 
+            alt="" 
+            className="absolute inset-0 w-full h-full object-cover opacity-20" 
+          />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
       </div>
@@ -57,16 +152,16 @@ export const ProviderProfilePage = () => {
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex-1 text-center sm:text-left">
                         <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{provider.name}</h1>
-                        <p className="text-primary text-base sm:text-lg font-semibold">{provider.specialty}</p>
+                        <p className="text-primary text-base sm:text-lg font-semibold">{provider.providerProfile.specialty}</p>
                       </div>
-                      {provider.verified && (
+                      {provider.providerProfile.verified && (
                         <div className="hidden sm:flex items-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold shrink-0">
                           <CheckCircle className="w-3.5 h-3.5" />
                           Verificado
                         </div>
                       )}
                     </div>
-                    {provider.verified && (
+                    {provider.providerProfile.verified && (
                       <div className="sm:hidden flex items-center justify-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold">
                         <CheckCircle className="w-3.5 h-3.5" />
                         Verificado
@@ -76,16 +171,16 @@ export const ProviderProfilePage = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted mb-4">
                     <div className="flex items-center justify-center sm:justify-start gap-1">
                       <Star className="w-4 h-4 text-yellow-400" fill="currentColor" />
-                      <span className="text-white font-semibold">{provider.rating}</span>
-                      <span>({provider.reviewCount} avaliações)</span>
+                      <span className="text-white font-semibold">{provider.providerProfile.rating}</span>
+                      <span>({provider.providerProfile.reviewCount} avaliações)</span>
                     </div>
                     <div className="flex items-center justify-center sm:justify-start gap-1">
                       <MapPin className="w-4 h-4" />
-                      {provider.city}, {provider.neighborhood}
+                      {provider.providerProfile.city}, {provider.providerProfile.neighborhood}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
-                    {provider.skills.map((skill, i) => (
+                    {provider.providerProfile.skills.map((skill, i) => (
                       <span key={i} className="px-2.5 sm:px-3 py-1 bg-background border border-border rounded-full text-[10px] sm:text-xs text-muted">
                         {skill}
                       </span>
@@ -95,35 +190,48 @@ export const ProviderProfilePage = () => {
               </div>
             </motion.div>
 
-            {/* Vídeo de apresentação */}
-            {videos.presentation && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
-              >
-                <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                  <VideoIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Vídeo de Apresentação</h2>
-                </div>
-                <YouTubeEmbed videoUrl={videos.presentation} title="Apresentação" />
-              </motion.div>
-            )}
-
             {/* Sobre */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              transition={{ delay: 0.1 }}
               className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
             >
               <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white mb-3 sm:mb-4">Sobre</h2>
-              <p className="text-muted text-sm sm:text-base leading-relaxed">{provider.bio}</p>
+              <p className="text-muted text-sm sm:text-base leading-relaxed">{provider.providerProfile.bio}</p>
             </motion.div>
 
-            {/* Portfólio de vídeos com carrossel */}
-            {videos.portfolio.length > 0 && (
+            {/* Galeria de Fotos */}
+            {photos.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
+              >
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Galeria de Fotos</h2>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-muted">{photos.length} foto{photos.length > 1 ? 's' : ''}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+                  {photos.map((url, i) => (
+                    <div key={i} className="aspect-square rounded-lg overflow-hidden group cursor-pointer">
+                      <img
+                        src={url}
+                        alt={`Foto ${i + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Portfólio de Vídeos */}
+            {videos.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -132,23 +240,63 @@ export const ProviderProfilePage = () => {
               >
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <div className="flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Portfólio de Trabalhos</h2>
+                    <VideoIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Vídeos</h2>
                   </div>
-                  <span className="text-[10px] sm:text-xs text-muted">{videos.portfolio.length} vídeo{videos.portfolio.length > 1 ? 's' : ''}</span>
+                  <span className="text-[10px] sm:text-xs text-muted">{videos.length} vídeo{videos.length > 1 ? 's' : ''}</span>
                 </div>
                 
                 <VideoCarousel>
-                  {videos.portfolio.map((url, i) => (
+                  {videos.map((url, i) => (
                     <div key={i} className="flex-none w-[240px] sm:w-[280px] lg:w-[320px] snap-start">
-                      <YouTubeEmbed 
-                        videoUrl={url} 
-                        title={`Trabalho ${i + 1}`} 
-                        showThumbnail 
-                      />
+                      {isValidYouTubeUrl(url) ? (
+                        <YouTubeEmbed 
+                          videoUrl={url} 
+                          title={`Vídeo ${i + 1}`} 
+                          showThumbnail 
+                        />
+                      ) : (
+                        <div className="aspect-video rounded-lg overflow-hidden bg-background">
+                          <video 
+                            src={url} 
+                            controls 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </VideoCarousel>
+              </motion.div>
+            )}
+
+            {/* Áudios */}
+            {audios.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
+              >
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2">
+                    <Music className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Áudios</h2>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-muted">{audios.length} áudio{audios.length > 1 ? 's' : ''}</span>
+                </div>
+                <div className="space-y-3">
+                  {audios.map((url, i) => (
+                    <div key={i} className="bg-background border border-border rounded-lg p-4 flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
+                        <Music className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <audio src={url} controls className="w-full" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
           </div>
@@ -164,7 +312,7 @@ export const ProviderProfilePage = () => {
               <div className="text-center mb-6">
                 <p className="text-muted text-sm mb-1">A partir de</p>
                 <p className="text-3xl font-black text-white">
-                  R$ {provider.priceFrom}
+                  R$ {provider.providerProfile.priceFrom}
                   <span className="text-lg text-muted font-normal">/serviço</span>
                 </p>
               </div>
@@ -188,14 +336,14 @@ export const ProviderProfilePage = () => {
                   <Clock className="w-5 h-5 text-primary shrink-0" />
                   <div>
                     <p className="text-white font-semibold">Tempo de resposta</p>
-                    <p>{provider.responseTime}</p>
+                    <p>{provider.providerProfile.responseTime}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-muted">
                   <CheckCircle className="w-5 h-5 text-primary shrink-0" />
                   <div>
                     <p className="text-white font-semibold">Trabalhos concluídos</p>
-                    <p>{provider.completedJobs}+</p>
+                    <p>{provider.providerProfile.completedJobs}+</p>
                   </div>
                 </div>
               </div>
@@ -211,7 +359,7 @@ export const ProviderProfilePage = () => {
           <div className="text-center mb-3">
             <p className="text-muted text-xs mb-0.5">A partir de</p>
             <p className="text-xl font-black text-white">
-              R$ {provider.priceFrom}
+              R$ {provider.providerProfile.priceFrom}
               <span className="text-sm text-muted font-normal">/serviço</span>
             </p>
           </div>
@@ -240,8 +388,8 @@ export const ProviderProfilePage = () => {
           id: provider.id,
           name: provider.name,
           avatar: provider.avatar,
-          specialty: provider.specialty,
-          priceFrom: provider.priceFrom,
+          specialty: provider.providerProfile.specialty,
+          priceFrom: provider.providerProfile.priceFrom,
         }}
       />
     </div>
