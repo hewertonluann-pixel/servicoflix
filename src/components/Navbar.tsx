@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase, Home, Compass, ShoppingBag, Sparkles } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, UserCircle, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
 export const Navbar = () => {
@@ -208,6 +208,15 @@ export const Navbar = () => {
                               <Briefcase className="w-4 h-4 text-primary" />
                               <span>Meu Perfil</span>
                             </Link>
+                            <Link
+                              to="/prestador/solicitacoes"
+                              onClick={() => setUserMenuOpen(false)}
+                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors"
+                            >
+                              <MessageCircle className="w-4 h-4 text-primary" />
+                              <span>Solicitações</span>
+                              <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">3</span>
+                            </Link>
                           </>
                         )}
 
@@ -374,6 +383,15 @@ export const Navbar = () => {
                         >
                           <Briefcase className="w-5 h-5 text-primary" />
                           <span>Meu Perfil</span>
+                        </Link>
+                        <Link 
+                          to="/prestador/solicitacoes" 
+                          onClick={() => setMenuOpen(false)} 
+                          className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors touch-target"
+                        >
+                          <MessageCircle className="w-5 h-5 text-primary" />
+                          <span>Solicitações</span>
+                          <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">3</span>
                         </Link>
                       </div>
                     </div>
