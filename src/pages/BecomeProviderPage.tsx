@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Briefcase, MapPin, DollarSign, Star, ArrowRight, Check, X, Clock } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { doc, setDoc } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { ProviderProfile } from '@/types'
 
@@ -47,13 +47,13 @@ export const BecomeProviderPage = () => {
 
     setLoading(true)
     try {
-      // setDoc com merge:true funciona mesmo se o doc ainda não existir no Firestore
       await setDoc(
         doc(db, 'users', user.id),
         {
           name: user.name,
           email: user.email,
           roles: ['client'],
+          createdAt: serverTimestamp(), // garante que createdAt existe para o admin listar
           providerProfile: {
             ...formData,
             verified: false,
@@ -61,7 +61,7 @@ export const BecomeProviderPage = () => {
             submittedAt: new Date().toISOString(),
           },
         },
-        { merge: true }
+        { merge: true } // não sobrescreve campos existentes
       )
       setSubmitted(true)
     } catch (err: any) {
@@ -83,7 +83,6 @@ export const BecomeProviderPage = () => {
     setFormData({ ...formData, skills: formData.skills.filter(s => s !== skill) })
   }
 
-  // Já aprovado como prestador
   if (isProvider) {
     return (
       <div className="min-h-screen pt-16 flex items-center justify-center px-4">
@@ -99,7 +98,6 @@ export const BecomeProviderPage = () => {
     )
   }
 
-  // Solicitação enviada (estado local) ou já pendente no Firestore
   if (submitted || (user?.providerProfile as any)?.status === 'pending') {
     return (
       <div className="min-h-screen pt-16 flex items-center justify-center px-4">
@@ -152,7 +150,6 @@ export const BecomeProviderPage = () => {
           ))}
         </motion.div>
 
-        {/* Banner de aviso */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}
           className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6 flex items-start gap-3"
         >
@@ -172,7 +169,6 @@ export const BecomeProviderPage = () => {
             </div>
           )}
 
-          {/* Informações Profissionais */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Briefcase className="w-5 h-5 text-primary" /> Informações Profissionais
@@ -198,7 +194,6 @@ export const BecomeProviderPage = () => {
             </div>
           </div>
 
-          {/* Localização */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-primary" /> Localização
@@ -221,7 +216,6 @@ export const BecomeProviderPage = () => {
             </div>
           </div>
 
-          {/* Especialidades */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Star className="w-5 h-5 text-primary" /> Especialidades
@@ -254,7 +248,6 @@ export const BecomeProviderPage = () => {
             </div>
           </div>
 
-          {/* Preço */}
           <div>
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-primary" /> Preço Base

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, query, orderBy, arrayUnion
+  setDoc, serverTimestamp, query, orderBy, arrayUnion, where
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
@@ -79,18 +79,25 @@ export const AdminPage = () => {
     setTimeout(() => setToast(null), 3500)
   }
 
+  // Carrega TODOS os usuários sem orderBy para evitar falha por índice ausente
   const loadUsers = async () => {
     setLoadingData(true)
     try {
-      const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'))
-      const snap = await getDocs(q)
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData)))
-    } catch {
-      try {
-        const snap = await getDocs(collection(db, 'users'))
-        setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData)))
-      } catch { showToast('Erro ao carregar usuários', 'error') }
-    } finally { setLoadingData(false) }
+      const snap = await getDocs(collection(db, 'users'))
+      const allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData))
+      // Ordena no cliente: mais recentes primeiro
+      allUsers.sort((a, b) => {
+        const ta = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0
+        const tb = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0
+        return tb - ta
+      })
+      setUsers(allUsers)
+    } catch (err: any) {
+      console.error('Erro ao carregar usuários:', err)
+      showToast('Erro ao carregar usuários: ' + (err?.message || ''), 'error')
+    } finally {
+      setLoadingData(false)
+    }
   }
 
   const loadCategories = async () => {
@@ -106,7 +113,6 @@ export const AdminPage = () => {
     if (!authLoading && isAdmin) { loadUsers(); loadCategories() }
   }, [authLoading, isAdmin])
 
-  // Aprovar prestador
   const approveProvider = async (u: UserData) => {
     try {
       await updateDoc(doc(db, 'users', u.id), {
@@ -121,10 +127,11 @@ export const AdminPage = () => {
         providerProfile: { ...p.providerProfile, status: 'approved', verified: true }
       } : p))
       showToast(`✅ ${u.name} aprovado como prestador!`)
-    } catch { showToast('Erro ao aprovar', 'error') }
+    } catch (err: any) {
+      showToast('Erro ao aprovar: ' + (err?.message || ''), 'error')
+    }
   }
 
-  // Rejeitar prestador
   const rejectProvider = async () => {
     if (!rejectModal) return
     try {
@@ -301,7 +308,6 @@ export const AdminPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Toast */}
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
@@ -312,7 +318,6 @@ export const AdminPage = () => {
         )}
       </AnimatePresence>
 
-      {/* Header */}
       <div className="bg-surface border-b border-border sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -331,7 +336,6 @@ export const AdminPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
-        {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Total Usuários', value: users.length, icon: Users, color: 'text-blue-400' },
@@ -349,7 +353,6 @@ export const AdminPage = () => {
           ))}
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1.5 mb-6 bg-surface border border-border rounded-xl p-1 flex-wrap">
           {[
             { id: 'pendentes', label: 'Pendentes', icon: Clock, badge: pendingProviders.length },
@@ -373,7 +376,6 @@ export const AdminPage = () => {
           ))}
         </div>
 
-        {/* Busca */}
         {activeTab !== 'categorias' && activeTab !== 'pendentes' && (
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
@@ -384,7 +386,6 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* Toolbar */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs text-muted">
             {activeTab === 'pendentes' && `${pendingProviders.length} aguardando aprovação`}
@@ -443,7 +444,6 @@ export const AdminPage = () => {
                       </span>
                     </div>
                     <p className="text-xs text-muted mb-3">{u.email}</p>
-
                     {u.providerProfile && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                         {u.providerProfile.specialty && (
@@ -472,13 +472,11 @@ export const AdminPage = () => {
                         )}
                       </div>
                     )}
-
                     {u.providerProfile?.bio && (
                       <p className="text-xs text-muted bg-background rounded-lg px-3 py-2 mb-3 line-clamp-2">
                         {u.providerProfile.bio}
                       </p>
                     )}
-
                     {u.providerProfile?.skills?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-4">
                         {u.providerProfile.skills.map((s: string) => (
@@ -486,7 +484,6 @@ export const AdminPage = () => {
                         ))}
                       </div>
                     )}
-
                     <div className="flex gap-2">
                       <button onClick={() => approveProvider(u)}
                         className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-xl transition-colors"
