@@ -1,18 +1,19 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Camera, Save, User, MapPin, DollarSign, Briefcase, Star, Edit2, Video, Trash2, Plus, AlertCircle, Loader2, CheckCircle, Clock, Calendar, MessageCircle } from 'lucide-react'
+import { Camera, Save, User, MapPin, DollarSign, Briefcase, Star, Edit2, Video, Trash2, Plus, AlertCircle, Loader2, CheckCircle, Clock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
-import { doc, setDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { storage, db } from '@/lib/firebase'
 
 export const ProviderDashboardPage = () => {
   const { user } = useSimpleAuth()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [uploadingCover, setUploadingCover] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -22,31 +23,87 @@ export const ProviderDashboardPage = () => {
   const coverInputRef = useRef<HTMLInputElement>(null)
 
   const [profile, setProfile] = useState({
-    name: user?.name || 'Seu Nome',
-    specialty: (user?.providerProfile as any)?.specialty || 'Sua Especialidade',
-    bio: (user?.providerProfile as any)?.bio || 'Conte um pouco sobre você e sua experiência profissional...',
-    city: (user?.providerProfile as any)?.city || 'Diamantina',
-    neighborhood: (user?.providerProfile as any)?.neighborhood || 'Centro',
-    priceFrom: (user?.providerProfile as any)?.priceFrom || 100,
-    skills: (user?.providerProfile as any)?.skills || ['Habilidade 1', 'Habilidade 2'],
-    avatar: user?.avatar || `https://i.pravatar.cc/150?u=${user?.id}`,
-    coverImage: (user?.providerProfile as any)?.coverImage || 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&q=80',
-    phone: (user?.providerProfile as any)?.phone || '',
-    email: user?.email || '',
-    responseTime: (user?.providerProfile as any)?.responseTime || 'Menos de 1 hora',
-    completedJobs: (user?.providerProfile as any)?.completedJobs || 150,
-    rating: (user?.providerProfile as any)?.rating || 4.8,
-    reviewCount: (user?.providerProfile as any)?.reviewCount || 127,
-    verified: (user?.providerProfile as any)?.verified !== false,
+    name: '',
+    specialty: '',
+    bio: '',
+    city: '',
+    neighborhood: '',
+    priceFrom: 100,
+    skills: [] as string[],
+    avatar: '',
+    coverImage: '',
+    phone: '',
+    email: '',
+    responseTime: 'Menos de 1 hora',
+    completedJobs: 150,
+    rating: 4.8,
+    reviewCount: 127,
+    verified: true,
     videos: {
-      presentation: (user?.providerProfile as any)?.videos?.presentation || '',
-      portfolio: (user?.providerProfile as any)?.videos?.portfolio || [] as string[],
+      presentation: '',
+      portfolio: [] as string[],
     },
   })
 
   const [newSkill, setNewSkill] = useState('')
   const [newVideoUrl, setNewVideoUrl] = useState('')
   const [videoError, setVideoError] = useState('')
+
+  // Carrega dados do Firestore
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user?.id) return
+      
+      setLoading(true)
+      try {
+        const docRef = doc(db, 'users', user.id)
+        const docSnap = await getDoc(docRef)
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data()
+          const providerProfile = data.providerProfile || {}
+          
+          setProfile({
+            name: data.name || user.name || 'Seu Nome',
+            specialty: providerProfile.specialty || 'Sua Especialidade',
+            bio: providerProfile.bio || 'Conte um pouco sobre você e sua experiência profissional...',
+            city: providerProfile.city || 'Diamantina',
+            neighborhood: providerProfile.neighborhood || 'Centro',
+            priceFrom: providerProfile.priceFrom || 100,
+            skills: providerProfile.skills || ['Habilidade 1', 'Habilidade 2'],
+            avatar: data.avatar || user.avatar || `https://i.pravatar.cc/150?u=${user.id}`,
+            coverImage: providerProfile.coverImage || 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&q=80',
+            phone: providerProfile.phone || '',
+            email: data.email || user.email || '',
+            responseTime: providerProfile.responseTime || 'Menos de 1 hora',
+            completedJobs: providerProfile.completedJobs || 150,
+            rating: providerProfile.rating || 4.8,
+            reviewCount: providerProfile.reviewCount || 127,
+            verified: providerProfile.verified !== false,
+            videos: {
+              presentation: providerProfile.videos?.presentation || '',
+              portfolio: providerProfile.videos?.portfolio || [],
+            },
+          })
+        } else {
+          // Perfil não existe, usar dados do user
+          setProfile(prev => ({
+            ...prev,
+            name: user.name || 'Seu Nome',
+            avatar: user.avatar || `https://i.pravatar.cc/150?u=${user.id}`,
+            email: user.email || '',
+          }))
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error)
+        setUploadError('Erro ao carregar perfil. Tente novamente.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadProfile()
+  }, [user])
 
   // Upload genérico
   const uploadImage = async (
@@ -209,6 +266,14 @@ export const ProviderDashboardPage = () => {
         portfolio: profile.videos.portfolio.filter((_, i) => i !== index)
       }
     })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
   }
 
   return (
@@ -390,8 +455,7 @@ export const ProviderDashboardPage = () => {
                     {profile.skills.map((skill, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-background border border-border rounded-full text-[10px] sm:text-xs text-muted"
-                      >
+                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-background border border-border rounded-full text-[10px] sm:text-xs text-muted">
                         {skill}
                         {editing && (
                           <button
