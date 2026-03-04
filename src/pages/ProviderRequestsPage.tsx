@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { Calendar, Clock, MapPin, DollarSign, AlertCircle, CheckCircle, XCircle, Loader2, Image as ImageIcon, User, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import {
+  Clock, CheckCircle, XCircle, AlertTriangle, Calendar,
+  MapPin, DollarSign, User, MessageCircle, Phone,
+  ChevronRight, Loader2, Filter, Search
+} from 'lucide-react'
+import { collection, query, where, getDocs, doc, updateDoc, Timestamp, orderBy } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
-type RequestStatus = 'pending' | 'accepted' | 'rejected' | 'in_progress' | 'completed' | 'cancelled'
+type RequestStatus = 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled'
 
 interface ServiceRequest {
   id: string
   clientId: string
   clientName: string
   clientAvatar: string
-  clientEmail: string
+  clientPhone?: string
   providerId: string
   service: string
   description: string
@@ -23,15 +27,53 @@ interface ServiceRequest {
     neighborhood: string
     city: string
     state: string
-    complement: string
+    complement?: string
   }
   scheduledDate: string
   scheduledTime: string
-  budgetProposed: number | null
-  urgency: 'normal' | 'urgent'
-  photos: string[]
+  budgetProposed?: number
   status: RequestStatus
+  urgency: 'normal' | 'urgent'
   createdAt: Timestamp
+  updatedAt: Timestamp
+}
+
+const statusConfig = {
+  pending: {
+    label: 'Pendente',
+    icon: Clock,
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-500/10',
+    border: 'border-yellow-500/30',
+  },
+  accepted: {
+    label: 'Aceita',
+    icon: CheckCircle,
+    color: 'text-green-400',
+    bg: 'bg-green-500/10',
+    border: 'border-green-500/30',
+  },
+  rejected: {
+    label: 'Recusada',
+    icon: XCircle,
+    color: 'text-red-400',
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/30',
+  },
+  completed: {
+    label: 'Concluída',
+    icon: CheckCircle,
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/30',
+  },
+  cancelled: {
+    label: 'Cancelada',
+    icon: AlertTriangle,
+    color: 'text-gray-400',
+    bg: 'bg-gray-500/10',
+    border: 'border-gray-500/30',
+  },
 }
 
 export const ProviderRequestsPage = () => {
@@ -39,95 +81,103 @@ export const ProviderRequestsPage = () => {
   const navigate = useNavigate()
   const [requests, setRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'pending' | 'accepted' | 'completed' | 'rejected'>('pending')
-  const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null)
-  const [actionLoading, setActionLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<RequestStatus | 'all'>('pending')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // Carrega solicitações em tempo real
+  // Carrega solicitações do Firestore
   useEffect(() => {
-    if (!user?.id) return
+    const loadRequests = async () => {
+      if (!user?.id) return
 
-    const q = query(
-      collection(db, 'serviceRequests'),
-      where('providerId', '==', user.id)
-    )
+      try {
+        const q = query(
+          collection(db, 'serviceRequests'),
+          where('providerId', '==', user.id),
+          orderBy('createdAt', 'desc')
+        )
+        const snapshot = await getDocs(q)
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as ServiceRequest[]
+        setRequests(data)
+      } catch (err) {
+        console.error('Erro ao carregar solicitações:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    const unsubscribe = onSnapshot(q, snapshot => {
-      const reqs: ServiceRequest[] = []
-      snapshot.forEach(doc => {
-        reqs.push({ id: doc.id, ...doc.data() } as ServiceRequest)
-      })
-      
-      // Ordena por data de criação (mais recente primeiro)
-      reqs.sort((a, b) => {
-        const aTime = a.createdAt?.toMillis() || 0
-        const bTime = b.createdAt?.toMillis() || 0
-        return bTime - aTime
-      })
-      
-      setRequests(reqs)
-      setLoading(false)
-    })
+    loadRequests()
+  }, [user])
 
-    return () => unsubscribe()
-  }, [user?.id])
-
+  // Aceitar solicitação
   const handleAccept = async (requestId: string) => {
-    setActionLoading(true)
+    setActionLoading(requestId)
     try {
       await updateDoc(doc(db, 'serviceRequests', requestId), {
         status: 'accepted',
-        acceptedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        updatedAt: Timestamp.now(),
+        acceptedAt: Timestamp.now(),
       })
-      setSelectedRequest(null)
+      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'accepted' } : r))
     } catch (err) {
-      console.error('Erro ao aceitar solicitação:', err)
+      console.error('Erro ao aceitar:', err)
       alert('Erro ao aceitar solicitação. Tente novamente.')
     } finally {
-      setActionLoading(false)
+      setActionLoading(null)
     }
   }
 
+  // Recusar solicitação
   const handleReject = async (requestId: string) => {
-    setActionLoading(true)
+    if (!confirm('Tem certeza que deseja recusar esta solicitação?')) return
+    
+    setActionLoading(requestId)
     try {
       await updateDoc(doc(db, 'serviceRequests', requestId), {
         status: 'rejected',
-        rejectedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        updatedAt: Timestamp.now(),
       })
-      setSelectedRequest(null)
+      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r))
     } catch (err) {
-      console.error('Erro ao recusar solicitação:', err)
+      console.error('Erro ao recusar:', err)
       alert('Erro ao recusar solicitação. Tente novamente.')
     } finally {
-      setActionLoading(false)
+      setActionLoading(null)
     }
   }
 
-  const filteredRequests = requests.filter(r => {
-    if (activeTab === 'pending') return r.status === 'pending'
-    if (activeTab === 'accepted') return r.status === 'accepted' || r.status === 'in_progress'
-    if (activeTab === 'completed') return r.status === 'completed'
-    if (activeTab === 'rejected') return r.status === 'rejected' || r.status === 'cancelled'
-    return false
+  // Filtrar solicitações
+  const filteredRequests = requests.filter(req => {
+    const matchesTab = activeTab === 'all' || req.status === activeTab
+    const matchesSearch = 
+      req.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      req.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      req.address.city.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesTab && matchesSearch
   })
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length
-  const acceptedCount = requests.filter(r => ['accepted', 'in_progress'].includes(r.status)).length
-  const completedCount = requests.filter(r => r.status === 'completed').length
-  const rejectedCount = requests.filter(r => ['rejected', 'cancelled'].includes(r.status)).length
+  // Contadores por status
+  const counts = {
+    all: requests.length,
+    pending: requests.filter(r => r.status === 'pending').length,
+    accepted: requests.filter(r => r.status === 'accepted').length,
+    rejected: requests.filter(r => r.status === 'rejected').length,
+    completed: requests.filter(r => r.status === 'completed').length,
+    cancelled: requests.filter(r => r.status === 'cancelled').length,
+  }
 
-  if (!user?.roles?.includes('provider')) {
+  if (!user || !user.roles?.includes('provider')) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-16">
         <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+          <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <h1 className="text-2xl font-black text-white mb-2">Acesso Restrito</h1>
-          <p className="text-muted mb-6">Esta área é exclusiva para prestadores.</p>
+          <p className="text-muted mb-6">Esta página é apenas para prestadores.</p>
           <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
-            Voltar ao Início
+            Voltar para Início
           </button>
         </div>
       </div>
@@ -135,44 +185,58 @@ export const ProviderRequestsPage = () => {
   }
 
   return (
-    <div className="min-h-screen pt-16 pb-20">
+    <div className="min-h-screen bg-background pt-16 pb-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
-            <FileText className="w-6 h-6 text-primary" />
+          <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
+            <MessageCircle className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-white">Solicitações de Serviço</h1>
-            <p className="text-sm text-muted">Gerencie seus pedidos de serviço</p>
+            <h1 className="text-2xl font-black text-white">Solicitações</h1>
+            <p className="text-sm text-muted">Gerencie as solicitações de serviço</p>
+          </div>
+        </div>
+
+        {/* Barra de busca */}
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
+            <input
+              type="text"
+              placeholder="Buscar por cliente, serviço ou cidade..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-surface border border-border rounded-xl pl-12 pr-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors"
+            />
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
           {[
-            { key: 'pending', label: 'Pendentes', count: pendingCount, color: 'bg-red-500' },
-            { key: 'accepted', label: 'Aceitas', count: acceptedCount, color: 'bg-green-500' },
-            { key: 'completed', label: 'Concluídas', count: completedCount, color: 'bg-blue-500' },
-            { key: 'rejected', label: 'Recusadas', count: rejectedCount, color: 'bg-gray-500' },
+            { key: 'pending', label: 'Pendentes' },
+            { key: 'accepted', label: 'Aceitas' },
+            { key: 'completed', label: 'Concluídas' },
+            { key: 'all', label: 'Todas' },
           ].map(tab => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all whitespace-nowrap ${
+              onClick={() => setActiveTab(tab.key as RequestStatus | 'all')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors ${
                 activeTab === tab.key
-                  ? 'bg-primary text-background scale-105'
-                  : 'bg-surface border border-border text-muted hover:text-white'
+                  ? 'bg-primary text-background'
+                  : 'bg-surface text-muted hover:text-white border border-border'
               }`}
             >
               {tab.label}
-              {tab.count > 0 && (
-                <span className={`w-6 h-6 ${activeTab === tab.key ? 'bg-background text-primary' : tab.color} rounded-full flex items-center justify-center text-xs font-bold ${
-                  activeTab !== tab.key && 'text-white'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                activeTab === tab.key
+                  ? 'bg-background/20 text-background'
+                  : 'bg-background text-muted'
+              }`}>
+                {counts[tab.key as keyof typeof counts]}
+              </span>
             </button>
           ))}
         </div>
@@ -184,250 +248,140 @@ export const ProviderRequestsPage = () => {
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Lista de solicitações */}
         {!loading && filteredRequests.length === 0 && (
           <div className="text-center py-20">
             <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-10 h-10 text-muted" />
+              <MessageCircle className="w-10 h-10 text-muted" />
             </div>
             <h3 className="text-xl font-black text-white mb-2">Nenhuma solicitação</h3>
             <p className="text-muted text-sm">
-              {activeTab === 'pending' && 'Você não tem solicitações pendentes no momento.'}
-              {activeTab === 'accepted' && 'Você não tem solicitações aceitas.'}
-              {activeTab === 'completed' && 'Você ainda não concluiu nenhuma solicitação.'}
-              {activeTab === 'rejected' && 'Você não tem solicitações recusadas.'}
+              {searchTerm ? 'Nenhum resultado encontrado' : 'Você ainda não recebeu solicitações'}
             </p>
           </div>
         )}
 
-        {/* Request cards */}
-        <div className="grid gap-4">
-          {filteredRequests.map((request, index) => (
-            <motion.div
-              key={request.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="bg-surface border border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors cursor-pointer"
-              onClick={() => setSelectedRequest(request)}
-            >
-              <div className="p-5">
-                {/* Header do card */}
-                <div className="flex items-start gap-4 mb-4">
-                  <img src={request.clientAvatar || 'https://i.pravatar.cc/150'} alt={request.clientName} className="w-12 h-12 rounded-full object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-base font-bold text-white truncate">{request.clientName}</h3>
-                      {request.urgency === 'urgent' && (
-                        <span className="bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Urgente</span>
-                      )}
-                      {request.status === 'pending' && (
-                        <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Nova</span>
-                      )}
+        {!loading && (
+          <div className="space-y-4">
+            {filteredRequests.map((request, index) => {
+              const config = statusConfig[request.status]
+              const StatusIcon = config.icon
+
+              return (
+                <motion.div
+                  key={request.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`bg-surface border rounded-xl p-4 sm:p-6 ${config.border}`}
+                >
+                  {/* Header do card */}
+                  <div className="flex items-start gap-3 mb-4">
+                    <img
+                      src={request.clientAvatar}
+                      alt={request.clientName}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-border"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-base font-bold text-white truncate">{request.clientName}</h3>
+                        {request.urgency === 'urgent' && (
+                          <span className="px-2 py-0.5 bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-bold rounded-full uppercase">
+                            Urgente
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted">{request.service}</p>
                     </div>
-                    <p className="text-sm font-semibold text-primary truncate">{request.service}</p>
-                  </div>
-                </div>
-
-                {/* Descrição */}
-                <p className="text-sm text-muted mb-4 line-clamp-2">{request.description}</p>
-
-                {/* Info grid */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="flex items-center gap-2 text-xs">
-                    <Calendar className="w-4 h-4 text-muted" />
-                    <span className="text-white font-semibold">
-                      {new Date(request.scheduledDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <Clock className="w-4 h-4 text-muted" />
-                    <span className="text-white font-semibold">{request.scheduledTime}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <MapPin className="w-4 h-4 text-muted" />
-                    <span className="text-white font-semibold truncate">{request.address.neighborhood || request.address.city}</span>
-                  </div>
-                  {request.budgetProposed && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <DollarSign className="w-4 h-4 text-muted" />
-                      <span className="text-primary font-bold">R$ {request.budgetProposed.toFixed(2)}</span>
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${config.bg} border ${config.border}`}>
+                      <StatusIcon className={`w-4 h-4 ${config.color}`} />
+                      <span className={`text-xs font-semibold ${config.color}`}>{config.label}</span>
                     </div>
-                  )}
-                </div>
-
-                {/* Fotos */}
-                {request.photos.length > 0 && (
-                  <div className="flex items-center gap-2 mb-4">
-                    <ImageIcon className="w-4 h-4 text-muted" />
-                    <span className="text-xs text-muted">{request.photos.length} foto{request.photos.length > 1 ? 's' : ''} anexada{request.photos.length > 1 ? 's' : ''}</span>
                   </div>
-                )}
 
-                {/* Ações para pendentes */}
-                {request.status === 'pending' && (
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      onClick={e => { e.stopPropagation(); handleReject(request.id) }}
-                      disabled={actionLoading}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 font-semibold text-sm rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                    >
-                      <XCircle className="w-4 h-4" /> Recusar
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleAccept(request.id) }}
-                      disabled={actionLoading}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary text-background font-bold text-sm rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
-                    >
-                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Aceitar
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+                  {/* Descrição */}
+                  <p className="text-sm text-white mb-4 line-clamp-2">{request.description}</p>
 
-      {/* Modal de detalhes */}
-      <AnimatePresence>
-        {selectedRequest && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
-            onClick={() => setSelectedRequest(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-surface border border-border rounded-2xl w-full max-w-2xl my-8"
-            >
-              {/* Header */}
-              <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img src={selectedRequest.clientAvatar || 'https://i.pravatar.cc/150'} alt={selectedRequest.clientName} className="w-12 h-12 rounded-full object-cover" />
-                  <div>
-                    <h2 className="text-lg font-black text-white">{selectedRequest.service}</h2>
-                    <p className="text-xs text-muted">{selectedRequest.clientName}</p>
-                  </div>
-                </div>
-                <button onClick={() => setSelectedRequest(null)} className="p-2 hover:bg-background rounded-lg transition-colors">
-                  <XCircle className="w-5 h-5 text-muted" />
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-                {/* Descrição */}
-                <div>
-                  <label className="block text-sm font-semibold text-white mb-2">Descrição</label>
-                  <p className="text-sm text-muted">{selectedRequest.description}</p>
-                </div>
-
-                {/* Endereço */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-semibold text-white mb-2">
-                    <MapPin className="w-4 h-4 text-primary" />
-                    Endereço
-                  </label>
-                  <div className="bg-background border border-border rounded-lg p-3 text-sm text-white">
-                    <p>{selectedRequest.address.street}, {selectedRequest.address.number}</p>
-                    <p>{selectedRequest.address.neighborhood} - {selectedRequest.address.city}/{selectedRequest.address.state}</p>
-                    {selectedRequest.address.complement && <p className="text-muted text-xs mt-1">{selectedRequest.address.complement}</p>}
-                  </div>
-                </div>
-
-                {/* Data e Hora */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-semibold text-white mb-2">
+                  {/* Informações */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                    <div className="flex items-center gap-2 text-sm">
                       <Calendar className="w-4 h-4 text-primary" />
-                      Data
-                    </label>
-                    <div className="bg-background border border-border rounded-lg p-3 text-sm text-white">
-                      {new Date(selectedRequest.scheduledDate).toLocaleDateString('pt-BR')}
+                      <span className="text-muted">
+                        {new Date(request.scheduledDate).toLocaleDateString('pt-BR')} às {request.scheduledTime}
+                      </span>
                     </div>
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-semibold text-white mb-2">
-                      <Clock className="w-4 h-4 text-primary" />
-                      Horário
-                    </label>
-                    <div className="bg-background border border-border rounded-lg p-3 text-sm text-white">
-                      {selectedRequest.scheduledTime}
+                    <div className="flex items-center gap-2 text-sm">
+                      <MapPin className="w-4 h-4 text-primary" />
+                      <span className="text-muted truncate">
+                        {request.address.neighborhood}, {request.address.city}
+                      </span>
                     </div>
+                    {request.budgetProposed && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <DollarSign className="w-4 h-4 text-primary" />
+                        <span className="text-muted">R$ {request.budgetProposed.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {request.clientPhone && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Phone className="w-4 h-4 text-primary" />
+                        <span className="text-muted">{request.clientPhone}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                {/* Orçamento */}
-                {selectedRequest.budgetProposed && (
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-semibold text-white mb-2">
-                      <DollarSign className="w-4 h-4 text-primary" />
-                      Orçamento proposto
-                    </label>
-                    <div className="bg-background border border-border rounded-lg p-3">
-                      <span className="text-2xl font-black text-primary">R$ {selectedRequest.budgetProposed.toFixed(2)}</span>
-                    </div>
+                  {/* Ações */}
+                  <div className="flex flex-wrap gap-2">
+                    {request.status === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => handleAccept(request.id)}
+                          disabled={actionLoading === request.id}
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {actionLoading === request.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4" />
+                              Aceitar
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleReject(request.id)}
+                          disabled={actionLoading === request.id}
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Recusar
+                        </button>
+                      </>
+                    )}
+                    {request.status === 'accepted' && (
+                      <button className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-background font-bold rounded-lg transition-colors">
+                        <MessageCircle className="w-4 h-4" />
+                        Abrir Chat
+                      </button>
+                    )}
+                    <button className="flex items-center gap-2 px-4 py-2.5 bg-surface hover:bg-background border border-border text-white font-semibold rounded-lg transition-colors">
+                      Ver Detalhes
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
-                )}
 
-                {/* Fotos */}
-                {selectedRequest.photos.length > 0 && (
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-semibold text-white mb-2">
-                      <ImageIcon className="w-4 h-4 text-primary" />
-                      Fotos anexadas
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {selectedRequest.photos.map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="aspect-square rounded-lg overflow-hidden hover:opacity-80 transition-opacity">
-                          <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
-                        </a>
-                      ))}
-                    </div>
+                  {/* Data de criação */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-xs text-muted">
+                      Recebido em {request.createdAt.toDate().toLocaleDateString('pt-BR')} às {request.createdAt.toDate().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
-                )}
-
-                {/* Contato */}
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-semibold text-white mb-2">
-                    <User className="w-4 h-4 text-primary" />
-                    Contato do cliente
-                  </label>
-                  <div className="bg-background border border-border rounded-lg p-3 text-sm text-white">
-                    <p>{selectedRequest.clientEmail}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer com ações */}
-              {selectedRequest.status === 'pending' && (
-                <div className="border-t border-border p-4 flex gap-3">
-                  <button
-                    onClick={() => handleReject(selectedRequest.id)}
-                    disabled={actionLoading}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500/10 border border-red-500/30 text-red-400 font-semibold rounded-xl hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                  >
-                    <XCircle className="w-5 h-5" /> Recusar
-                  </button>
-                  <button
-                    onClick={() => handleAccept(selectedRequest.id)}
-                    disabled={actionLoading}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50"
-                  >
-                    {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />} Aceitar Solicitação
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
+                </motion.div>
+              )
+            })}
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   )
 }
