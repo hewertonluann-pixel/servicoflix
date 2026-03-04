@@ -12,6 +12,7 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
 import { RequestServiceModal } from '@/components/RequestServiceModal'
+import { ProgressiveImage } from '@/components/ProgressiveImage'
 import { mockProviders } from '@/data/mock'
 
 interface ProviderData {
@@ -66,6 +67,7 @@ export const ProviderProfilePage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
+  const [hdPhotoLoaded, setHdPhotoLoaded] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     const loadProvider = async () => {
@@ -177,7 +179,6 @@ export const ProviderProfilePage = () => {
     loadProvider()
   }, [id])
 
-  // Controle do lightbox com teclado
   useEffect(() => {
     if (!lightboxOpen) return
 
@@ -200,16 +201,22 @@ export const ProviderProfilePage = () => {
   const openLightbox = (index: number) => {
     setCurrentPhotoIndex(index)
     setLightboxOpen(true)
+    // Marca que esta foto HD deve ser carregada
+    setHdPhotoLoaded(prev => ({ ...prev, [index]: true }))
   }
 
   const goToPrevPhoto = () => {
     const photos = provider?.providerProfile.media?.photos || []
-    setCurrentPhotoIndex(prev => prev > 0 ? prev - 1 : photos.length - 1)
+    const newIndex = currentPhotoIndex > 0 ? currentPhotoIndex - 1 : photos.length - 1
+    setCurrentPhotoIndex(newIndex)
+    setHdPhotoLoaded(prev => ({ ...prev, [newIndex]: true }))
   }
 
   const goToNextPhoto = () => {
     const photos = provider?.providerProfile.media?.photos || []
-    setCurrentPhotoIndex(prev => prev < photos.length - 1 ? prev + 1 : 0)
+    const newIndex = currentPhotoIndex < photos.length - 1 ? currentPhotoIndex + 1 : 0
+    setCurrentPhotoIndex(newIndex)
+    setHdPhotoLoaded(prev => ({ ...prev, [newIndex]: true }))
   }
 
   if (loading) {
@@ -354,6 +361,7 @@ export const ProviderProfilePage = () => {
               <p className="text-muted text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{provider.providerProfile.bio}</p>
             </motion.div>
 
+            {/* GALERIA COM PROGRESSIVE LOADING */}
             {photos.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -370,20 +378,13 @@ export const ProviderProfilePage = () => {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                   {photos.map((url, i) => (
-                    <div 
-                      key={i} 
+                    <ProgressiveImage
+                      key={i}
+                      src={url}
+                      alt={`Foto ${i + 1}`}
                       onClick={() => openLightbox(i)}
-                      className="aspect-square rounded-lg overflow-hidden group cursor-pointer relative"
-                    >
-                      <img
-                        src={url}
-                        alt={`Foto ${i + 1}`}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </div>
+                      className="aspect-square rounded-lg group cursor-pointer"
+                    />
                   ))}
                 </div>
               </motion.div>
@@ -540,7 +541,7 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
-      {/* LIGHTBOX - MODAL DE VISUALIZAÇÃO DE FOTOS */}
+      {/* LIGHTBOX COM HD LOADING */}
       <AnimatePresence>
         {lightboxOpen && photos.length > 0 && (
           <motion.div
@@ -550,7 +551,6 @@ export const ProviderProfilePage = () => {
             className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center"
             onClick={() => setLightboxOpen(false)}
           >
-            {/* Botão fechar */}
             <button
               onClick={(e) => {
                 e.stopPropagation()
@@ -562,12 +562,10 @@ export const ProviderProfilePage = () => {
               <X className="w-6 h-6" />
             </button>
 
-            {/* Contador */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm font-semibold">
               {currentPhotoIndex + 1} / {photos.length}
             </div>
 
-            {/* Botão anterior */}
             {photos.length > 1 && (
               <button
                 onClick={(e) => {
@@ -581,7 +579,6 @@ export const ProviderProfilePage = () => {
               </button>
             )}
 
-            {/* Botão próximo */}
             {photos.length > 1 && (
               <button
                 onClick={(e) => {
@@ -595,7 +592,6 @@ export const ProviderProfilePage = () => {
               </button>
             )}
 
-            {/* Imagem */}
             <motion.div
               key={currentPhotoIndex}
               initial={{ opacity: 0, scale: 0.9 }}
@@ -605,14 +601,20 @@ export const ProviderProfilePage = () => {
               className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <img
-                src={photos[currentPhotoIndex]}
-                alt={`Foto ${currentPhotoIndex + 1}`}
-                className="max-w-full max-h-[90vh] object-contain rounded-lg"
-              />
+              {/* Carrega HD apenas quando o lightbox abre */}
+              {hdPhotoLoaded[currentPhotoIndex] ? (
+                <img
+                  src={photos[currentPhotoIndex]}
+                  alt={`Foto ${currentPhotoIndex + 1}`}
+                  className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                </div>
+              )}
             </motion.div>
 
-            {/* Miniaturas (apenas no desktop) */}
             {photos.length > 1 && (
               <div className="hidden md:flex absolute bottom-4 left-1/2 -translate-x-1/2 z-10 gap-2 bg-black/50 backdrop-blur-sm p-2 rounded-xl max-w-[80vw] overflow-x-auto">
                 {photos.map((photo, i) => (
@@ -621,6 +623,7 @@ export const ProviderProfilePage = () => {
                     onClick={(e) => {
                       e.stopPropagation()
                       setCurrentPhotoIndex(i)
+                      setHdPhotoLoaded(prev => ({ ...prev, [i]: true }))
                     }}
                     className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
                       i === currentPhotoIndex
