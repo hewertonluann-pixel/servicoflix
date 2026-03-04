@@ -6,7 +6,9 @@ import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { mockProviders, mockCategories, mocksByCategory, realOwnerProvider, MockProvider } from '@/data/mock'
 
-// Converte um doc do Firestore em MockProvider
+// UID real do dono no Firebase Auth (Hewerton)
+const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
+
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
   name: data.name || 'Sem nome',
@@ -27,11 +29,12 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   completedJobs: data.providerProfile?.completedJobs || 0,
   responseTime: data.providerProfile?.responseTime || '< 24h',
   whatsapp: data.providerProfile?.whatsapp || '',
-  isMock: false, // real!
+  isMock: false,
 })
 
 export const HomePage = () => {
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
+  const [ownerExistsInFirestore, setOwnerExistsInFirestore] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -39,8 +42,13 @@ export const HomePage = () => {
       try {
         const snap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
+        let ownerFound = false
+
         snap.docs.forEach(d => {
           const data = d.data()
+          // Verifica se o dono já tem perfil real no Firestore
+          if (d.id === OWNER_UID) ownerFound = true
+
           if (
             data.roles?.includes('provider') &&
             data.providerProfile?.status === 'approved'
@@ -48,7 +56,9 @@ export const HomePage = () => {
             providers.push(docToProvider(d.id, data))
           }
         })
+
         setRealProviders(providers)
+        setOwnerExistsInFirestore(ownerFound)
       } catch (err) {
         console.warn('Erro ao carregar prestadores reais:', err)
       } finally {
@@ -58,28 +68,33 @@ export const HomePage = () => {
     load()
   }, [])
 
-  // Para cada categoria, usa reais primeiro; se houver menos de 5, completa com mocks
+  // Para cada categoria, usa reais primeiro; completa com mocks se necessário
   const getMerged = (category: string) => {
     const reais = realProviders.filter(p => p.category === category)
     const mocks = mocksByCategory[category] || []
-    // Remove mocks que a categoria já tem reais suficientes
-    const mocksNeeded = mocks.slice(reais.length) // só preenche lacunas
+    const mocksNeeded = mocks.slice(reais.length)
     return [...reais, ...mocksNeeded]
   }
 
-  // Seção "Online agora": reais online + mocks online (limitado a 10)
+  // Seção online: reais online + mocks online
   const onlineProviders = [
     ...realProviders.filter(p => p.isOnline),
     ...mockProviders.filter(p => p.isMock && p.isOnline),
   ].slice(0, 10)
 
-  // Destaque: dono do site + reais top rated
+  // Destaque: usa perfil real do dono se existir no Firestore, senão usa o mock fixo
+  const ownerCard = ownerExistsInFirestore
+    ? realProviders.find(p => p.id === OWNER_UID) // perfil real aprovado
+    : realOwnerProvider // fallback: mock fixo sem faixa EXEMPLO
+
   const destaque = [
-    realOwnerProvider,
-    ...realProviders.filter(p => p.isTopRated),
+    ...(ownerCard ? [ownerCard] : [realOwnerProvider]),
+    ...realProviders.filter(p => p.isTopRated && p.id !== OWNER_UID),
   ]
 
-  const allForHero = realProviders.length > 0 ? [...realProviders, ...mockProviders.filter(p => p.isMock)] : mockProviders
+  const allForHero = realProviders.length > 0
+    ? [...realProviders, ...mockProviders.filter(p => p.isMock)]
+    : mockProviders
 
   return (
     <main>
