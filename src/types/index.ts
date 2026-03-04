@@ -16,10 +16,7 @@ export interface Provider {
   availability: string[]
   responseTime: string
   completedJobs: number
-  videos?: {
-    presentation?: string
-    portfolio: string[]
-  }
+  media?: ProviderMedia
 }
 
 export interface Category {
@@ -81,6 +78,48 @@ export interface ClientProfile {
   preferences?: string[]
 }
 
+// ===== NOVO SISTEMA DE MÍDIA =====
+
+export type MediaType = 'photo' | 'video' | 'audio'
+
+export interface MediaItem {
+  id: string
+  type: MediaType
+  url: string
+  thumbnailUrl?: string // Para vídeos
+  title?: string
+  description?: string
+  duration?: number // Em segundos (para vídeos e áudios)
+  size?: number // Em bytes
+  uploadedAt: string
+  order?: number // Para ordenar itens
+}
+
+export interface ProviderMedia {
+  presentation?: MediaItem // Vídeo ou áudio de apresentação
+  portfolio: MediaItem[] // Mix de fotos, vídeos e áudios
+}
+
+export interface MediaUploadLimits {
+  photos: {
+    maxSize: number // em MB
+    maxCount: number
+    allowedFormats: string[]
+  }
+  videos: {
+    maxSize: number
+    maxCount: number
+    maxDuration: number // em segundos
+    allowedFormats: string[]
+  }
+  audios: {
+    maxSize: number
+    maxCount: number
+    maxDuration: number
+    allowedFormats: string[]
+  }
+}
+
 export interface ProviderProfile {
   specialty: string
   bio: string
@@ -94,10 +133,7 @@ export interface ProviderProfile {
   completedJobs?: number
   verified?: boolean
   coverImage?: string
-  videos?: {
-    presentation?: string
-    portfolio: string[]
-  }
+  media?: ProviderMedia
 }
 
 export interface User {
