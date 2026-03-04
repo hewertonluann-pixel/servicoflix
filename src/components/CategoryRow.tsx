@@ -50,10 +50,10 @@ export const CategoryRow = ({ title, providers, badge }: Props) => {
           </div>
         </button>
 
-        {/* Scroll container */}
+        {/* Scroll container com scrollbar customizada */}
         <div
           ref={ref}
-          className="flex gap-3 px-4 sm:px-8 overflow-x-auto scroll-smooth-x py-4"
+          className="flex gap-3 px-4 sm:px-8 overflow-x-auto scroll-smooth py-4 custom-scrollbar"
         >
           {providers.map((provider, i) => (
             <ProviderCard key={provider.id} provider={provider} index={i} />
@@ -70,6 +70,37 @@ export const CategoryRow = ({ title, providers, badge }: Props) => {
           </div>
         </button>
       </div>
+
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 8px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+          margin: 0 2rem;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 215, 0, 0.3);
+          border-radius: 10px;
+          transition: background 0.3s ease;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 215, 0, 0.5);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:active {
+          background: rgba(255, 215, 0, 0.7);
+        }
+
+        /* Firefox */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 215, 0, 0.3) transparent;
+        }
+      `}</style>
     </motion.div>
   )
 }
