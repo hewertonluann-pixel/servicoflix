@@ -5,7 +5,7 @@ import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Co
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { NotificationsDropdown } from './NotificationsDropdown'
-import { CitySelector } from './CitySelector'
+import { CitySelectorNav } from './CitySelectorNav'
 
 export const Navbar = () => {
   const { user, signOut, isProvider, isClient } = useSimpleAuth()
@@ -87,7 +87,7 @@ export const Navbar = () => {
 
         {/* Centro: Cidade + Links */}
         <div className="hidden md:flex items-center gap-3 lg:gap-4">
-          <CitySelector />
+          <CitySelectorNav />
           <div className="h-6 w-px bg-border" />
           <div className="flex items-center gap-4 text-sm font-medium text-muted">
             <Link to="/" className="hover:text-white transition-colors">Início</Link>
@@ -266,7 +266,7 @@ export const Navbar = () => {
         {menuOpen && (
           <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }} transition={{ type: 'tween', duration: 0.3 }} className="md:hidden fixed inset-0 top-14 bg-background z-40 overflow-y-auto">
             <div className="px-4 py-6 space-y-6">
-              <div className="p-4 bg-surface border-2 border-primary/30 rounded-xl"><p className="text-xs font-bold text-muted uppercase mb-3">Serviços em:</p><CitySelector /></div>
+              <div className="p-4 bg-surface border-2 border-primary/30 rounded-xl"><p className="text-xs font-bold text-muted uppercase mb-3">Serviços em:</p><CitySelectorNav /></div>
               <form onSubmit={handleSearch} className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" /><input type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar serviço..." className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-3 text-white placeholder:text-muted outline-none focus:border-primary transition-colors" /></form>
               {user && (
                 <div className="p-4 bg-surface border border-border rounded-xl">
