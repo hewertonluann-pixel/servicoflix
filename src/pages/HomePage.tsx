@@ -19,7 +19,7 @@ interface Category {
 
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
-  name: data.name || 'Sem nome',
+  name: data.providerProfile?.professionalName || data.name || 'Sem nome',
   avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
   coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
   specialty: data.providerProfile?.specialty || 'Profissional',
@@ -46,6 +46,7 @@ export const HomePage = () => {
   const [categories, setCategories] = useState<Category[]>([])
   const [ownerCard, setOwnerCard] = useState<MockProvider | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [userCity, setUserCity] = useState<string>('')
   const [filters, setFilters] = useState<Filters>({
     categories: [],
     priceRange: { min: 0, max: 1000 },
@@ -57,6 +58,13 @@ export const HomePage = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        // Define cidade do usuário logado (se existir)
+        if (user?.providerProfile?.city) {
+          setUserCity(user.providerProfile.city)
+        } else if (user?.city) {
+          setUserCity(user.city)
+        }
+
         // Carrega usuários
         const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
@@ -65,21 +73,31 @@ export const HomePage = () => {
         usersSnap.docs.forEach(d => {
           const data = d.data()
           
-          // Se é o owner, guarda separadamente
+          // Verifica se tem providerProfile
+          if (!data.providerProfile) return
+
+          // Verifica se está aprovado (status: 'approved' E roles inclui 'provider')
+          const isApproved = 
+            data.roles?.includes('provider') && 
+            data.providerProfile?.status === 'approved'
+
+          // Se é o owner, sempre mostra (mesmo pendente)
           if (d.id === OWNER_UID && data.providerProfile) {
             owner = docToProvider(d.id, data)
+            console.log('👑 Owner encontrado:', owner.name)
             return
           }
 
-          // Outros prestadores aprovados
-          if (
-            data.roles?.includes('provider') &&
-            data.providerProfile?.status === 'approved'
-          ) {
+          // Outros prestadores: só mostra se aprovado
+          if (isApproved) {
             providers.push(docToProvider(d.id, data))
+            console.log('✅ Prestador aprovado:', data.name || data.providerProfile.professionalName)
+          } else {
+            console.log('⏳ Prestador pendente:', data.name, '- Status:', data.providerProfile?.status, '- Roles:', data.roles)
           }
         })
 
+        console.log(`📊 Total de prestadores aprovados: ${providers.length}`)
         setRealProviders(providers)
         setOwnerCard(owner)
 
@@ -98,7 +116,7 @@ export const HomePage = () => {
       }
     }
     load()
-  }, [])
+  }, [user])
 
   // Carrega preferências salvas do usuário
   useEffect(() => {
@@ -116,6 +134,12 @@ export const HomePage = () => {
   // Aplica filtros aos prestadores
   const applyFilters = (providers: MockProvider[]): MockProvider[] => {
     return providers.filter(p => {
+      // Filtro de CIDADE (apenas se usuário logado tiver cidade definida)
+      // Prestadores só aparecem para usuários da mesma cidade
+      if (userCity && p.city && p.city.toLowerCase() !== userCity.toLowerCase()) {
+        return false
+      }
+
       // Filtro de categoria
       if (filters.categories.length > 0 && !filters.categories.includes(p.category)) {
         return false
@@ -189,6 +213,17 @@ export const HomePage = () => {
           initialFilters={filters}
         />
 
+        {/* Indicador de cidade ativa */}
+        {userCity && (
+          <div className="px-4 sm:px-8 mb-4">
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 flex items-center gap-2">
+              <span className="text-blue-400 text-sm font-semibold">
+                📍 Exibindo prestadores de: {userCity}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Indicador de filtros ativos */}
         {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
           <div className="px-4 sm:px-8 mb-4">
@@ -233,7 +268,10 @@ export const HomePage = () => {
               </div>
               <h3 className="text-xl font-black text-white mb-2">Nenhum prestador encontrado</h3>
               <p className="text-muted text-sm mb-6">
-                Tente ajustar os filtros para encontrar mais opções
+                {userCity 
+                  ? `Não encontramos prestadores aprovados em ${userCity}. Tente ajustar os filtros ou aguarde novas aprovações.`
+                  : 'Tente ajustar os filtros para encontrar mais opções'
+                }
               </p>
               <button
                 onClick={() => setFilters({
