@@ -1,233 +1,249 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { MapPin, ChevronDown, Check, Navigation, Loader2, AlertCircle } from 'lucide-react'
-import { useGeoLocation } from '@/hooks/useGeoLocation'
+import { MapPin, Search, X, ChevronDown } from 'lucide-react'
 
-const CITIES = [
-  'Diamantina',
-  'Belo Horizonte',
-  'Contagem',
-  'Uberlândia',
-  'Juiz de Fora',
-  'Montes Claros',
-  'Itaúna',
-  'Sete Lagoas',
-  'Poços de Caldas',
-  'Varginha',
-]
+// Lista de cidades brasileiras mais populares (ordenadas por população)
+// Você pode expandir essa lista conforme necessário
+const BRAZILIAN_CITIES = [
+  // Minas Gerais
+  { city: 'Diamantina', state: 'MG', region: 'Sudeste' },
+  { city: 'Belo Horizonte', state: 'MG', region: 'Sudeste' },
+  { city: 'Uberlândia', state: 'MG', region: 'Sudeste' },
+  { city: 'Contagem', state: 'MG', region: 'Sudeste' },
+  { city: 'Juiz de Fora', state: 'MG', region: 'Sudeste' },
+  { city: 'Betim', state: 'MG', region: 'Sudeste' },
+  { city: 'Montes Claros', state: 'MG', region: 'Sudeste' },
+  { city: 'Ribeirão das Neves', state: 'MG', region: 'Sudeste' },
+  { city: 'Uberaba', state: 'MG', region: 'Sudeste' },
+  { city: 'Governador Valadares', state: 'MG', region: 'Sudeste' },
+  
+  // São Paulo
+  { city: 'São Paulo', state: 'SP', region: 'Sudeste' },
+  { city: 'Guarulhos', state: 'SP', region: 'Sudeste' },
+  { city: 'Campinas', state: 'SP', region: 'Sudeste' },
+  { city: 'São Bernardo do Campo', state: 'SP', region: 'Sudeste' },
+  { city: 'Santo André', state: 'SP', region: 'Sudeste' },
+  { city: 'Osasco', state: 'SP', region: 'Sudeste' },
+  { city: 'São José dos Campos', state: 'SP', region: 'Sudeste' },
+  { city: 'Ribeirão Preto', state: 'SP', region: 'Sudeste' },
+  { city: 'Sorocaba', state: 'SP', region: 'Sudeste' },
+  
+  // Rio de Janeiro
+  { city: 'Rio de Janeiro', state: 'RJ', region: 'Sudeste' },
+  { city: 'São Gonçalo', state: 'RJ', region: 'Sudeste' },
+  { city: 'Duque de Caxias', state: 'RJ', region: 'Sudeste' },
+  { city: 'Nova Iguaçu', state: 'RJ', region: 'Sudeste' },
+  { city: 'Niterói', state: 'RJ', region: 'Sudeste' },
+  
+  // Outras capitais e cidades importantes
+  { city: 'Brasília', state: 'DF', region: 'Centro-Oeste' },
+  { city: 'Salvador', state: 'BA', region: 'Nordeste' },
+  { city: 'Fortaleza', state: 'CE', region: 'Nordeste' },
+  { city: 'Manaus', state: 'AM', region: 'Norte' },
+  { city: 'Curitiba', state: 'PR', region: 'Sul' },
+  { city: 'Recife', state: 'PE', region: 'Nordeste' },
+  { city: 'Porto Alegre', state: 'RS', region: 'Sul' },
+  { city: 'Goiânia', state: 'GO', region: 'Centro-Oeste' },
+  { city: 'Belém', state: 'PA', region: 'Norte' },
+  { city: 'Guarujá', state: 'SP', region: 'Sudeste' },
+  { city: 'Florianópolis', state: 'SC', region: 'Sul' },
+  { city: 'São Luís', state: 'MA', region: 'Nordeste' },
+  { city: 'Maceió', state: 'AL', region: 'Nordeste' },
+  { city: 'Natal', state: 'RN', region: 'Nordeste' },
+  { city: 'Campo Grande', state: 'MS', region: 'Centro-Oeste' },
+  { city: 'João Pessoa', state: 'PB', region: 'Nordeste' },
+  { city: 'Teresina', state: 'PI', region: 'Nordeste' },
+  { city: 'Aracaju', state: 'SE', region: 'Nordeste' },
+  { city: 'Cuiabá', state: 'MT', region: 'Centro-Oeste' },
+  { city: 'Porto Velho', state: 'RO', region: 'Norte' },
+  { city: 'Rio Branco', state: 'AC', region: 'Norte' },
+  { city: 'Vitória', state: 'ES', region: 'Sudeste' },
+].sort((a, b) => a.city.localeCompare(b.city))
 
 interface CitySelectorProps {
-  onChange?: (city: string) => void
+  value?: string
+  onChange: (city: string) => void
+  placeholder?: string
+  error?: string
+  required?: boolean
+  disabled?: boolean
 }
 
-export const CitySelector = ({ onChange }: CitySelectorProps) => {
+export const CitySelector = ({
+  value = '',
+  onChange,
+  placeholder = 'Digite para buscar sua cidade...',
+  error,
+  required = false,
+  disabled = false,
+}: CitySelectorProps) => {
   const [isOpen, setIsOpen] = useState(false)
-  const [showGeoPrompt, setShowGeoPrompt] = useState(false)
+  const [search, setSearch] = useState('')
+  const [selectedCity, setSelectedCity] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  
-  const { city, location, loading, error, detectLocation, setManualCity } = useGeoLocation()
 
-  // Mostra prompt de geolocalização na primeira vez
+  // Atualiza quando value externo muda
   useEffect(() => {
-    const hasPrompted = localStorage.getItem('geoLocationPrompted')
-    if (!hasPrompted && !loading && location?.method === 'default') {
-      setShowGeoPrompt(true)
-    }
-  }, [loading, location])
+    setSelectedCity(value)
+  }, [value])
 
   // Fecha dropdown ao clicar fora
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false)
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleSelectCity = (selectedCity: string) => {
-    setManualCity(selectedCity)
+  // Normaliza texto para busca (remove acentos)
+  const normalize = (text: string) =>
+    text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+
+  // Filtra cidades baseado na busca
+  const filteredCities = BRAZILIAN_CITIES.filter((c) => {
+    if (!search) return true
+    const normalized = normalize(search)
+    return (
+      normalize(c.city).includes(normalized) ||
+      normalize(c.state).includes(normalized)
+    )
+  }).slice(0, 50) // Limita a 50 resultados
+
+  const handleSelect = (city: string) => {
+    setSelectedCity(city)
+    onChange(city)
     setIsOpen(false)
-    onChange?.(selectedCity)
+    setSearch('')
   }
 
-  const handleDetectLocation = async () => {
-    setShowGeoPrompt(false)
-    localStorage.setItem('geoLocationPrompted', 'true')
-    await detectLocation()
-    onChange?.(city)
-  }
-
-  const handleDismissGeoPrompt = () => {
-    setShowGeoPrompt(false)
-    localStorage.setItem('geoLocationPrompted', 'true')
+  const handleClear = () => {
+    setSelectedCity('')
+    onChange('')
+    setSearch('')
+    inputRef.current?.focus()
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Botão */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={loading}
-        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-primary/20 border border-primary/30 text-primary rounded-lg hover:bg-primary/30 transition-colors group disabled:opacity-50"
-      >
-        {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-        ) : (
-          <MapPin className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
-        )}
-        <span className="text-xs sm:text-sm font-bold truncate max-w-[80px] sm:max-w-none">
-          {city}
-        </span>
-        {location?.method === 'gps' && (
-          <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" title="Localização automática" />
-        )}
-        <ChevronDown
-          className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform flex-shrink-0 ${
-            isOpen ? 'rotate-180' : ''
-          }`}
+    <div className="relative">
+      {/* Input com cidade selecionada */}
+      <div className="relative">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+          <MapPin className="w-5 h-5 text-muted" />
+        </div>
+        
+        <input
+          ref={inputRef}
+          type="text"
+          value={selectedCity || search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setIsOpen(true)
+            if (!e.target.value) {
+              setSelectedCity('')
+              onChange('')
+            }
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder={placeholder}
+          disabled={disabled}
+          required={required}
+          className={`w-full px-11 py-3 bg-surface border rounded-xl text-white placeholder-muted focus:outline-none focus:border-primary transition-colors ${
+            error ? 'border-red-500' : 'border-border'
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         />
-      </button>
 
-      {/* Prompt de geolocalização */}
-      <AnimatePresence>
-        {showGeoPrompt && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -10 }}
-            className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-72 bg-surface border border-primary/30 rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50 p-4"
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
-                <Navigation className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-bold text-white mb-1">
-                  Ativar localização?
-                </h3>
-                <p className="text-xs text-muted mb-3">
-                  Encontre prestadores próximos a você automaticamente
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleDetectLocation}
-                    className="flex-1 px-3 py-2 bg-primary text-background text-xs font-bold rounded-lg hover:bg-primary-dark transition-colors"
-                  >
-                    Permitir
-                  </button>
-                  <button
-                    onClick={handleDismissGeoPrompt}
-                    className="px-3 py-2 bg-surface border border-border text-muted text-xs font-semibold rounded-lg hover:text-white transition-colors"
-                  >
-                    Agora não
-                  </button>
-                </div>
-              </div>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+          {selectedCity && !disabled && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="text-muted hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          <ChevronDown
+            className={`w-4 h-4 text-muted transition-transform ${
+              isOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* Dropdown de sugestões */}
+      {isOpen && !disabled && (
+        <div
+          ref={dropdownRef}
+          className="absolute z-50 w-full mt-2 bg-surface border border-border rounded-xl shadow-2xl max-h-80 overflow-y-auto"
+        >
+          {filteredCities.length === 0 ? (
+            <div className="px-4 py-8 text-center">
+              <Search className="w-8 h-8 text-muted mx-auto mb-2" />
+              <p className="text-muted text-sm">
+                Nenhuma cidade encontrada.
+              </p>
+              <p className="text-muted text-xs mt-1">
+                Tente buscar por nome ou sigla do estado.
+              </p>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Dropdown */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-56 bg-surface border border-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden z-50"
-          >
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-border">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  <p className="text-sm font-bold text-white">Selecione sua cidade</p>
-                </div>
-                {location?.method !== 'manual' && (
+          ) : (
+            <div className="py-2">
+              {filteredCities.map((c, idx) => {
+                const isSelected = selectedCity === c.city
+                return (
                   <button
-                    onClick={detectLocation}
-                    disabled={loading}
-                    className="p-1 text-primary hover:text-primary-dark transition-colors disabled:opacity-50"
-                    title="Detectar localização"
+                    key={`${c.city}-${c.state}-${idx}`}
+                    type="button"
+                    onClick={() => handleSelect(c.city)}
+                    className={`w-full px-4 py-2.5 text-left flex items-center justify-between gap-3 transition-colors ${
+                      isSelected
+                        ? 'bg-primary/20 text-primary'
+                        : 'hover:bg-surface-light text-white'
+                    }`}
                   >
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Navigation className="w-4 h-4" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{c.city}</p>
+                      <p className="text-xs text-muted">
+                        {c.state} • {c.region}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <div className="shrink-0 w-2 h-2 bg-primary rounded-full" />
                     )}
                   </button>
-                )}
-              </div>
-              {location && location.method !== 'default' && (
-                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted">
-                  {location.method === 'gps' && (
-                    <>
-                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full" />
-                      Localização precisa (GPS)
-                    </>
-                  )}
-                  {location.method === 'ip' && (
-                    <>
-                      <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full" />
-                      Localização aproximada (IP)
-                    </>
-                  )}
-                  {location.method === 'manual' && (
-                    <>
-                      <div className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
-                      Selecionado manualmente
-                    </>
-                  )}
-                </div>
-              )}
+                )
+              })}
             </div>
+          )}
+        </div>
+      )}
 
-            {/* Lista de cidades */}
-            <div className="py-2 max-h-[280px] overflow-y-auto custom-scrollbar">
-              {CITIES.map(cityName => (
-                <button
-                  key={cityName}
-                  onClick={() => handleSelectCity(cityName)}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
-                    cityName === city
-                      ? 'bg-primary/10 text-primary font-semibold'
-                      : 'text-muted hover:text-white hover:bg-background'
-                  }`}
-                >
-                  <span>{cityName}</span>
-                  {cityName === city && (
-                    <Check className="w-4 h-4" />
-                  )}
-                </button>
-              ))}
-            </div>
+      {/* Mensagem de erro */}
+      {error && (
+        <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1">
+          <span>⚠️</span>
+          {error}
+        </p>
+      )}
 
-            {/* Footer */}
-            <div className="px-4 py-3 border-t border-border bg-background/50">
-              {error ? (
-                <div className="flex items-center gap-2 text-[10px] text-yellow-400">
-                  <AlertCircle className="w-3 h-3" />
-                  <span>{error}</span>
-                </div>
-              ) : (
-                <p className="text-[10px] text-muted text-center">
-                  Serviços filtrados para {city}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Dica */}
+      {!error && !selectedCity && !isOpen && (
+        <p className="mt-1.5 text-xs text-muted">
+          💡 Selecione sua cidade da lista para garantir compatibilidade
+        </p>
+      )}
     </div>
   )
-}
-
-// Hook para usar a cidade selecionada em outros componentes
-export const useSelectedCity = () => {
-  const { city } = useGeoLocation()
-  return city
 }
