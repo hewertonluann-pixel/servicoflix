@@ -8,7 +8,7 @@ import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { FilterBar, Filters } from '@/components/FilterBar'
 import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
-import { MapPin, X } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
 
@@ -33,7 +33,7 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
   isOnline: true,
   isTopRated: data.providerProfile?.verified || false,
-  isFeatured: data.providerProfile?.featured || false,
+  isFeatured: data.providerProfile?.featured || id === OWNER_UID, // Owner sempre featured
   bio: data.providerProfile?.bio || '',
   skills: data.providerProfile?.skills || [],
   completedJobs: data.providerProfile?.completedJobs || 0,
@@ -47,7 +47,6 @@ export const HomePage = () => {
   const geoLocation = useGeolocation()
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [ownerCard, setOwnerCard] = useState<MockProvider | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [cityFilter, setCityFilter] = useState<string>('')
   const [showAllCities, setShowAllCities] = useState(false)
@@ -81,32 +80,35 @@ export const HomePage = () => {
       try {
         const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
-        let owner: MockProvider | null = null
 
         usersSnap.docs.forEach(d => {
           const data = d.data()
           
           if (!data.providerProfile) return
 
+          // Owner sempre aparece (mesmo pendente)
+          const isOwner = d.id === OWNER_UID
+          
+          // Outros precisam estar aprovados
           const isApproved = 
             data.roles?.includes('provider') && 
             data.providerProfile?.status === 'approved'
 
-          if (d.id === OWNER_UID && data.providerProfile) {
-            owner = docToProvider(d.id, data)
-            console.log('👑 Owner encontrado:', owner.name)
-            return
-          }
-
-          if (isApproved) {
-            providers.push(docToProvider(d.id, data))
-            console.log('✅ Prestador aprovado:', data.providerProfile?.professionalName || data.name)
+          if (isOwner || isApproved) {
+            const provider = docToProvider(d.id, data)
+            providers.push(provider)
+            console.log(
+              isOwner ? '👑 Owner:' : '✅ Prestador:',
+              provider.name,
+              '- Cidade:', provider.city,
+              '- Featured:', provider.isFeatured
+            )
           }
         })
 
-        console.log(`📊 Total de prestadores aprovados: ${providers.length}`)
+        console.log(`📊 Total de prestadores: ${providers.length}`)
+        console.log(`⭐ Featured: ${providers.filter(p => p.isFeatured).length}`)
         setRealProviders(providers)
-        setOwnerCard(owner)
 
         const catSnap = await getDocs(collection(db, 'categories'))
         const cats: Category[] = catSnap.docs
@@ -180,22 +182,31 @@ export const HomePage = () => {
     return applyFilters(merged)
   }
 
+  // TODOS os prestadores (reais + mocks) com filtros aplicados
   const allProviders = applyFilters([
     ...realProviders,
-    ...(ownerCard ? [ownerCard] : []),
     ...mockProviders.filter(p => p.isMock),
   ])
 
+  // Seção online
   const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
 
-  const featuredProviders = [
-    ...(ownerCard ? [ownerCard] : []),
-    ...realProviders.filter(p => p.isFeatured === true)
-  ]
-  const destaque = applyFilters(featuredProviders)
+  // DESTAQUE - prestadores com isFeatured = true (inclui owner)
+  // Ordena: owner sempre primeiro, depois por rating
+  const featuredProviders = allProviders
+    .filter(p => p.isFeatured)
+    .sort((a, b) => {
+      // Owner sempre primeiro
+      if (a.id === OWNER_UID) return -1
+      if (b.id === OWNER_UID) return 1
+      // Depois ordena por rating
+      return b.rating - a.rating
+    })
+
+  console.log('⭐ Prestadores em destaque (após filtros):', featuredProviders.length)
+  console.log('Cidades:', featuredProviders.map(p => `${p.name} (${p.city})`))
 
   const allForHero = [
-    ...(ownerCard ? [ownerCard] : []),
     ...realProviders,
     ...mockProviders.filter(p => p.isMock)
   ]
@@ -268,8 +279,9 @@ export const HomePage = () => {
           </div>
         )}
 
-        {destaque.length > 0 && (
-          <CategoryRow title="⭐ Em Destaque" providers={destaque} badge="top" />
+        {/* SEÇÃO EM DESTAQUE - Aparece para TODOS se tiver featured da cidade */}
+        {featuredProviders.length > 0 && (
+          <CategoryRow title="⭐ Em Destaque" providers={featuredProviders} badge="top" />
         )}
 
         {onlineProviders.length > 0 && (
