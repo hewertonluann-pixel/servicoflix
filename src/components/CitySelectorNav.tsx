@@ -113,16 +113,13 @@ export const CitySelectorNav = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 bg-surface/50 border border-primary/30 rounded-lg hover:bg-surface hover:border-primary transition-all group"
+        className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg hover:border-primary transition-colors"
       >
-        <MapPin className="w-5 h-5 text-primary shrink-0" />
-        <div className="flex flex-col items-start min-w-0">
-          <span className="text-[10px] text-muted uppercase font-semibold tracking-wide">Serviços em</span>
-          <span className="text-base font-black text-white truncate max-w-[140px] -mt-0.5">
-            {displayText}
-          </span>
-        </div>
-        <ChevronDown className={`w-4 h-4 text-muted transition-transform ml-1 group-hover:text-primary ${isOpen ? 'rotate-180' : ''}`} />
+        <MapPin className="w-4 h-4 text-primary shrink-0" />
+        <span className="text-sm font-semibold text-white truncate max-w-[120px]">
+          {displayText}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>
