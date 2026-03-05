@@ -63,6 +63,8 @@ export const HomePage = () => {
           setUserCity(user.providerProfile.city)
         } else if (user?.city) {
           setUserCity(user.city)
+        } else {
+          setUserCity('') // Sem cidade = ver todos
         }
 
         // Carrega usuários
@@ -91,7 +93,7 @@ export const HomePage = () => {
           // Outros prestadores: só mostra se aprovado
           if (isApproved) {
             providers.push(docToProvider(d.id, data))
-            console.log('✅ Prestador aprovado:', data.name || data.providerProfile.professionalName)
+            console.log('✅ Prestador aprovado:', data.providerProfile?.professionalName || data.name)
           } else {
             console.log('⏳ Prestador pendente:', data.name, '- Status:', data.providerProfile?.status, '- Roles:', data.roles)
           }
@@ -134,11 +136,12 @@ export const HomePage = () => {
   // Aplica filtros aos prestadores
   const applyFilters = (providers: MockProvider[]): MockProvider[] => {
     return providers.filter(p => {
-      // Filtro de CIDADE (apenas se usuário logado tiver cidade definida)
-      // Prestadores só aparecem para usuários da mesma cidade
-      if (userCity && p.city && p.city.toLowerCase() !== userCity.toLowerCase()) {
-        return false
-      }
+      // FILTRO DE CIDADE REMOVIDO!
+      // Agora todos os prestadores aparecem para todos, independente de cidade
+      // Se no futuro quiser reativar filtro por cidade apenas para usuários logados:
+      // if (user && userCity && p.city && p.city.toLowerCase() !== userCity.toLowerCase()) {
+      //   return false
+      // }
 
       // Filtro de categoria
       if (filters.categories.length > 0 && !filters.categories.includes(p.category)) {
@@ -213,17 +216,6 @@ export const HomePage = () => {
           initialFilters={filters}
         />
 
-        {/* Indicador de cidade ativa */}
-        {userCity && (
-          <div className="px-4 sm:px-8 mb-4">
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 flex items-center gap-2">
-              <span className="text-blue-400 text-sm font-semibold">
-                📍 Exibindo prestadores de: {userCity}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* Indicador de filtros ativos */}
         {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
           <div className="px-4 sm:px-8 mb-4">
@@ -268,10 +260,7 @@ export const HomePage = () => {
               </div>
               <h3 className="text-xl font-black text-white mb-2">Nenhum prestador encontrado</h3>
               <p className="text-muted text-sm mb-6">
-                {userCity 
-                  ? `Não encontramos prestadores aprovados em ${userCity}. Tente ajustar os filtros ou aguarde novas aprovações.`
-                  : 'Tente ajustar os filtros para encontrar mais opções'
-                }
+                Não encontramos prestadores que atendam aos filtros selecionados. Tente ajustar suas preferências.
               </p>
               <button
                 onClick={() => setFilters({
