@@ -58,14 +58,14 @@ export const HomePage = () => {
     minRating: 0,
   })
 
-  // Define cidade do filtro (geolocalização ou usuário logado)
+  // Define cidade do filtro (geolocalizacão ou usuário logado)
   useEffect(() => {
     if (showAllCities) {
       setCityFilter('')
       return
     }
 
-    // Prioridade: cidade do usuário logado > geolocalização
+    // Prioridade: cidade do usuário logado > geolocalizacão
     if (user?.providerProfile?.city) {
       setCityFilter(user.providerProfile.city)
     } else if (user?.city) {
