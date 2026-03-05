@@ -9,6 +9,7 @@ import { BecomeProviderPage } from '@/pages/BecomeProviderPage'
 import { SearchPage } from '@/pages/SearchPage'
 import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 import { AdminPage } from '@/pages/AdminPage'
+import { AdminApprovalPage } from '@/pages/AdminApprovalPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { EditProviderProfilePage } from '@/pages/EditProviderProfilePage'
 
@@ -31,6 +32,7 @@ function App() {
         <Route path="/buscar" element={<SearchPage />} />
         <Route path="/entrar" element={<SimpleLoginPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/aprovacoes" element={<AdminApprovalPage />} />
       </Routes>
     </div>
   )
