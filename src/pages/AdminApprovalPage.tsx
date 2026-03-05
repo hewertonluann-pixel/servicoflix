@@ -34,6 +34,7 @@ export const AdminApprovalPage = () => {
   const { user } = useSimpleAuth()
   const navigate = useNavigate()
   const [pendingProviders, setPendingProviders] = useState<PendingProvider[]>([])
+  const [allUsers, setAllUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState<string | null>(null)
 
@@ -52,21 +53,47 @@ export const AdminApprovalPage = () => {
       setLoading(true)
       const usersSnap = await getDocs(collection(db, 'users'))
       const pending: PendingProvider[] = []
+      const all: any[] = []
 
+      console.log('=== DEBUG: TODOS OS USUÁRIOS ===')
       usersSnap.docs.forEach(d => {
         const data = d.data()
+        all.push({ id: d.id, ...data })
         
-        // Busca perfis pendentes de aprovação
-        if (data.providerProfile?.status === 'pending') {
-          pending.push({
-            id: d.id,
-            name: data.name || 'Sem nome',
-            email: data.email || '',
-            avatar: data.avatar || `https://i.pravatar.cc/150?u=${d.id}`,
-            providerProfile: data.providerProfile
-          })
+        console.log('\n--- Usuário:', d.id)
+        console.log('Nome:', data.name)
+        console.log('Email:', data.email)
+        console.log('Roles:', data.roles)
+        console.log('Tem providerProfile?', !!data.providerProfile)
+        
+        if (data.providerProfile) {
+          console.log('  - Professional Name:', data.providerProfile.professionalName)
+          console.log('  - Specialty:', data.providerProfile.specialty)
+          console.log('  - Status:', data.providerProfile.status)
+          console.log('  - City:', data.providerProfile.city)
+          
+          // Busca perfis pendentes de aprovação (qualquer status que não seja 'approved')
+          if (data.providerProfile.status !== 'approved') {
+            console.log('  ➡️ ADICIONANDO À LISTA DE PENDENTES')
+            pending.push({
+              id: d.id,
+              name: data.name || 'Sem nome',
+              email: data.email || '',
+              avatar: data.avatar || `https://i.pravatar.cc/150?u=${d.id}`,
+              providerProfile: {
+                ...data.providerProfile,
+                submittedAt: data.providerProfile.submittedAt || new Date().toISOString()
+              }
+            })
+          }
         }
       })
+
+      console.log('\n=== RESUMO ===')
+      console.log('Total de usuários:', usersSnap.docs.length)
+      console.log('Usuários com providerProfile:', all.filter(u => u.providerProfile).length)
+      console.log('Perfis pendentes encontrados:', pending.length)
+      console.log('Lista de pendentes:', pending.map(p => p.name || p.providerProfile.professionalName))
 
       // Ordena por data de envio (mais recentes primeiro)
       pending.sort((a, b) => {
@@ -75,6 +102,7 @@ export const AdminApprovalPage = () => {
         return dateB - dateA
       })
 
+      setAllUsers(all)
       setPendingProviders(pending)
     } catch (err) {
       console.error('Erro ao carregar solicitações:', err)
@@ -96,12 +124,13 @@ export const AdminApprovalPage = () => {
       })
 
       console.log('✅ Prestador aprovado:', providerId)
+      alert('Prestador aprovado com sucesso! Agora ele aparecerá na listagem pública.')
       
       // Remove da lista local
       setPendingProviders(prev => prev.filter(p => p.id !== providerId))
     } catch (err) {
       console.error('Erro ao aprovar:', err)
-      alert('Erro ao aprovar prestador')
+      alert('Erro ao aprovar prestador: ' + err)
     } finally {
       setProcessing(null)
     }
@@ -125,7 +154,7 @@ export const AdminApprovalPage = () => {
       setPendingProviders(prev => prev.filter(p => p.id !== providerId))
     } catch (err) {
       console.error('Erro ao rejeitar:', err)
-      alert('Erro ao rejeitar prestador')
+      alert('Erro ao rejeitar prestador: ' + err)
     } finally {
       setProcessing(null)
     }
@@ -175,6 +204,13 @@ export const AdminApprovalPage = () => {
               <p className="text-muted text-sm">Aprovação de Prestadores</p>
             </div>
           </div>
+          <div className="mt-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+            <p className="text-blue-400 text-xs font-semibold mb-1">📊 Debug Info:</p>
+            <p className="text-blue-300 text-xs">Total de usuários no Firestore: {allUsers.length}</p>
+            <p className="text-blue-300 text-xs">Usuários com providerProfile: {allUsers.filter(u => u.providerProfile).length}</p>
+            <p className="text-blue-300 text-xs">Pendentes de aprovação: {pendingProviders.length}</p>
+            <p className="text-xs text-muted mt-2">Verifique o console do navegador (F12) para mais detalhes</p>
+          </div>
         </motion.div>
 
         {/* Estatísticas */}
@@ -223,7 +259,10 @@ export const AdminApprovalPage = () => {
           >
             <CheckCircle className="w-16 h-16 text-primary mx-auto mb-4" />
             <h3 className="text-xl font-black text-white mb-2">Nenhuma solicitação pendente</h3>
-            <p className="text-muted text-sm">Todas as solicitações foram processadas.</p>
+            <p className="text-muted text-sm mb-4">Todas as solicitações foram processadas.</p>
+            <p className="text-xs text-yellow-400">
+              💡 Dica: Se você acabou de criar um perfil de prestador, verifique o console (F12) para ver se ele foi encontrado.
+            </p>
           </motion.div>
         ) : (
           <div className="space-y-4">
@@ -254,7 +293,7 @@ export const AdminApprovalPage = () => {
                           </div>
                           <div className="flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 px-2 py-1 rounded-full text-xs font-semibold shrink-0">
                             <Clock className="w-3 h-3" />
-                            Pendente
+                            {provider.providerProfile.status || 'Pendente'}
                           </div>
                         </div>
 
