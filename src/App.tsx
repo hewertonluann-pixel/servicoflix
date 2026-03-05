@@ -11,12 +11,15 @@ import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { AdminApprovalPage } from '@/pages/AdminApprovalPage'
 import { DebugProvidersPage } from '@/pages/DebugProvidersPage'
+import { FixProvidersPage } from '@/pages/FixProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { EditProviderProfilePage } from '@/pages/EditProviderProfilePage'
 
 function App() {
   const location = useLocation()
-  const hideNavbar = location.pathname.startsWith('/admin') || location.pathname.startsWith('/debug')
+  const hideNavbar = location.pathname.startsWith('/admin') || 
+                     location.pathname.startsWith('/debug') || 
+                     location.pathname.startsWith('/fix')
 
   return (
     <div className="min-h-screen bg-background text-white font-sans">
@@ -35,6 +38,7 @@ function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/aprovacoes" element={<AdminApprovalPage />} />
         <Route path="/debug" element={<DebugProvidersPage />} />
+        <Route path="/fix" element={<FixProvidersPage />} />
       </Routes>
     </div>
   )
