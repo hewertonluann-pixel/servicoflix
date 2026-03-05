@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { useGeolocation } from '@/hooks/useGeolocation'
+import { useCityFilter } from '@/components/CitySelectorNav'
 import { HeroBillboard } from '@/components/HeroBillboard'
 import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { FilterBar, Filters } from '@/components/FilterBar'
 import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
-import { MapPin } from 'lucide-react'
 
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
 
@@ -44,12 +43,10 @@ const docToProvider = (id: string, data: any): MockProvider => ({
 
 export const HomePage = () => {
   const { user } = useSimpleAuth()
-  const geoLocation = useGeolocation()
+  const { cityFilter, showAllCities } = useCityFilter()
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [cityFilter, setCityFilter] = useState<string>('')
-  const [showAllCities, setShowAllCities] = useState(false)
   const [filters, setFilters] = useState<Filters>({
     categories: [],
     priceRange: { min: 0, max: 1000 },
@@ -57,23 +54,6 @@ export const HomePage = () => {
     onlyVerified: false,
     minRating: 0,
   })
-
-  // Define cidade do filtro (geolocalizacão ou usuário logado)
-  useEffect(() => {
-    if (showAllCities) {
-      setCityFilter('')
-      return
-    }
-
-    // Prioridade: cidade do usuário logado > geolocalizacão
-    if (user?.providerProfile?.city) {
-      setCityFilter(user.providerProfile.city)
-    } else if (user?.city) {
-      setCityFilter(user.city)
-    } else if (geoLocation.detected && geoLocation.city) {
-      setCityFilter(geoLocation.city)
-    }
-  }, [user, geoLocation.detected, geoLocation.city, showAllCities])
 
   useEffect(() => {
     const load = async () => {
@@ -226,48 +206,6 @@ export const HomePage = () => {
           initialFilters={filters}
         />
 
-        {/* Indicador de cidade detectada */}
-        {cityFilter && !showAllCities && (
-          <div className="px-4 sm:px-8 mb-4">
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="text-blue-400 text-sm font-semibold truncate">
-                  {geoLocation.loading ? (
-                    'Detectando sua localização...'
-                  ) : (
-                    `Exibindo prestadores de: ${cityFilter}`
-                  )}
-                </span>
-              </div>
-              <button
-                onClick={() => setShowAllCities(true)}
-                className="shrink-0 text-xs text-blue-300 hover:text-blue-200 underline"
-              >
-                Ver todas as cidades
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Botão para voltar ao filtro de cidade */}
-        {showAllCities && (
-          <div className="px-4 sm:px-8 mb-4">
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-              <span className="text-yellow-400 text-sm font-semibold">
-                🌎 Exibindo prestadores de todas as cidades
-              </span>
-              <button
-                onClick={() => setShowAllCities(false)}
-                className="shrink-0 px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 text-yellow-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                Filtrar por minha cidade
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Indicador de filtros ativos */}
         {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
           <div className="px-4 sm:px-8 mb-4">
@@ -310,33 +248,23 @@ export const HomePage = () => {
               </div>
               <h3 className="text-xl font-black text-white mb-2">Nenhum prestador encontrado</h3>
               <p className="text-muted text-sm mb-6">
-                {cityFilter 
-                  ? `Não encontramos prestadores em ${cityFilter}. Experimente ver prestadores de outras cidades.`
+                {cityFilter && !showAllCities
+                  ? `Não encontramos prestadores em ${cityFilter}.`
                   : 'Não encontramos prestadores que atendam aos filtros selecionados.'
                 }
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                {cityFilter && (
-                  <button
-                    onClick={() => setShowAllCities(true)}
-                    className="px-6 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"
-                  >
-                    Ver Todas as Cidades
-                  </button>
-                )}
-                <button
-                  onClick={() => setFilters({
-                    categories: [],
-                    priceRange: { min: 0, max: 1000 },
-                    searchRadius: 50,
-                    onlyVerified: false,
-                    minRating: 0,
-                  })}
-                  className="px-6 py-3 bg-surface border border-border text-muted font-bold rounded-xl hover:text-white transition-colors"
-                >
-                  Limpar Filtros
-                </button>
-              </div>
+              <button
+                onClick={() => setFilters({
+                  categories: [],
+                  priceRange: { min: 0, max: 1000 },
+                  searchRadius: 50,
+                  onlyVerified: false,
+                  minRating: 0,
+                })}
+                className="px-6 py-3 bg-surface border border-border text-muted font-bold rounded-xl hover:text-white transition-colors"
+              >
+                Limpar Filtros
+              </button>
             </div>
           </div>
         )}
