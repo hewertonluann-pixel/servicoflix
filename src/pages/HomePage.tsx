@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { useGeolocation } from '@/hooks/useGeolocation'
 import { HeroBillboard } from '@/components/HeroBillboard'
 import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { FilterBar, Filters } from '@/components/FilterBar'
 import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
+import { MapPin, X } from 'lucide-react'
 
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
 
@@ -42,11 +44,13 @@ const docToProvider = (id: string, data: any): MockProvider => ({
 
 export const HomePage = () => {
   const { user } = useSimpleAuth()
+  const geoLocation = useGeolocation()
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [ownerCard, setOwnerCard] = useState<MockProvider | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [userCity, setUserCity] = useState<string>('')
+  const [cityFilter, setCityFilter] = useState<string>('')
+  const [showAllCities, setShowAllCities] = useState(false)
   const [filters, setFilters] = useState<Filters>({
     categories: [],
     priceRange: { min: 0, max: 1000 },
@@ -55,19 +59,26 @@ export const HomePage = () => {
     minRating: 0,
   })
 
+  // Define cidade do filtro (geolocalização ou usuário logado)
+  useEffect(() => {
+    if (showAllCities) {
+      setCityFilter('')
+      return
+    }
+
+    // Prioridade: cidade do usuário logado > geolocalização
+    if (user?.providerProfile?.city) {
+      setCityFilter(user.providerProfile.city)
+    } else if (user?.city) {
+      setCityFilter(user.city)
+    } else if (geoLocation.detected && geoLocation.city) {
+      setCityFilter(geoLocation.city)
+    }
+  }, [user, geoLocation.detected, geoLocation.city, showAllCities])
+
   useEffect(() => {
     const load = async () => {
       try {
-        // Define cidade do usuário logado (se existir)
-        if (user?.providerProfile?.city) {
-          setUserCity(user.providerProfile.city)
-        } else if (user?.city) {
-          setUserCity(user.city)
-        } else {
-          setUserCity('') // Sem cidade = ver todos
-        }
-
-        // Carrega usuários
         const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
         let owner: MockProvider | null = null
@@ -75,27 +86,21 @@ export const HomePage = () => {
         usersSnap.docs.forEach(d => {
           const data = d.data()
           
-          // Verifica se tem providerProfile
           if (!data.providerProfile) return
 
-          // Verifica se está aprovado (status: 'approved' E roles inclui 'provider')
           const isApproved = 
             data.roles?.includes('provider') && 
             data.providerProfile?.status === 'approved'
 
-          // Se é o owner, sempre mostra (mesmo pendente)
           if (d.id === OWNER_UID && data.providerProfile) {
             owner = docToProvider(d.id, data)
             console.log('👑 Owner encontrado:', owner.name)
             return
           }
 
-          // Outros prestadores: só mostra se aprovado
           if (isApproved) {
             providers.push(docToProvider(d.id, data))
             console.log('✅ Prestador aprovado:', data.providerProfile?.professionalName || data.name)
-          } else {
-            console.log('⏳ Prestador pendente:', data.name, '- Status:', data.providerProfile?.status, '- Roles:', data.roles)
           }
         })
 
@@ -103,7 +108,6 @@ export const HomePage = () => {
         setRealProviders(providers)
         setOwnerCard(owner)
 
-        // Carrega categorias do Firestore
         const catSnap = await getDocs(collection(db, 'categories'))
         const cats: Category[] = catSnap.docs
           .map(d => ({ id: d.id, ...d.data() } as Category))
@@ -118,9 +122,8 @@ export const HomePage = () => {
       }
     }
     load()
-  }, [user])
+  }, [])
 
-  // Carrega preferências salvas do usuário
   useEffect(() => {
     if (user?.settings?.preferences) {
       setFilters({
@@ -133,32 +136,34 @@ export const HomePage = () => {
     }
   }, [user])
 
-  // Aplica filtros aos prestadores
   const applyFilters = (providers: MockProvider[]): MockProvider[] => {
     return providers.filter(p => {
-      // FILTRO DE CIDADE REMOVIDO!
-      // Agora todos os prestadores aparecem para todos, independente de cidade
-      // Se no futuro quiser reativar filtro por cidade apenas para usuários logados:
-      // if (user && userCity && p.city && p.city.toLowerCase() !== userCity.toLowerCase()) {
-      //   return false
-      // }
+      // Filtro de CIDADE (se não estiver em "ver todas as cidades")
+      if (!showAllCities && cityFilter && p.city) {
+        // Normalização: remove acentos e compara
+        const normalizeCity = (city: string) => 
+          city.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
 
-      // Filtro de categoria
+        if (normalizeCity(p.city) !== normalizeCity(cityFilter)) {
+          return false
+        }
+      }
+
       if (filters.categories.length > 0 && !filters.categories.includes(p.category)) {
         return false
       }
 
-      // Filtro de preço
       if (p.priceFrom < filters.priceRange.min || p.priceFrom > filters.priceRange.max) {
         return false
       }
 
-      // Filtro de verificação
       if (filters.onlyVerified && !p.isTopRated) {
         return false
       }
 
-      // Filtro de avaliação
       if (p.rating < filters.minRating) {
         return false
       }
@@ -167,7 +172,6 @@ export const HomePage = () => {
     })
   }
 
-  // Para cada categoria do Firestore, pega prestadores reais; se <5, completa com mocks
   const getMerged = (categoryId: string) => {
     const reais = realProviders.filter(p => p.category === categoryId)
     const mocks = mocksByCategory[categoryId] || []
@@ -176,17 +180,14 @@ export const HomePage = () => {
     return applyFilters(merged)
   }
 
-  // Todos os prestadores (reais + mocks) com filtros aplicados
   const allProviders = applyFilters([
     ...realProviders,
     ...(ownerCard ? [ownerCard] : []),
     ...mockProviders.filter(p => p.isMock),
   ])
 
-  // Seção online
   const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
 
-  // DESTAQUE - prestadores marcados como featured + owner sempre primeiro
   const featuredProviders = [
     ...(ownerCard ? [ownerCard] : []),
     ...realProviders.filter(p => p.isFeatured === true)
@@ -199,7 +200,6 @@ export const HomePage = () => {
     ...mockProviders.filter(p => p.isMock)
   ]
 
-  // Categorias para exibir (se filtro ativo, mostra apenas as selecionadas)
   const categoriesToShow = filters.categories.length > 0
     ? categories.filter(c => filters.categories.includes(c.id))
     : categories
@@ -209,12 +209,53 @@ export const HomePage = () => {
       <HeroBillboard providers={allForHero} />
 
       <div className="relative z-10 -mt-8">
-        {/* Barra de filtros */}
         <FilterBar
           onFilterChange={setFilters}
           categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
           initialFilters={filters}
         />
+
+        {/* Indicador de cidade detectada */}
+        {cityFilter && !showAllCities && (
+          <div className="px-4 sm:px-8 mb-4">
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+                <span className="text-blue-400 text-sm font-semibold truncate">
+                  {geoLocation.loading ? (
+                    'Detectando sua localização...'
+                  ) : (
+                    `Exibindo prestadores de: ${cityFilter}`
+                  )}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowAllCities(true)}
+                className="shrink-0 text-xs text-blue-300 hover:text-blue-200 underline"
+              >
+                Ver todas as cidades
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Botão para voltar ao filtro de cidade */}
+        {showAllCities && (
+          <div className="px-4 sm:px-8 mb-4">
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+              <span className="text-yellow-400 text-sm font-semibold">
+                🌎 Exibindo prestadores de todas as cidades
+              </span>
+              <button
+                onClick={() => setShowAllCities(false)}
+                className="shrink-0 px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 text-yellow-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                Filtrar por minha cidade
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Indicador de filtros ativos */}
         {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
@@ -235,10 +276,8 @@ export const HomePage = () => {
           <CategoryRow title="🟢 Disponíveis Agora" providers={onlineProviders} badge="ao vivo" />
         )}
 
-        {/* Grid de categorias */}
         <CategoryGrid categories={categoriesToShow.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
 
-        {/* Linhas de categorias dinâmicas */}
         {categoriesToShow.map(cat => {
           const providers = getMerged(cat.id)
           if (providers.length === 0) return null
@@ -251,7 +290,6 @@ export const HomePage = () => {
           )
         })}
 
-        {/* Mensagem se nenhum prestador atender aos filtros */}
         {allProviders.length === 0 && (
           <div className="px-4 sm:px-8 py-16 text-center">
             <div className="max-w-md mx-auto">
@@ -260,25 +298,37 @@ export const HomePage = () => {
               </div>
               <h3 className="text-xl font-black text-white mb-2">Nenhum prestador encontrado</h3>
               <p className="text-muted text-sm mb-6">
-                Não encontramos prestadores que atendam aos filtros selecionados. Tente ajustar suas preferências.
+                {cityFilter 
+                  ? `Não encontramos prestadores em ${cityFilter}. Experimente ver prestadores de outras cidades.`
+                  : 'Não encontramos prestadores que atendam aos filtros selecionados.'
+                }
               </p>
-              <button
-                onClick={() => setFilters({
-                  categories: [],
-                  priceRange: { min: 0, max: 1000 },
-                  searchRadius: 50,
-                  onlyVerified: false,
-                  minRating: 0,
-                })}
-                className="px-6 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"
-              >
-                Limpar Filtros
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                {cityFilter && (
+                  <button
+                    onClick={() => setShowAllCities(true)}
+                    className="px-6 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"
+                  >
+                    Ver Todas as Cidades
+                  </button>
+                )}
+                <button
+                  onClick={() => setFilters({
+                    categories: [],
+                    priceRange: { min: 0, max: 1000 },
+                    searchRadius: 50,
+                    onlyVerified: false,
+                    minRating: 0,
+                  })}
+                  className="px-6 py-3 bg-surface border border-border text-muted font-bold rounded-xl hover:text-white transition-colors"
+                >
+                  Limpar Filtros
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Se não houver categorias no Firestore, mostra fallback */}
         {categories.length === 0 && (
           <>
             <CategoryRow title="🎵 Música" providers={getMerged('musica')} />
