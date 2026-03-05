@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useCityFilter } from '@/components/CitySelectorNav'
@@ -18,6 +18,10 @@ interface Category {
   active: boolean
 }
 
+interface MockSettings {
+  [categoryId: string]: boolean
+}
+
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
   name: data.providerProfile?.professionalName || data.name || 'Sem nome',
@@ -32,7 +36,7 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
   isOnline: true,
   isTopRated: data.providerProfile?.verified || false,
-  isFeatured: data.providerProfile?.featured || id === OWNER_UID, // Owner sempre featured
+  isFeatured: data.providerProfile?.featured || id === OWNER_UID,
   bio: data.providerProfile?.bio || '',
   skills: data.providerProfile?.skills || [],
   completedJobs: data.providerProfile?.completedJobs || 0,
@@ -47,6 +51,7 @@ export const HomePage = () => {
   const [realProviders, setRealProviders] = useState<MockProvider[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [mockSettings, setMockSettings] = useState<MockSettings>({})
   const [filters, setFilters] = useState<Filters>({
     categories: [],
     priceRange: { min: 0, max: 1000 },
@@ -58,6 +63,7 @@ export const HomePage = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        // Carregar prestadores reais
         const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
 
@@ -66,10 +72,7 @@ export const HomePage = () => {
           
           if (!data.providerProfile) return
 
-          // Owner sempre aparece (mesmo pendente)
           const isOwner = d.id === OWNER_UID
-          
-          // Outros precisam estar aprovados
           const isApproved = 
             data.roles?.includes('provider') && 
             data.providerProfile?.status === 'approved'
@@ -90,6 +93,7 @@ export const HomePage = () => {
         console.log(`⭐ Featured: ${providers.filter(p => p.isFeatured).length}`)
         setRealProviders(providers)
 
+        // Carregar categorias
         const catSnap = await getDocs(collection(db, 'categories'))
         const cats: Category[] = catSnap.docs
           .map(d => ({ id: d.id, ...d.data() } as Category))
@@ -97,6 +101,19 @@ export const HomePage = () => {
           .sort((a, b) => a.name.localeCompare(b.name))
 
         setCategories(cats)
+
+        // Carregar configurações de mockups
+        const mockSettingsDoc = await getDoc(doc(db, 'settings', 'mockups'))
+        if (mockSettingsDoc.exists()) {
+          setMockSettings(mockSettingsDoc.data().categories || {})
+        } else {
+          // Padrão: todos ativos
+          const defaultSettings: MockSettings = {}
+          Object.keys(mocksByCategory).forEach(cat => {
+            defaultSettings[cat] = true
+          })
+          setMockSettings(defaultSettings)
+        }
       } catch (err) {
         console.warn('Erro ao carregar dados:', err)
       } finally {
@@ -120,9 +137,8 @@ export const HomePage = () => {
 
   const applyFilters = (providers: MockProvider[]): MockProvider[] => {
     return providers.filter(p => {
-      // Filtro de CIDADE (se não estiver em "ver todas as cidades")
+      // Filtro de CIDADE
       if (!showAllCities && cityFilter && p.city) {
-        // Normalização: remove acentos e compara
         const normalizeCity = (city: string) => 
           city.toLowerCase()
             .normalize('NFD')
@@ -156,30 +172,46 @@ export const HomePage = () => {
 
   const getMerged = (categoryId: string) => {
     const reais = realProviders.filter(p => p.category === categoryId)
+    
+    // Verifica se mockups estão ativos para esta categoria
+    const mocksEnabled = mockSettings[categoryId] !== false
+    
+    if (!mocksEnabled) {
+      // Se mockups desativados, retorna apenas prestadores reais
+      return applyFilters(reais)
+    }
+    
+    // Se mockups ativos, complementa com mocks até ter pelo menos 5
     const mocks = mocksByCategory[categoryId] || []
     const mocksNeeded = reais.length < 5 ? mocks.slice(0, 5 - reais.length) : []
     const merged = [...reais, ...mocksNeeded]
     return applyFilters(merged)
   }
 
-  // TODOS os prestadores (reais + mocks) com filtros aplicados
+  // Filtra mockProviders baseado nas configurações
+  const getActiveMocks = () => {
+    return mockProviders.filter(p => {
+      if (!p.isMock) return true // Sempre inclui prestadores reais (owner)
+      // Verifica se mockups da categoria estão ativos
+      return mockSettings[p.category] !== false
+    })
+  }
+
+  // TODOS os prestadores (reais + mocks ativos) com filtros aplicados
   const allProviders = applyFilters([
     ...realProviders,
-    ...mockProviders.filter(p => p.isMock),
+    ...getActiveMocks().filter(p => p.isMock),
   ])
 
   // Seção online
   const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
 
-  // DESTAQUE - prestadores com isFeatured = true (inclui owner)
-  // Ordena: owner sempre primeiro, depois por rating
+  // DESTAQUE
   const featuredProviders = allProviders
     .filter(p => p.isFeatured)
     .sort((a, b) => {
-      // Owner sempre primeiro
       if (a.id === OWNER_UID) return -1
       if (b.id === OWNER_UID) return 1
-      // Depois ordena por rating
       return b.rating - a.rating
     })
 
@@ -188,7 +220,7 @@ export const HomePage = () => {
 
   const allForHero = [
     ...realProviders,
-    ...mockProviders.filter(p => p.isMock)
+    ...getActiveMocks().filter(p => p.isMock)
   ]
 
   const categoriesToShow = filters.categories.length > 0
@@ -217,7 +249,7 @@ export const HomePage = () => {
           </div>
         )}
 
-        {/* SEÇÃO EM DESTAQUE - Aparece para TODOS se tiver featured da cidade */}
+        {/* SEÇÃO EM DESTAQUE */}
         {featuredProviders.length > 0 && (
           <CategoryRow title="⭐ Em Destaque" providers={featuredProviders} badge="top" />
         )}
