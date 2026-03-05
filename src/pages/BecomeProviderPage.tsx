@@ -6,7 +6,6 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { ProviderProfile } from '@/types'
-import { CitySelector } from '@/components/CitySelector'
 
 export const BecomeProviderPage = () => {
   const { user, isProvider } = useSimpleAuth()
@@ -237,18 +236,16 @@ export const BecomeProviderPage = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-muted mb-1.5">Cidade *</label>
-                <CitySelector
-                  value={formData.city}
-                  onChange={(city) => setFormData({ ...formData, city })}
-                  placeholder="Selecione sua cidade..."
-                  required
+                <input type="text" value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="Ex: São Paulo"
+                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors" required
                 />
               </div>
               <div>
                 <label className="block text-sm text-muted mb-1.5">Bairro de Atuação</label>
                 <input type="text" value={formData.neighborhood} onChange={e => setFormData({ ...formData, neighborhood: e.target.value })}
                   placeholder="Ex: Centro"
-                  className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors"
+                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors"
                 />
               </div>
             </div>
