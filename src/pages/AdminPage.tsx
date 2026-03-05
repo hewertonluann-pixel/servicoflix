@@ -8,15 +8,16 @@ import {
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, arrayUnion
+  setDoc, serverTimestamp, arrayUnion, getDoc
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { mocksByCategory } from '@/data/mock'
 
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1']
 
-type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias'
+type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias' | 'mockups'
 
 interface UserData {
   id: string
@@ -35,6 +36,10 @@ interface Category {
   icon: string
   active: boolean
   createdAt?: any
+}
+
+interface MockSettings {
+  [categoryId: string]: boolean // true = mockups ativos, false = desativados
 }
 
 const ICON_GROUPS = [
@@ -72,6 +77,8 @@ export const AdminPage = () => {
   const [rejectModal, setRejectModal] = useState<UserData | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
+  const [mockSettings, setMockSettings] = useState<MockSettings>({})
+  const [loadingMocks, setLoadingMocks] = useState(false)
 
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
@@ -108,8 +115,49 @@ export const AdminPage = () => {
     finally { setLoadingData(false) }
   }
 
+  const loadMockSettings = async () => {
+    setLoadingMocks(true)
+    try {
+      const settingsDoc = await getDoc(doc(db, 'settings', 'mockups'))
+      if (settingsDoc.exists()) {
+        setMockSettings(settingsDoc.data().categories || {})
+      } else {
+        // Inicializa todas as categorias como ativas por padrão
+        const initialSettings: MockSettings = {}
+        Object.keys(mocksByCategory).forEach(cat => {
+          initialSettings[cat] = true
+        })
+        setMockSettings(initialSettings)
+      }
+    } catch (err) {
+      console.error('Erro ao carregar configurações de mockups:', err)
+      showToast('Erro ao carregar mockups', 'error')
+    } finally {
+      setLoadingMocks(false)
+    }
+  }
+
+  const toggleMockCategory = async (categoryId: string, currentState: boolean) => {
+    try {
+      const newSettings = { ...mockSettings, [categoryId]: !currentState }
+      await setDoc(doc(db, 'settings', 'mockups'), {
+        categories: newSettings,
+        updatedAt: serverTimestamp(),
+      })
+      setMockSettings(newSettings)
+      showToast(`Mockups de ${categoryId} ${!currentState ? 'ativados' : 'desativados'}!`)
+    } catch (err: any) {
+      console.error('Erro ao atualizar mockups:', err)
+      showToast('Erro ao atualizar: ' + (err?.message || ''), 'error')
+    }
+  }
+
   useEffect(() => {
-    if (!authLoading && isAdmin) { loadUsers(); loadCategories() }
+    if (!authLoading && isAdmin) { 
+      loadUsers() 
+      loadCategories()
+      loadMockSettings()
+    }
   }, [authLoading, isAdmin])
 
   const approveProvider = async (u: UserData) => {
@@ -348,6 +396,10 @@ export const AdminPage = () => {
 
   const inputCls = "w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors placeholder:text-muted"
 
+  // Estatísticas de mockups
+  const totalMocks = Object.keys(mocksByCategory).reduce((sum, cat) => sum + mocksByCategory[cat].length, 0)
+  const activeMocks = Object.keys(mockSettings).filter(cat => mockSettings[cat] === true).reduce((sum, cat) => sum + (mocksByCategory[cat]?.length || 0), 0)
+
   return (
     <div className="min-h-screen bg-background">
       <AnimatePresence>
@@ -401,6 +453,7 @@ export const AdminPage = () => {
             { id: 'usuarios', label: 'Usuários', icon: Users },
             { id: 'prestadores', label: 'Prestadores', icon: Briefcase },
             { id: 'categorias', label: 'Categorias', icon: Tag },
+            { id: 'mockups', label: 'Mockups', icon: Sparkles },
           ].map(tab => (
             <button key={tab.id} onClick={() => { setActiveTab(tab.id as Tab); setSearch('') }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-sm font-semibold transition-colors relative ${
@@ -418,7 +471,7 @@ export const AdminPage = () => {
           ))}
         </div>
 
-        {activeTab !== 'categorias' && activeTab !== 'pendentes' && (
+        {activeTab !== 'categorias' && activeTab !== 'pendentes' && activeTab !== 'mockups' && (
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -441,9 +494,10 @@ export const AdminPage = () => {
               </span>
             )}
             {activeTab === 'categorias' && `${categories.length} categorias`}
+            {activeTab === 'mockups' && `${activeMocks}/${totalMocks} perfis mockup ativos`}
           </p>
           <div className="flex gap-2">
-            <button onClick={() => { loadUsers(); loadCategories() }}
+            <button onClick={() => { loadUsers(); loadCategories(); loadMockSettings() }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors"
             ><RefreshCw className="w-3.5 h-3.5" /> Atualizar</button>
             {activeTab === 'prestadores' && (
@@ -459,13 +513,122 @@ export const AdminPage = () => {
           </div>
         </div>
 
-        {loadingData && (
+        {loadingData && activeTab !== 'mockups' && (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
-        {/* ABA: PENDENTES */}
+        {/* ABA: MOCKUPS */}
+        {activeTab === 'mockups' && (
+          <div className="space-y-4">
+            {/* Info Card */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white mb-1">Gerenciar Perfis Mockup</h3>
+                  <p className="text-xs text-blue-300 leading-relaxed">
+                    Ative ou desative perfis de exemplo por categoria. Quando desativados, apenas prestadores reais aparecerão na plataforma.
+                    Os mockups ajudam a preencher conteúdo enquanto a plataforma cresce.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {loadingMocks ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.keys(mocksByCategory).map(categoryId => {
+                  const mocks = mocksByCategory[categoryId]
+                  const isActive = mockSettings[categoryId] !== false
+                  const categoryName = categoryId.charAt(0).toUpperCase() + categoryId.slice(1)
+                  
+                  return (
+                    <motion.div
+                      key={categoryId}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`bg-surface border rounded-xl p-5 transition-all ${
+                        isActive ? 'border-primary/50' : 'border-border opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-base font-bold text-white mb-1">{categoryName}</h3>
+                          <p className="text-xs text-muted">{mocks.length} perfis de exemplo</p>
+                        </div>
+                        <button
+                          onClick={() => toggleMockCategory(categoryId, isActive)}
+                          className="p-2 rounded-lg hover:bg-background transition-colors"
+                          title={isActive ? 'Desativar mockups' : 'Ativar mockups'}
+                        >
+                          {isActive ? (
+                            <ToggleRight className="w-6 h-6 text-primary" />
+                          ) : (
+                            <ToggleLeft className="w-6 h-6 text-muted" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {mocks.slice(0, 3).map((mock, idx) => (
+                          <div
+                            key={mock.id}
+                            className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                              isActive ? 'bg-background' : 'bg-background/50'
+                            }`}
+                          >
+                            <img
+                              src={mock.avatar}
+                              alt={mock.name}
+                              className="w-8 h-8 rounded-full"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-semibold truncate ${
+                                isActive ? 'text-white' : 'text-muted'
+                              }`}>{mock.name}</p>
+                              <p className="text-[10px] text-muted truncate">{mock.specialty}</p>
+                            </div>
+                            {mock.isFeatured && (
+                              <Star className="w-3 h-3 text-yellow-400 shrink-0" fill="currentColor" />
+                            )}
+                          </div>
+                        ))}
+                        {mocks.length > 3 && (
+                          <p className="text-[10px] text-muted text-center pt-1">
+                            +{mocks.length - 3} perfis
+                          </p>
+                        )}
+                      </div>
+
+                      <div className={`mt-4 pt-3 border-t flex items-center justify-between ${
+                        isActive ? 'border-border' : 'border-border/50'
+                      }`}>
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                          isActive ? 'text-primary' : 'text-muted'
+                        }`}>
+                          {isActive ? '✅ Ativo' : '❌ Desativado'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted">{mocks.filter(m => m.isFeatured).length}</span>
+                          <Star className="w-3 h-3 text-yellow-400" fill="currentColor" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ABA: PENDENTES - mantém igual */}
         {activeTab === 'pendentes' && !loadingData && (
           <div className="space-y-4">
             {pendingProviders.length === 0 ? (
@@ -568,6 +731,7 @@ export const AdminPage = () => {
           </div>
         )}
 
+        {/* Restante das abas mantidas iguais... */}
         {/* ABA: USUÁRIOS */}
         {activeTab === 'usuarios' && !loadingData && (
           <div className="space-y-3">
@@ -615,7 +779,7 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* ABA: PRESTADORES */}
+        {/* ABA: PRESTADORES - mantida igual */}
         {activeTab === 'prestadores' && !loadingData && (
           <div className="space-y-3">
             {filteredProviders.length === 0 ? (
@@ -706,7 +870,7 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* ABA: CATEGORIAS */}
+        {/* ABA: CATEGORIAS - mantida igual */}
         {activeTab === 'categorias' && !loadingData && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {categories.length === 0 ? (
