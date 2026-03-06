@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { useCities } from '@/hooks/useCities'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { storage, db } from '@/lib/firebase'
@@ -32,6 +33,9 @@ export const EditProviderProfilePage = () => {
   const [loading, setLoading] = useState(true)
   const [uploadError, setUploadError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+
+  // Carrega cidades ativas do Firestore
+  const { cities, loading: loadingCities } = useCities()
 
   // Refs para inputs
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -88,7 +92,7 @@ export const EditProviderProfilePage = () => {
             name: data.name || user.name || '',
             specialty: providerProfile.specialty || '',
             bio: providerProfile.bio || '',
-            city: providerProfile.city || 'Diamantina',
+            city: providerProfile.city || '',
             neighborhood: providerProfile.neighborhood || 'Centro',
             priceFrom: providerProfile.priceFrom || 100,
             skills: providerProfile.skills || [],
@@ -131,6 +135,13 @@ export const EditProviderProfilePage = () => {
 
     loadProfile()
   }, [user])
+
+  // Define primeira cidade como padrão se não tiver nenhuma selecionada
+  useEffect(() => {
+    if (!profile.city && cities.length > 0) {
+      setProfile(prev => ({ ...prev, city: cities[0].nome }))
+    }
+  }, [cities, profile.city])
 
   // Upload genérico com progress
   const uploadFile = async (
@@ -903,13 +914,29 @@ export const EditProviderProfilePage = () => {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm text-muted mb-2">Cidade</label>
-                      <input
-                        type="text"
-                        value={profile.city}
-                        onChange={e => setProfile(prev => ({ ...prev, city: e.target.value }))}
-                        className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
-                      />
+                      <label className="block text-sm text-muted mb-2">Cidade *</label>
+                      {loadingCities ? (
+                        <div className="w-full bg-background border border-border rounded-lg px-4 py-3 flex items-center gap-2 text-muted">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Carregando cidades...
+                        </div>
+                      ) : cities.length === 0 ? (
+                        <div className="w-full bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
+                          Nenhuma cidade disponível. Contate o administrador.
+                        </div>
+                      ) : (
+                        <select
+                          value={profile.city}
+                          onChange={e => setProfile(prev => ({ ...prev, city: e.target.value }))}
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                        >
+                          {cities.map(city => (
+                            <option key={city.id} value={city.nome}>
+                              {city.nome} - {city.uf}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm text-muted mb-2">Bairro</label>
