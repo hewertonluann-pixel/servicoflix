@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Briefcase, MapPin, DollarSign, Star, ArrowRight, Check, X, Clock, User } from 'lucide-react'
+import { Briefcase, MapPin, DollarSign, Star, ArrowRight, Check, X, Clock, User, Loader2 } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { useCities } from '@/hooks/useCities'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { ProviderProfile } from '@/types'
@@ -13,6 +14,9 @@ export const BecomeProviderPage = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+
+  // Carrega cidades ativas do Firestore
+  const { cities, loading: loadingCities } = useCities()
 
   const [formData, setFormData] = useState<ProviderProfile>({
     specialty: '',
@@ -28,6 +32,13 @@ export const BecomeProviderPage = () => {
   })
 
   const [newSkill, setNewSkill] = useState('')
+
+  // Define primeira cidade como padrão quando carregar
+  useEffect(() => {
+    if (!formData.city && cities.length > 0) {
+      setFormData(prev => ({ ...prev, city: cities[0].nome }))
+    }
+  }, [cities, formData.city])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -236,10 +247,29 @@ export const BecomeProviderPage = () => {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-muted mb-1.5">Cidade *</label>
-                <input type="text" value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })}
-                  placeholder="Ex: São Paulo"
-                  className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors" required
-                />
+                {loadingCities ? (
+                  <div className="w-full bg-background border border-border rounded-lg px-4 py-3 flex items-center gap-2 text-muted">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Carregando cidades...
+                  </div>
+                ) : cities.length === 0 ? (
+                  <div className="w-full bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
+                    Nenhuma cidade disponível. Contate o administrador.
+                  </div>
+                ) : (
+                  <select
+                    value={formData.city}
+                    onChange={e => setFormData({ ...formData, city: e.target.value })}
+                    required
+                    className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors"
+                  >
+                    {cities.map(city => (
+                      <option key={city.id} value={city.nome}>
+                        {city.nome} - {city.uf}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-sm text-muted mb-1.5">Bairro de Atuação</label>
@@ -307,7 +337,7 @@ export const BecomeProviderPage = () => {
             <button type="button" onClick={() => navigate(-1)}
               className="flex-1 px-6 py-3 bg-surface border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
             >Cancelar</button>
-            <button type="submit" disabled={loading}
+            <button type="submit" disabled={loading || loadingCities}
               className="flex-1 px-6 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? (
