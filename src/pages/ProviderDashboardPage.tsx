@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Camera, Save, User, MapPin, DollarSign, Briefcase, Star, Edit2, Video, Trash2, Plus, AlertCircle, Loader2, CheckCircle, Clock, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { useCities } from '@/hooks/useCities'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
@@ -19,6 +20,9 @@ export const ProviderDashboardPage = () => {
   const [uploadingCover, setUploadingCover] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState('')
+
+  // Carrega cidades ativas do Firestore
+  const { cities, loading: loadingCities } = useCities()
 
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -68,7 +72,7 @@ export const ProviderDashboardPage = () => {
             name: data.name || user.name || 'Seu Nome',
             specialty: providerProfile.specialty || 'Sua Especialidade',
             bio: providerProfile.bio || 'Conte um pouco sobre você e sua experiência profissional...',
-            city: providerProfile.city || 'Diamantina',
+            city: providerProfile.city || '',
             neighborhood: providerProfile.neighborhood || 'Centro',
             priceFrom: providerProfile.priceFrom || 100,
             skills: providerProfile.skills || ['Habilidade 1', 'Habilidade 2'],
@@ -105,6 +109,13 @@ export const ProviderDashboardPage = () => {
 
     loadProfile()
   }, [user])
+
+  // Define primeira cidade como padrão se não tiver nenhuma selecionada
+  useEffect(() => {
+    if (!profile.city && cities.length > 0) {
+      setProfile(prev => ({ ...prev, city: cities[0].nome }))
+    }
+  }, [cities, profile.city])
 
   // Upload genérico
   const uploadImage = async (
@@ -781,12 +792,28 @@ export const ProviderDashboardPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs text-muted mb-1.5">Cidade</label>
-                    <input
-                      type="text"
-                      value={profile.city}
-                      onChange={e => setProfile({ ...profile, city: e.target.value })}
-                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none"
-                    />
+                    {loadingCities ? (
+                      <div className="w-full bg-background border border-border rounded-lg px-3 py-2 flex items-center gap-2 text-muted text-sm">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Carregando...
+                      </div>
+                    ) : cities.length === 0 ? (
+                      <div className="w-full bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 text-red-400 text-xs">
+                        Nenhuma cidade disponível
+                      </div>
+                    ) : (
+                      <select
+                        value={profile.city}
+                        onChange={e => setProfile({ ...profile, city: e.target.value })}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-primary outline-none"
+                      >
+                        {cities.map(city => (
+                          <option key={city.id} value={city.nome}>
+                            {city.nome} - {city.uf}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-muted mb-1.5">Bairro</label>
