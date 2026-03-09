@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, 
   Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle, Sparkles,
-  X, ChevronLeft, ChevronRight
+  X, ChevronLeft, ChevronRight, Instagram, Facebook, Youtube, Globe, Linkedin
 } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -14,6 +14,7 @@ import { VideoCarousel } from '@/components/VideoCarousel'
 import { RequestServiceModal } from '@/components/RequestServiceModal'
 import { ProgressiveImage } from '@/components/ProgressiveImage'
 import { mockProviders } from '@/data/mock'
+import { SocialLinks } from '@/types'
 
 interface ProviderData {
   id: string
@@ -37,6 +38,7 @@ interface ProviderData {
     rating: number
     reviewCount: number
     verified: boolean
+    socialLinks?: SocialLinks
     media?: {
       photos: string[]
       videos: string[]
@@ -58,6 +60,44 @@ const mockVideos = [
   'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
   'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
 ]
+
+const getSocialUrl = (platform: string, value: string): string => {
+  if (!value) return ''
+
+  switch (platform) {
+    case 'instagram':
+      if (value.startsWith('@')) value = value.slice(1)
+      return value.startsWith('http') ? value : `https://instagram.com/${value}`
+    case 'facebook':
+      return value.startsWith('http') ? value : `https://facebook.com/${value}`
+    case 'youtube':
+      return value.startsWith('http') ? value : `https://youtube.com/${value}`
+    case 'whatsapp':
+      const phone = value.replace(/\D/g, '')
+      return `https://wa.me/${phone}`
+    case 'tiktok':
+      if (value.startsWith('@')) value = value.slice(1)
+      return value.startsWith('http') ? value : `https://tiktok.com/@${value}`
+    case 'linkedin':
+      return value.startsWith('http') ? value : `https://linkedin.com/in/${value}`
+    case 'website':
+      return value.startsWith('http') ? value : `https://${value}`
+    default:
+      return value
+  }
+}
+
+const SocialButton = ({ icon: Icon, label, url }: { icon: any, label: string, url: string }) => (
+  <a
+    href={url}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center gap-2 px-4 py-3 bg-background border border-border rounded-lg hover:border-primary hover:bg-primary/5 transition-all group"
+  >
+    <Icon className="w-5 h-5 text-muted group-hover:text-primary transition-colors" />
+    <span className="text-sm text-white font-medium">{label}</span>
+  </a>
+)
 
 export const ProviderProfilePage = () => {
   const { id } = useParams()
@@ -109,6 +149,15 @@ export const ProviderProfilePage = () => {
               rating: mockProvider.rating,
               reviewCount: mockProvider.reviewCount,
               verified: mockProvider.isTopRated,
+              socialLinks: {
+                instagram: '@exemplo',
+                facebook: 'https://facebook.com/exemplo',
+                youtube: 'https://youtube.com/@exemplo',
+                whatsapp: '38999999999',
+                tiktok: '@exemplo',
+                linkedin: 'exemplo',
+                website: 'https://exemplo.com.br'
+              },
               media: {
                 photos: mockPhotos,
                 videos: mockVideos,
@@ -166,6 +215,7 @@ export const ProviderProfilePage = () => {
               rating: data.providerProfile.rating || 5.0,
               reviewCount: data.providerProfile.reviewCount || 0,
               verified: data.providerProfile.verified !== false,
+              socialLinks: data.providerProfile.socialLinks || undefined,
               media: data.providerProfile.media || {
                 photos: [],
                 videos: [],
@@ -276,9 +326,13 @@ export const ProviderProfilePage = () => {
   const photos = provider.providerProfile.media?.photos || []
   const videos = provider.providerProfile.media?.videos || []
   const audios = provider.providerProfile.media?.audios || []
+  const socialLinks = provider.providerProfile.socialLinks
   
   // Usa nome profissional no perfil público
   const displayName = provider.professionalName || provider.name
+
+  // Verifica se tem alguma rede social preenchida
+  const hasSocialLinks = socialLinks && Object.values(socialLinks).some(value => value && value.trim() !== '')
 
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
@@ -371,6 +425,71 @@ export const ProviderProfilePage = () => {
               <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white mb-3 sm:mb-4">Sobre</h2>
               <p className="text-muted text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{provider.providerProfile.bio}</p>
             </motion.div>
+
+            {hasSocialLinks && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
+              >
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                  <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Redes Sociais</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {socialLinks?.instagram && (
+                    <SocialButton
+                      icon={Instagram}
+                      label="Instagram"
+                      url={getSocialUrl('instagram', socialLinks.instagram)}
+                    />
+                  )}
+                  {socialLinks?.facebook && (
+                    <SocialButton
+                      icon={Facebook}
+                      label="Facebook"
+                      url={getSocialUrl('facebook', socialLinks.facebook)}
+                    />
+                  )}
+                  {socialLinks?.youtube && (
+                    <SocialButton
+                      icon={Youtube}
+                      label="YouTube"
+                      url={getSocialUrl('youtube', socialLinks.youtube)}
+                    />
+                  )}
+                  {socialLinks?.whatsapp && (
+                    <SocialButton
+                      icon={MessageCircle}
+                      label="WhatsApp"
+                      url={getSocialUrl('whatsapp', socialLinks.whatsapp)}
+                    />
+                  )}
+                  {socialLinks?.tiktok && (
+                    <SocialButton
+                      icon={VideoIcon}
+                      label="TikTok"
+                      url={getSocialUrl('tiktok', socialLinks.tiktok)}
+                    />
+                  )}
+                  {socialLinks?.linkedin && (
+                    <SocialButton
+                      icon={Linkedin}
+                      label="LinkedIn"
+                      url={getSocialUrl('linkedin', socialLinks.linkedin)}
+                    />
+                  )}
+                  {socialLinks?.website && (
+                    <SocialButton
+                      icon={Globe}
+                      label="Website"
+                      url={getSocialUrl('website', socialLinks.website)}
+                    />
+                  )}
+                </div>
+              </motion.div>
+            )}
 
             {photos.length > 0 && (
               <motion.div
