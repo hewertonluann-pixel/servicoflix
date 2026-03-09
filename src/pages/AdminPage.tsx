@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Shield, Users, Briefcase, Tag, Plus, Trash2, Edit2,
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
   AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2, Sparkles,
-  ChevronUp, ChevronDown, Archive
+  ChevronUp, ChevronDown, Archive, CheckSquare, Bug, Wrench, ArrowRight
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
@@ -545,6 +545,50 @@ export const AdminPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
+
+        {/* ⚡ ATALHOS RÁPIDOS */}
+        <div className="grid grid-cols-3 gap-3 mb-8">
+          <Link
+            to="/admin/aprovacoes"
+            className="flex items-center justify-between gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 hover:bg-yellow-500/20 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <CheckSquare className="w-5 h-5 text-yellow-400 shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-yellow-300">Aprovações</p>
+                <p className="text-[11px] text-yellow-500/70">Revisar solicitações</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-yellow-500/50 group-hover:text-yellow-400 transition-colors" />
+          </Link>
+          <Link
+            to="/debug"
+            className="flex items-center justify-between gap-3 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 hover:bg-blue-500/20 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <Bug className="w-5 h-5 text-blue-400 shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-blue-300">Debug</p>
+                <p className="text-[11px] text-blue-500/70">Inspecionar prestadores</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-blue-500/50 group-hover:text-blue-400 transition-colors" />
+          </Link>
+          <Link
+            to="/fix"
+            className="flex items-center justify-between gap-3 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-3 hover:bg-orange-500/20 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <Wrench className="w-5 h-5 text-orange-400 shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-orange-300">Fix</p>
+                <p className="text-[11px] text-orange-500/70">Corrigir dados</p>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-orange-500/50 group-hover:text-orange-400 transition-colors" />
+          </Link>
+        </div>
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Total Usuários', value: users.length, icon: Users, color: 'text-blue-400' },
@@ -644,7 +688,6 @@ export const AdminPage = () => {
         {/* ABA: CIDADES */}
         {activeTab === 'cidades' && (
           <div className="space-y-4">
-            {/* Info Card */}
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
@@ -712,49 +755,13 @@ export const AdminPage = () => {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => moveCityOrder(city, 'up')}
-                            disabled={index === 0}
-                            className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors"
-                            title="Mover para cima"
-                          >
-                            <ChevronUp className="w-4 h-4" />
+                          <button onClick={() => moveCityOrder(city, 'up')} disabled={index === 0} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors" title="Mover para cima"><ChevronUp className="w-4 h-4" /></button>
+                          <button onClick={() => moveCityOrder(city, 'down')} disabled={index === allCities.length - 1} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors" title="Mover para baixo"><ChevronDown className="w-4 h-4" /></button>
+                          <button onClick={() => toggleCityStatus(city)} disabled={city.status === 'arquivada'} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title={city.status === 'ativa' ? 'Desativar' : 'Ativar'}>
+                            {city.status === 'ativa' ? <ToggleRight className="w-5 h-5 text-green-400" /> : <ToggleLeft className="w-5 h-5 text-red-400" />}
                           </button>
-                          <button
-                            onClick={() => moveCityOrder(city, 'down')}
-                            disabled={index === allCities.length - 1}
-                            className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors"
-                            title="Mover para baixo"
-                          >
-                            <ChevronDown className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => toggleCityStatus(city)}
-                            disabled={city.status === 'arquivada'}
-                            className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title={city.status === 'ativa' ? 'Desativar' : 'Ativar'}
-                          >
-                            {city.status === 'ativa' ? (
-                              <ToggleRight className="w-5 h-5 text-green-400" />
-                            ) : (
-                              <ToggleLeft className="w-5 h-5 text-red-400" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => { setEditingCity(city); setCityForm({ nome: city.nome, uf: city.uf, slug: city.slug }); setCityModal(true) }}
-                            className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => archiveCity(city)}
-                            disabled={city.status === 'arquivada'}
-                            className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="Arquivar"
-                          >
-                            <Archive className="w-4 h-4" />
-                          </button>
+                          <button onClick={() => { setEditingCity(city); setCityForm({ nome: city.nome, uf: city.uf, slug: city.slug }); setCityModal(true) }} className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors" title="Editar"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={() => archiveCity(city)} disabled={city.status === 'arquivada'} className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Arquivar"><Archive className="w-4 h-4" /></button>
                         </div>
                       </div>
                     </motion.div>
@@ -765,8 +772,6 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* Outras abas mantidas iguais... (código muito longo, mantido da versão original) */}
-        {/* ABA: MOCKUPS - mantida igual */}
         {activeTab === 'mockups' && (
           <div className="space-y-4">
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
@@ -796,75 +801,34 @@ export const AdminPage = () => {
                   const categoryName = categoryId.charAt(0).toUpperCase() + categoryId.slice(1)
                   
                   return (
-                    <motion.div
-                      key={categoryId}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`bg-surface border rounded-xl p-5 transition-all ${
-                        isActive ? 'border-primary/50' : 'border-border opacity-60'
-                      }`}
+                    <motion.div key={categoryId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      className={`bg-surface border rounded-xl p-5 transition-all ${ isActive ? 'border-primary/50' : 'border-border opacity-60' }`}
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h3 className="text-base font-bold text-white mb-1">{categoryName}</h3>
                           <p className="text-xs text-muted">{mocks.length} perfis de exemplo</p>
                         </div>
-                        <button
-                          onClick={() => toggleMockCategory(categoryId, isActive)}
-                          className="p-2 rounded-lg hover:bg-background transition-colors"
-                          title={isActive ? 'Desativar mockups' : 'Ativar mockups'}
-                        >
-                          {isActive ? (
-                            <ToggleRight className="w-6 h-6 text-primary" />
-                          ) : (
-                            <ToggleLeft className="w-6 h-6 text-muted" />
-                          )}
+                        <button onClick={() => toggleMockCategory(categoryId, isActive)} className="p-2 rounded-lg hover:bg-background transition-colors" title={isActive ? 'Desativar mockups' : 'Ativar mockups'}>
+                          {isActive ? <ToggleRight className="w-6 h-6 text-primary" /> : <ToggleLeft className="w-6 h-6 text-muted" />}
                         </button>
                       </div>
-
                       <div className="space-y-2">
-                        {mocks.slice(0, 3).map((mock, idx) => (
-                          <div
-                            key={mock.id}
-                            className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
-                              isActive ? 'bg-background' : 'bg-background/50'
-                            }`}
-                          >
-                            <img
-                              src={mock.avatar}
-                              alt={mock.name}
-                              className="w-8 h-8 rounded-full"
-                            />
+                        {mocks.slice(0, 3).map((mock) => (
+                          <div key={mock.id} className={`flex items-center gap-2 p-2 rounded-lg ${ isActive ? 'bg-background' : 'bg-background/50' }`}>
+                            <img src={mock.avatar} alt={mock.name} className="w-8 h-8 rounded-full" />
                             <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-semibold truncate ${
-                                isActive ? 'text-white' : 'text-muted'
-                              }`}>{mock.name}</p>
+                              <p className={`text-xs font-semibold truncate ${ isActive ? 'text-white' : 'text-muted' }`}>{mock.name}</p>
                               <p className="text-[10px] text-muted truncate">{mock.specialty}</p>
                             </div>
-                            {mock.isFeatured && (
-                              <Star className="w-3 h-3 text-yellow-400 shrink-0" fill="currentColor" />
-                            )}
+                            {mock.isFeatured && <Star className="w-3 h-3 text-yellow-400 shrink-0" fill="currentColor" />}
                           </div>
                         ))}
-                        {mocks.length > 3 && (
-                          <p className="text-[10px] text-muted text-center pt-1">
-                            +{mocks.length - 3} perfis
-                          </p>
-                        )}
+                        {mocks.length > 3 && <p className="text-[10px] text-muted text-center pt-1">+{mocks.length - 3} perfis</p>}
                       </div>
-
-                      <div className={`mt-4 pt-3 border-t flex items-center justify-between ${
-                        isActive ? 'border-border' : 'border-border/50'
-                      }`}>
-                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${
-                          isActive ? 'text-primary' : 'text-muted'
-                        }`}>
-                          {isActive ? '✅ Ativo' : '❌ Desativado'}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted">{mocks.filter(m => m.isFeatured).length}</span>
-                          <Star className="w-3 h-3 text-yellow-400" fill="currentColor" />
-                        </div>
+                      <div className={`mt-4 pt-3 border-t flex items-center justify-between ${ isActive ? 'border-border' : 'border-border/50' }`}>
+                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${ isActive ? 'text-primary' : 'text-muted' }`}>{isActive ? '✅ Ativo' : '❌ Desativado'}</span>
+                        <div className="flex items-center gap-1"><span className="text-xs text-muted">{mocks.filter(m => m.isFeatured).length}</span><Star className="w-3 h-3 text-yellow-400" fill="currentColor" /></div>
                       </div>
                     </motion.div>
                   )
@@ -873,9 +837,6 @@ export const AdminPage = () => {
             )}
           </div>
         )}
-
-        {/* Demais abas (pendentes, usuarios, prestadores, categorias) - código mantido da versão original por ser muito longo */}
-        {/* ... resto do código igual ... */}
       </div>
 
       {/* MODAL: CIDADE */}
@@ -904,12 +865,8 @@ export const AdminPage = () => {
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1.5">UF *</label>
-                  <select value={cityForm.uf} onChange={e => setCityForm(p => ({ ...p, uf: e.target.value }))}
-                    className={inputCls}
-                  >
-                    {UF_OPTIONS.map(uf => (
-                      <option key={uf} value={uf}>{uf}</option>
-                    ))}
+                  <select value={cityForm.uf} onChange={e => setCityForm(p => ({ ...p, uf: e.target.value }))} className={inputCls}>
+                    {UF_OPTIONS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
                   </select>
                 </div>
                 <div>
@@ -924,8 +881,7 @@ export const AdminPage = () => {
                 <button onClick={() => { setCityModal(false); setEditingCity(null) }}
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
                 >Cancelar</button>
-                <button onClick={saveCity}
-                  disabled={savingCity || !cityForm.nome.trim() || !cityForm.uf}
+                <button onClick={saveCity} disabled={savingCity || !cityForm.nome.trim() || !cityForm.uf}
                   className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {savingCity ? <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
@@ -936,8 +892,6 @@ export const AdminPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Demais modais (rejeitar, prestador, categoria) mantidos iguais da versão original */}
     </div>
   )
 }

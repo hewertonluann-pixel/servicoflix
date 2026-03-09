@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle, Shield, Bug, Wrench, CheckSquare, ExternalLink } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { NotificationsDropdown } from './NotificationsDropdown'
@@ -219,8 +219,11 @@ export const Navbar = () => {
                               <Briefcase className="w-4 h-4 text-primary" /><span>Meu Perfil</span>
                             </Link>
                             <Link to="/prestador/solicitacoes" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
-                              <MessageCircle className="w-4 h-4 text-primary" /><span>Solicitações</span>
+                              <CheckSquare className="w-4 h-4 text-primary" /><span>Solicitações</span>
                               {notificationsCount > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{notificationsCount}</span>}
+                            </Link>
+                            <Link to="/chats" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
+                              <MessageCircle className="w-4 h-4 text-primary" /><span>Mensagens</span>
                             </Link>
                           </>
                         )}
@@ -235,7 +238,7 @@ export const Navbar = () => {
                         )}
                         <div className="border-t border-border my-2" />
 
-                        {/* 🔐 ÁREA ADMIN - visível apenas para admins */}
+                        {/* 🔐 ÁREA ADMIN - apenas Painel Admin */}
                         {isAdmin && (
                           <>
                             <div className="px-3 py-1">
@@ -254,15 +257,6 @@ export const Navbar = () => {
                             </a>
                             <Link to="/admin" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
                               <Shield className="w-4 h-4" /><span>Painel Admin</span>
-                            </Link>
-                            <Link to="/admin/aprovacoes" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
-                              <CheckSquare className="w-4 h-4" /><span>Aprovações</span>
-                            </Link>
-                            <Link to="/debug" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
-                              <Bug className="w-4 h-4" /><span>Debug Prestadores</span>
-                            </Link>
-                            <Link to="/fix" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
-                              <Wrench className="w-4 h-4" /><span>Fix Prestadores</span>
                             </Link>
                             <div className="border-t border-border my-2" />
                           </>
@@ -319,10 +313,24 @@ export const Navbar = () => {
               )}
               <div className="space-y-1"><Link to="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-white font-semibold hover:bg-surface rounded-xl transition-colors"><Home className="w-5 h-5" />Início</Link><Link to="/buscar" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Compass className="w-5 h-5" />Explorar</Link></div>
               {user ? (<>
-                {isProvider && (<div className="border-t border-border pt-4"><p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Prestador</p><div className="space-y-1"><Link to="/meu-perfil" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Briefcase className="w-5 h-5 text-primary" /><span>Meu Perfil</span></Link><Link to="/prestador/solicitacoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><MessageCircle className="w-5 h-5 text-primary" /><span>Solicitações</span>{notificationsCount > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{notificationsCount}</span>}</Link></div></div>)}
+                {isProvider && (
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Prestador</p>
+                    <div className="space-y-1">
+                      <Link to="/meu-perfil" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Briefcase className="w-5 h-5 text-primary" /><span>Meu Perfil</span></Link>
+                      <Link to="/prestador/solicitacoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
+                        <CheckSquare className="w-5 h-5 text-primary" /><span>Solicitações</span>
+                        {notificationsCount > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{notificationsCount}</span>}
+                      </Link>
+                      <Link to="/chats" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
+                        <MessageCircle className="w-5 h-5 text-primary" /><span>Mensagens</span>
+                      </Link>
+                    </div>
+                  </div>
+                )}
                 {isClient && (<div className="border-t border-border pt-4"><p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Cliente</p><div className="space-y-1"><Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><ShoppingBag className="w-5 h-5 text-blue-400" /><span>Minha Conta</span></Link></div></div>)}
 
-                {/* 🔐 ÁREA ADMIN MOBILE */}
+                {/* 🔐 ÁREA ADMIN MOBILE - apenas Painel */}
                 {isAdmin && (
                   <div className="border-t border-yellow-500/30 pt-4">
                     <p className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 px-2">Admin</p>
@@ -339,9 +347,6 @@ export const Navbar = () => {
                         <ExternalLink className="w-4 h-4 ml-auto opacity-60" />
                       </a>
                       <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><Shield className="w-5 h-5" /><span>Painel Admin</span></Link>
-                      <Link to="/admin/aprovacoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><CheckSquare className="w-5 h-5" /><span>Aprovações</span></Link>
-                      <Link to="/debug" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><Bug className="w-5 h-5" /><span>Debug Prestadores</span></Link>
-                      <Link to="/fix" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><Wrench className="w-5 h-5" /><span>Fix Prestadores</span></Link>
                     </div>
                   </div>
                 )}
