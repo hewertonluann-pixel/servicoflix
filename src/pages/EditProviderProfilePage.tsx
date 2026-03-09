@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Camera, Save, ArrowLeft, Upload, X, Play, Music, Image as ImageIcon,
   Video, Loader2, AlertCircle, CheckCircle, GripVertical, Trash2, Plus,
-  Sparkles, FileAudio
+  Sparkles, FileAudio, Instagram, Facebook, Youtube, MessageCircle, Globe
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
@@ -12,6 +12,7 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject }
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { storage, db } from '@/lib/firebase'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
+import { SocialLinks } from '@/types'
 
 type TabType = 'fotos' | 'videos' | 'audios' | 'dados'
 
@@ -64,6 +65,17 @@ export const EditProviderProfilePage = () => {
     verified: true,
   })
 
+  // Redes sociais
+  const [socialLinks, setSocialLinks] = useState<SocialLinks>({
+    instagram: '',
+    facebook: '',
+    youtube: '',
+    whatsapp: '',
+    tiktok: '',
+    linkedin: '',
+    website: ''
+  })
+
   // Mídia
   const [photos, setPhotos] = useState<MediaItem[]>([])
   const [videos, setVideos] = useState<MediaItem[]>([])
@@ -105,6 +117,17 @@ export const EditProviderProfilePage = () => {
             rating: providerProfile.rating || 4.8,
             reviewCount: providerProfile.reviewCount || 127,
             verified: providerProfile.verified !== false,
+          })
+
+          // Carrega redes sociais
+          setSocialLinks(providerProfile.socialLinks || {
+            instagram: '',
+            facebook: '',
+            youtube: '',
+            whatsapp: '',
+            tiktok: '',
+            linkedin: '',
+            website: ''
           })
 
           // Carrega mídia existente
@@ -397,6 +420,7 @@ export const EditProviderProfilePage = () => {
             rating: profile.rating,
             reviewCount: profile.reviewCount,
             verified: profile.verified,
+            socialLinks: socialLinks,
             media: {
               photos: photos.map(p => p.url),
               videos: videos.map(v => v.url),
@@ -967,6 +991,101 @@ export const EditProviderProfilePage = () => {
                       min="0"
                       step="10"
                       className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Redes Sociais */}
+              <div className="bg-surface border border-border rounded-xl p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Globe className="w-5 h-5 text-primary" />
+                  <h2 className="text-lg font-bold text-white">Redes Sociais</h2>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-muted mb-2 flex items-center gap-2">
+                      <Instagram className="w-4 h-4" />
+                      Instagram
+                    </label>
+                    <input
+                      type="text"
+                      value={socialLinks.instagram || ''}
+                      onChange={e => setSocialLinks(prev => ({ ...prev, instagram: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                      placeholder="@seuusuario ou link completo"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2 flex items-center gap-2">
+                      <Facebook className="w-4 h-4" />
+                      Facebook
+                    </label>
+                    <input
+                      type="text"
+                      value={socialLinks.facebook || ''}
+                      onChange={e => setSocialLinks(prev => ({ ...prev, facebook: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                      placeholder="Link do seu perfil"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2 flex items-center gap-2">
+                      <Youtube className="w-4 h-4" />
+                      YouTube
+                    </label>
+                    <input
+                      type="text"
+                      value={socialLinks.youtube || ''}
+                      onChange={e => setSocialLinks(prev => ({ ...prev, youtube: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                      placeholder="Link do seu canal"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2 flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4" />
+                      WhatsApp
+                    </label>
+                    <input
+                      type="tel"
+                      value={socialLinks.whatsapp || ''}
+                      onChange={e => setSocialLinks(prev => ({ ...prev, whatsapp: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                      placeholder="(38) 99999-9999"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2">TikTok</label>
+                    <input
+                      type="text"
+                      value={socialLinks.tiktok || ''}
+                      onChange={e => setSocialLinks(prev => ({ ...prev, tiktok: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                      placeholder="@seuusuario ou link completo"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2">LinkedIn</label>
+                    <input
+                      type="text"
+                      value={socialLinks.linkedin || ''}
+                      onChange={e => setSocialLinks(prev => ({ ...prev, linkedin: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                      placeholder="Link do seu perfil"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2 flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Site / Portfólio
+                    </label>
+                    <input
+                      type="url"
+                      value={socialLinks.website || ''}
+                      onChange={e => setSocialLinks(prev => ({ ...prev, website: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors"
+                      placeholder="https://seusite.com.br"
                     />
                   </div>
                 </div>
