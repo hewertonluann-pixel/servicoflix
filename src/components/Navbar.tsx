@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNotifications } from '@/hooks/useNotifications'
+import { useUnreadMessages } from '@/hooks/useUnreadMessages'
 import { NotificationsDropdown } from './NotificationsDropdown'
 import { CitySelectorNav } from './CitySelectorNav'
 
@@ -12,6 +13,7 @@ const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1']
 export const Navbar = () => {
   const { user, signOut, isProvider, isClient } = useSimpleAuth()
   const { count: notificationsCount } = useNotifications()
+  const { unreadCount: unreadMessages } = useUnreadMessages()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -156,6 +158,7 @@ export const Navbar = () => {
             </AnimatePresence>
           </div>
 
+          {/* 🔔 Sino de solicitações — apenas prestadores */}
           {user && isProvider && (
             <div className="relative" ref={notificationsRef}>
               <motion.button
@@ -172,6 +175,24 @@ export const Navbar = () => {
               </motion.button>
               <NotificationsDropdown isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
             </div>
+          )}
+
+          {/* 💬 Botão de mensagens — todos os usuários logados */}
+          {user && (
+            <motion.div whileHover={{ scale: 1.1 }} className="relative">
+              <Link
+                to="/chats"
+                className="p-2 text-muted hover:text-white transition-colors flex items-center justify-center"
+                aria-label="Mensagens"
+              >
+                <MessageCircle className="w-5 h-5" />
+                {unreadMessages > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
+                    {unreadMessages > 9 ? '9+' : unreadMessages}
+                  </span>
+                )}
+              </Link>
+            </motion.div>
           )}
 
           <div className="hidden md:block relative" ref={userMenuRef}>
@@ -224,6 +245,7 @@ export const Navbar = () => {
                             </Link>
                             <Link to="/chats" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
                               <MessageCircle className="w-4 h-4 text-primary" /><span>Mensagens</span>
+                              {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
                             </Link>
                           </>
                         )}
@@ -234,11 +256,16 @@ export const Navbar = () => {
                             <Link to="/minha-conta" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
                               <ShoppingBag className="w-4 h-4 text-blue-400" /><span>Minha Conta</span>
                             </Link>
+                            {/* Mensagens também para clientes puros */}
+                            <Link to="/chats" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
+                              <MessageCircle className="w-4 h-4 text-blue-400" /><span>Mensagens</span>
+                              {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
+                            </Link>
                           </>
                         )}
                         <div className="border-t border-border my-2" />
 
-                        {/* 🔐 ÁREA ADMIN - apenas Painel Admin */}
+                        {/* 🔐 ÁREA ADMIN */}
                         {isAdmin && (
                           <>
                             <div className="px-3 py-1">
@@ -324,27 +351,31 @@ export const Navbar = () => {
                       </Link>
                       <Link to="/chats" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
                         <MessageCircle className="w-5 h-5 text-primary" /><span>Mensagens</span>
+                        {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
                       </Link>
                     </div>
                   </div>
                 )}
-                {isClient && (<div className="border-t border-border pt-4"><p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Cliente</p><div className="space-y-1"><Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><ShoppingBag className="w-5 h-5 text-blue-400" /><span>Minha Conta</span></Link></div></div>)}
+                {isClient && (
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Cliente</p>
+                    <div className="space-y-1">
+                      <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><ShoppingBag className="w-5 h-5 text-blue-400" /><span>Minha Conta</span></Link>
+                      <Link to="/chats" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
+                        <MessageCircle className="w-5 h-5 text-blue-400" /><span>Mensagens</span>
+                        {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
+                      </Link>
+                    </div>
+                  </div>
+                )}
 
-                {/* 🔐 ÁREA ADMIN MOBILE - apenas Painel */}
+                {/* 🔐 ÁREA ADMIN MOBILE */}
                 {isAdmin && (
                   <div className="border-t border-yellow-500/30 pt-4">
                     <p className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 px-2">Admin</p>
                     <div className="space-y-1">
-                      <a
-                        href="https://prontto.onrender.com/admin"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 text-yellow-400 font-semibold hover:bg-yellow-500/10 rounded-xl transition-colors"
-                      >
-                        <Shield className="w-5 h-5" />
-                        <span>Prontto Admin</span>
-                        <ExternalLink className="w-4 h-4 ml-auto opacity-60" />
+                      <a href="https://prontto.onrender.com/admin" target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400 font-semibold hover:bg-yellow-500/10 rounded-xl transition-colors">
+                        <Shield className="w-5 h-5" /><span>Prontto Admin</span><ExternalLink className="w-4 h-4 ml-auto opacity-60" />
                       </a>
                       <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><Shield className="w-5 h-5" /><span>Painel Admin</span></Link>
                     </div>

@@ -28,7 +28,9 @@ function App() {
       {!hideNavbar && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
+        {/* Suporta tanto /profissional/:id quanto /prestador/:id */}
         <Route path="/profissional/:id" element={<ProviderProfilePage />} />
+        <Route path="/prestador/:id" element={<ProviderProfilePage />} />
         <Route path="/meu-perfil" element={<ProviderDashboardPage />} />
         <Route path="/meu-perfil/editar" element={<EditProviderProfilePage />} />
         <Route path="/prestador/solicitacoes" element={<ProviderRequestsPage />} />
