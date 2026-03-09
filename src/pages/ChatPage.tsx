@@ -6,11 +6,11 @@ import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useMessages } from '@/hooks/useMessages'
+import { usePresence, useUserPresence, formatLastSeen } from '@/hooks/usePresence'
 import {
   createOrGetChat,
   sendMessage,
   markChatAsRead,
-  getChatId,
   ChatParticipantInfo,
 } from '@/lib/chatUtils'
 
@@ -45,6 +45,12 @@ export const ChatPage = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const { messages } = useMessages(chatId)
+
+  // Publica presença do usuário atual
+  usePresence()
+
+  // Observa presença do outro usuário
+  const { isOnline, lastSeen } = useUserPresence(otherUser?.id)
 
   useEffect(() => {
     if (!user?.id) return
@@ -92,7 +98,6 @@ export const ChatPage = () => {
             const otherId = chatData.participants.find((p: string) => p !== user.id)
             if (otherId) {
               const info = chatData.participantsInfo?.[otherId]
-              // Busca se o outro é prestador para exibir link no header
               const otherSnap = await getDoc(doc(db, 'users', otherId))
               const isProvider = otherSnap.exists() && !!otherSnap.data().providerProfile
               setOtherUser({ id: otherId, isProvider, ...info })
@@ -175,9 +180,14 @@ export const ChatPage = () => {
   const otherDisplayName = otherUser?.name || 'Conversa'
   const otherAvatar = otherUser?.providerAvatar || otherUser?.avatar || `https://i.pravatar.cc/40?u=${otherUser?.id}`
 
+  // Subítulo de presença
+  const presenceLabel = isOnline
+    ? null // exibido como badge verde separado
+    : formatLastSeen(lastSeen)
+
   return (
     <div className="flex flex-col h-screen pt-16 bg-background">
-      {/* Header com link para o perfil */}
+      {/* Header */}
       <div className="bg-surface border-b border-border px-4 py-3 flex items-center gap-3 shrink-0">
         <button
           onClick={() => navigate('/chats')}
@@ -186,35 +196,49 @@ export const ChatPage = () => {
           <ArrowLeft className="w-5 h-5 text-muted" />
         </button>
 
-        {/* Avatar + info clicavel para o perfil */}
         {otherUser?.isProvider ? (
           <Link
             to={`/prestador/${otherUser.id}`}
             className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
           >
-            <img
-              src={otherAvatar}
-              alt={otherDisplayName}
-              className="w-10 h-10 rounded-full object-cover border-2 border-border shrink-0"
-            />
+            {/* Avatar com indicador de presença */}
+            <div className="relative shrink-0">
+              <img
+                src={otherAvatar}
+                alt={otherDisplayName}
+                className="w-10 h-10 rounded-full object-cover border-2 border-border"
+              />
+              {isOnline && (
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <p className="text-white font-semibold text-sm truncate">{otherDisplayName}</p>
                 <ExternalLink className="w-3 h-3 text-muted shrink-0" />
               </div>
-              <p className="text-xs text-primary">Ver perfil</p>
+              <p className={`text-xs ${isOnline ? 'text-green-400 font-medium' : 'text-muted'}`}>
+                {isOnline ? 'Online agora' : presenceLabel}
+              </p>
             </div>
           </Link>
         ) : (
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <img
-              src={otherAvatar}
-              alt={otherDisplayName}
-              className="w-10 h-10 rounded-full object-cover border-2 border-border shrink-0"
-            />
+            <div className="relative shrink-0">
+              <img
+                src={otherAvatar}
+                alt={otherDisplayName}
+                className="w-10 h-10 rounded-full object-cover border-2 border-border"
+              />
+              {isOnline && (
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />
+              )}
+            </div>
             <div className="min-w-0">
               <p className="text-white font-semibold text-sm truncate">{otherDisplayName}</p>
-              <p className="text-xs text-muted">Usuário</p>
+              <p className={`text-xs ${isOnline ? 'text-green-400 font-medium' : 'text-muted'}`}>
+                {isOnline ? 'Online agora' : presenceLabel}
+              </p>
             </div>
           </div>
         )}
