@@ -17,6 +17,7 @@ export interface Provider {
   responseTime: string
   completedJobs: number
   media?: ProviderMedia
+  socialLinks?: SocialLinks
 }
 
 export interface Category {
@@ -78,6 +79,18 @@ export interface ClientProfile {
   preferences?: string[]
 }
 
+// ===== REDES SOCIAIS =====
+
+export interface SocialLinks {
+  instagram?: string
+  facebook?: string
+  youtube?: string
+  whatsapp?: string // Apenas número com DDD
+  tiktok?: string
+  linkedin?: string
+  website?: string
+}
+
 // ===== NOVO SISTEMA DE MÍDIA =====
 
 export type MediaType = 'photo' | 'video' | 'audio'
@@ -134,6 +147,7 @@ export interface ProviderProfile {
   verified?: boolean
   coverImage?: string
   media?: ProviderMedia
+  socialLinks?: SocialLinks
 }
 
 export interface User {
