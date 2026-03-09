@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle, Shield, Bug, Wrench, CheckSquare, ExternalLink } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { NotificationsDropdown } from './NotificationsDropdown'
 import { CitySelectorNav } from './CitySelectorNav'
+
+const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1']
 
 export const Navbar = () => {
   const { user, signOut, isProvider, isClient } = useSimpleAuth()
@@ -19,6 +21,8 @@ export const Navbar = () => {
   const navigate = useNavigate()
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
+
+  const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50)
@@ -230,6 +234,40 @@ export const Navbar = () => {
                           </>
                         )}
                         <div className="border-t border-border my-2" />
+
+                        {/* 🔐 ÁREA ADMIN - visível apenas para admins */}
+                        {isAdmin && (
+                          <>
+                            <div className="px-3 py-1">
+                              <p className="text-[10px] font-bold text-yellow-500/80 uppercase tracking-wider">Admin</p>
+                            </div>
+                            <a
+                              href="https://prontto.onrender.com/admin"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setUserMenuOpen(false)}
+                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors"
+                            >
+                              <Shield className="w-4 h-4" />
+                              <span className="font-semibold">Prontto Admin</span>
+                              <ExternalLink className="w-3 h-3 ml-auto opacity-60" />
+                            </a>
+                            <Link to="/admin" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
+                              <Shield className="w-4 h-4" /><span>Painel Admin</span>
+                            </Link>
+                            <Link to="/admin/aprovacoes" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
+                              <CheckSquare className="w-4 h-4" /><span>Aprovações</span>
+                            </Link>
+                            <Link to="/debug" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
+                              <Bug className="w-4 h-4" /><span>Debug Prestadores</span>
+                            </Link>
+                            <Link to="/fix" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
+                              <Wrench className="w-4 h-4" /><span>Fix Prestadores</span>
+                            </Link>
+                            <div className="border-t border-border my-2" />
+                          </>
+                        )}
+
                         <Link to="/configuracoes" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
                           <Settings className="w-4 h-4" />Configurações
                         </Link>
@@ -280,7 +318,38 @@ export const Navbar = () => {
                 </div>
               )}
               <div className="space-y-1"><Link to="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-white font-semibold hover:bg-surface rounded-xl transition-colors"><Home className="w-5 h-5" />Início</Link><Link to="/buscar" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Compass className="w-5 h-5" />Explorar</Link></div>
-              {user ? (<>{isProvider && (<div className="border-t border-border pt-4"><p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Prestador</p><div className="space-y-1"><Link to="/meu-perfil" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Briefcase className="w-5 h-5 text-primary" /><span>Meu Perfil</span></Link><Link to="/prestador/solicitacoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><MessageCircle className="w-5 h-5 text-primary" /><span>Solicitações</span>{notificationsCount > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{notificationsCount}</span>}</Link></div></div>)}{isClient && (<div className="border-t border-border pt-4"><p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Cliente</p><div className="space-y-1"><Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><ShoppingBag className="w-5 h-5 text-blue-400" /><span>Minha Conta</span></Link></div></div>)}<div className="border-t border-border pt-4 space-y-1"><Link to="/configuracoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Settings className="w-5 h-5" />Configurações</Link></div>{!isProvider && <Link to="/tornar-se-prestador" onClick={() => setMenuOpen(false)} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary/20 border-2 border-primary/30 text-primary font-bold rounded-xl hover:bg-primary/30 transition-colors"><Sparkles className="w-5 h-5" />Tornar-se Prestador</Link>}<button onClick={handleSignOut} className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 text-red-400 font-semibold rounded-xl hover:bg-red-500/20 transition-colors"><LogOut className="w-5 h-5" />Sair</button></>) : (<Link to="/entrar" onClick={() => setMenuOpen(false)} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"><User className="w-5 h-5" />Entrar</Link>)}
+              {user ? (<>
+                {isProvider && (<div className="border-t border-border pt-4"><p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Prestador</p><div className="space-y-1"><Link to="/meu-perfil" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Briefcase className="w-5 h-5 text-primary" /><span>Meu Perfil</span></Link><Link to="/prestador/solicitacoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><MessageCircle className="w-5 h-5 text-primary" /><span>Solicitações</span>{notificationsCount > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{notificationsCount}</span>}</Link></div></div>)}
+                {isClient && (<div className="border-t border-border pt-4"><p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Cliente</p><div className="space-y-1"><Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><ShoppingBag className="w-5 h-5 text-blue-400" /><span>Minha Conta</span></Link></div></div>)}
+
+                {/* 🔐 ÁREA ADMIN MOBILE */}
+                {isAdmin && (
+                  <div className="border-t border-yellow-500/30 pt-4">
+                    <p className="text-xs font-bold text-yellow-500/80 uppercase tracking-wider mb-2 px-2">Admin</p>
+                    <div className="space-y-1">
+                      <a
+                        href="https://prontto.onrender.com/admin"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 text-yellow-400 font-semibold hover:bg-yellow-500/10 rounded-xl transition-colors"
+                      >
+                        <Shield className="w-5 h-5" />
+                        <span>Prontto Admin</span>
+                        <ExternalLink className="w-4 h-4 ml-auto opacity-60" />
+                      </a>
+                      <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><Shield className="w-5 h-5" /><span>Painel Admin</span></Link>
+                      <Link to="/admin/aprovacoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><CheckSquare className="w-5 h-5" /><span>Aprovações</span></Link>
+                      <Link to="/debug" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><Bug className="w-5 h-5" /><span>Debug Prestadores</span></Link>
+                      <Link to="/fix" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors"><Wrench className="w-5 h-5" /><span>Fix Prestadores</span></Link>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border-t border-border pt-4 space-y-1"><Link to="/configuracoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Settings className="w-5 h-5" />Configurações</Link></div>
+                {!isProvider && <Link to="/tornar-se-prestador" onClick={() => setMenuOpen(false)} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary/20 border-2 border-primary/30 text-primary font-bold rounded-xl hover:bg-primary/30 transition-colors"><Sparkles className="w-5 h-5" />Tornar-se Prestador</Link>}
+                <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 text-red-400 font-semibold rounded-xl hover:bg-red-500/20 transition-colors"><LogOut className="w-5 h-5" />Sair</button>
+              </>) : (<Link to="/entrar" onClick={() => setMenuOpen(false)} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"><User className="w-5 h-5" />Entrar</Link>)}
             </div>
           </motion.div>
         )}
