@@ -14,6 +14,8 @@ import { DebugProvidersPage } from '@/pages/DebugProvidersPage'
 import { FixProvidersPage } from '@/pages/FixProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { EditProviderProfilePage } from '@/pages/EditProviderProfilePage'
+import { ChatPage } from '@/pages/ChatPage'
+import { ChatsPage } from '@/pages/ChatsPage'
 
 function App() {
   const location = useLocation()
@@ -39,6 +41,11 @@ function App() {
         <Route path="/admin/aprovacoes" element={<AdminApprovalPage />} />
         <Route path="/debug" element={<DebugProvidersPage />} />
         <Route path="/fix" element={<FixProvidersPage />} />
+        {/* Chat */}
+        <Route path="/chats" element={<ChatsPage />} />
+        <Route path="/chat/:chatId" element={<ChatPage />} />
+        {/* Atalho: /chat?with=uid abre ou cria conversa diretamente */}
+        <Route path="/chat" element={<ChatPage />} />
       </Routes>
     </div>
   )
