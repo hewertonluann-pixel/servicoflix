@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Send, Loader2, MessageCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, MessageCircle, AlertCircle, ExternalLink } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
@@ -32,11 +32,10 @@ export const ChatPage = () => {
   const navigate = useNavigate()
   const { user } = useSimpleAuth()
 
-  // Pode vir de /chat/:chatId ou de /chat?with=uid
   const withUserId = searchParams.get('with')
 
   const [chatId, setChatId] = useState<string | null>(chatIdParam || null)
-  const [otherUser, setOtherUser] = useState<ChatParticipantInfo & { id: string } | null>(null)
+  const [otherUser, setOtherUser] = useState<ChatParticipantInfo & { id: string; isProvider?: boolean } | null>(null)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -47,7 +46,6 @@ export const ChatPage = () => {
 
   const { messages } = useMessages(chatId)
 
-  // Inicializa o chat — seja pelo chatId direto ou pelo ?with=uid
   useEffect(() => {
     if (!user?.id) return
 
@@ -58,7 +56,6 @@ export const ChatPage = () => {
         let resolvedChatId = chatIdParam || null
 
         if (withUserId && !chatIdParam) {
-          // Busca dados do outro usuário no Firestore
           const otherSnap = await getDoc(doc(db, 'users', withUserId))
           if (!otherSnap.exists()) {
             setError('Usuário não encontrado')
@@ -68,9 +65,10 @@ export const ChatPage = () => {
           const otherData = otherSnap.data()
           const otherInfo = {
             id: withUserId,
-            name: otherData.name || 'Usuário',
+            name: otherData.providerProfile?.professionalName || otherData.name || 'Usuário',
             avatar: otherData.avatar || '',
             providerAvatar: otherData.providerProfile?.avatar || undefined,
+            isProvider: !!otherData.providerProfile,
           }
           setOtherUser(otherInfo)
 
@@ -82,25 +80,25 @@ export const ChatPage = () => {
             },
             otherInfo
           )
-          // Navega para a URL canonica sem perder o estado
           navigate(`/chat/${resolvedChatId}`, { replace: true })
         }
 
         if (resolvedChatId) {
           setChatId(resolvedChatId)
 
-          // Carrega info do outro participante a partir dos metadados do chat
           const chatSnap = await getDoc(doc(db, 'chats', resolvedChatId))
           if (chatSnap.exists()) {
             const chatData = chatSnap.data()
             const otherId = chatData.participants.find((p: string) => p !== user.id)
             if (otherId) {
               const info = chatData.participantsInfo?.[otherId]
-              setOtherUser({ id: otherId, ...info })
+              // Busca se o outro é prestador para exibir link no header
+              const otherSnap = await getDoc(doc(db, 'users', otherId))
+              const isProvider = otherSnap.exists() && !!otherSnap.data().providerProfile
+              setOtherUser({ id: otherId, isProvider, ...info })
             }
           }
 
-          // Zera não lidos
           await markChatAsRead(resolvedChatId, user.id)
         }
       } catch (err) {
@@ -114,7 +112,6 @@ export const ChatPage = () => {
     init()
   }, [user?.id, chatIdParam, withUserId])
 
-  // Scroll para o fim ao chegar novas mensagens
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -140,12 +137,10 @@ export const ChatPage = () => {
     }
   }
 
-  // Determina o avatar a exibir para cada participante
   const getDisplayAvatar = (senderId: string) => {
     if (senderId === user?.id) {
       return user.avatar || `https://i.pravatar.cc/40?u=${user.id}`
     }
-    // Para o outro usuário, usa providerAvatar se existir (estamos num contexto profissional)
     return otherUser?.providerAvatar || otherUser?.avatar || `https://i.pravatar.cc/40?u=${senderId}`
   }
 
@@ -182,23 +177,47 @@ export const ChatPage = () => {
 
   return (
     <div className="flex flex-col h-screen pt-16 bg-background">
-      {/* Header */}
+      {/* Header com link para o perfil */}
       <div className="bg-surface border-b border-border px-4 py-3 flex items-center gap-3 shrink-0">
         <button
           onClick={() => navigate('/chats')}
-          className="p-2 hover:bg-background rounded-lg transition-colors"
+          className="p-2 hover:bg-background rounded-lg transition-colors shrink-0"
         >
           <ArrowLeft className="w-5 h-5 text-muted" />
         </button>
-        <img
-          src={otherAvatar}
-          alt={otherDisplayName}
-          className="w-10 h-10 rounded-full object-cover border-2 border-border"
-        />
-        <div>
-          <p className="text-white font-semibold text-sm">{otherDisplayName}</p>
-          <p className="text-xs text-primary">Online</p>
-        </div>
+
+        {/* Avatar + info clicavel para o perfil */}
+        {otherUser?.isProvider ? (
+          <Link
+            to={`/prestador/${otherUser.id}`}
+            className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+          >
+            <img
+              src={otherAvatar}
+              alt={otherDisplayName}
+              className="w-10 h-10 rounded-full object-cover border-2 border-border shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-white font-semibold text-sm truncate">{otherDisplayName}</p>
+                <ExternalLink className="w-3 h-3 text-muted shrink-0" />
+              </div>
+              <p className="text-xs text-primary">Ver perfil</p>
+            </div>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <img
+              src={otherAvatar}
+              alt={otherDisplayName}
+              className="w-10 h-10 rounded-full object-cover border-2 border-border shrink-0"
+            />
+            <div className="min-w-0">
+              <p className="text-white font-semibold text-sm truncate">{otherDisplayName}</p>
+              <p className="text-xs text-muted">Usuário</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mensagens */}
@@ -224,7 +243,6 @@ export const ChatPage = () => {
                 transition={{ duration: 0.15 }}
                 className={`flex items-end gap-2 ${ isMe ? 'flex-row-reverse' : 'flex-row' }`}
               >
-                {/* Avatar do remetente */}
                 {!isMe && (
                   <img
                     src={getDisplayAvatar(msg.senderId)}
@@ -233,7 +251,6 @@ export const ChatPage = () => {
                   />
                 )}
 
-                {/* Balão */}
                 <div
                   className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                     isMe

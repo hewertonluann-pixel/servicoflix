@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { motion } from 'framer-motion'
-import { MessageCircle, Loader2, ArrowLeft } from 'lucide-react'
+import { MessageCircle, Loader2, ArrowLeft, Compass } from 'lucide-react'
 import { ChatMeta } from '@/lib/chatUtils'
 
 const formatRelative = (timestamp: any): string => {
@@ -52,11 +52,18 @@ export const ChatsPage = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen pt-16 flex items-center justify-center">
-        <p className="text-muted">Faça login para ver suas mensagens.</p>
+      <div className="min-h-screen pt-16 flex items-center justify-center px-4">
+        <div className="text-center">
+          <MessageCircle className="w-12 h-12 text-muted mx-auto mb-4" />
+          <p className="text-white font-semibold mb-2">Faça login para ver suas mensagens</p>
+          <button onClick={() => navigate('/entrar?redirect=/chats')} className="mt-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl text-sm">Entrar</button>
+        </div>
       </div>
     )
   }
+
+  // total de não lidos globais
+  const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount?.[user.id] || 0), 0)
 
   return (
     <div className="min-h-screen pt-16 pb-20 bg-background">
@@ -66,10 +73,15 @@ export const ChatsPage = () => {
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-background rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-muted" />
           </button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-bold text-white flex items-center gap-2">
               <MessageCircle className="w-5 h-5 text-primary" />
               Mensagens
+              {totalUnread > 0 && (
+                <span className="ml-1 px-2 py-0.5 bg-primary text-background text-[11px] font-black rounded-full">
+                  {totalUnread > 99 ? '99+' : totalUnread}
+                </span>
+              )}
             </h1>
             <p className="text-xs text-muted">{chats.length} conversa{chats.length !== 1 ? 's' : ''}</p>
           </div>
@@ -88,54 +100,60 @@ export const ChatsPage = () => {
             </div>
             <p className="text-white font-semibold text-lg">Nenhuma conversa ainda</p>
             <p className="text-muted text-sm max-w-xs">Quando você entrar em contato com um prestador, a conversa aparecerá aqui.</p>
-            <button
-              onClick={() => navigate('/')}
-              className="mt-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors text-sm"
+            <Link
+              to="/buscar"
+              className="mt-2 flex items-center gap-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors text-sm"
             >
+              <Compass className="w-4 h-4" />
               Explorar prestadores
-            </button>
+            </Link>
           </div>
         ) : (
           <div className="space-y-2">
-            {chats.map((chat) => {
+            {chats.map((chat, i) => {
               const otherId = chat.participants.find((p) => p !== user.id) || ''
               const otherInfo = chat.participantsInfo?.[otherId]
               const unread = chat.unreadCount?.[user.id] || 0
+              // Usa avatar profissional se disponível
               const otherAvatar = otherInfo?.providerAvatar || otherInfo?.avatar || `https://i.pravatar.cc/40?u=${otherId}`
+              const otherName = otherInfo?.name || 'Usuário'
 
               return (
                 <motion.button
                   key={chat.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
                   onClick={() => navigate(`/chat/${chat.id}`)}
-                  className="w-full bg-surface border border-border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all text-left"
+                  className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all text-left ${
+                    unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
+                  }`}
                 >
-                  {/* Avatar com badge */}
+                  {/* Avatar com badge de não lidos */}
                   <div className="relative shrink-0">
                     <img
                       src={otherAvatar}
-                      alt={otherInfo?.name || 'Usuário'}
+                      alt={otherName}
                       className="w-12 h-12 rounded-full object-cover"
                     />
                     {unread > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-background text-[10px] font-bold rounded-full flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
                         {unread > 9 ? '9+' : unread}
                       </span>
                     )}
                   </div>
 
-                  {/* Info */}
+                  {/* Info da conversa */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
-                      <p className={`text-sm font-semibold truncate ${ unread > 0 ? 'text-white' : 'text-white/80' }`}>
-                        {otherInfo?.name || 'Usuário'}
+                      <p className={`text-sm truncate ${ unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80' }`}>
+                        {otherName}
                       </p>
-                      <p className="text-[11px] text-muted shrink-0 ml-2">
+                      <p className={`text-[11px] shrink-0 ml-2 ${ unread > 0 ? 'text-primary font-semibold' : 'text-muted' }`}>
                         {formatRelative(chat.lastMessageAt)}
                       </p>
                     </div>
-                    <p className={`text-xs truncate ${ unread > 0 ? 'text-white/70' : 'text-muted' }`}>
+                    <p className={`text-xs truncate ${ unread > 0 ? 'text-white/70 font-medium' : 'text-muted' }`}>
                       {chat.lastMessageBy === user.id ? 'Você: ' : ''}
                       {chat.lastMessage || 'Sem mensagens ainda'}
                     </p>

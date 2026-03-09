@@ -20,9 +20,7 @@ interface ProviderData {
   id: string
   name: string
   professionalName?: string
-  // avatar pessoal (Google) — NÃO exibido na página pública do prestador
   avatar: string
-  // avatar profissional — exibido na página pública
   providerAvatar: string
   email: string
   isMock?: boolean
@@ -168,9 +166,7 @@ export const ProviderProfilePage = () => {
             id: docSnap.id,
             name: data.name || 'Sem nome',
             professionalName,
-            // avatar pessoal preservado internamente, mas NÃO usado na exibição pública
             avatar: data.avatar || '',
-            // ✅ avatar do prestador: usa providerProfile.avatar; se não tiver, gera avatar neutro
             providerAvatar: data.providerProfile.avatar || `https://i.pravatar.cc/150?u=provider-${id}`,
             email: data.email || '',
             isMock: false,
@@ -237,6 +233,18 @@ export const ProviderProfilePage = () => {
     setHdPhotoLoaded(prev => ({ ...prev, [newIndex]: true }))
   }
 
+  // Abre o chat com este prestador
+  const handleOpenChat = () => {
+    if (!provider || provider.isMock) return
+    if (!user) {
+      // Redireciona para login e volta depois
+      navigate(`/entrar?redirect=/prestador/${provider.id}`)
+      return
+    }
+    if (user.id === provider.id) return // não faz sentido chamar a si mesmo
+    navigate(`/chat?with=${provider.id}`)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
@@ -269,6 +277,10 @@ export const ProviderProfilePage = () => {
   const displayName = provider.professionalName || provider.name
   const hasSocialLinks = socialLinks && Object.values(socialLinks).some(value => value && value.trim() !== '')
 
+  // Oculta botão de mensagem se for o próprio perfil ou mock
+  const isOwnProfile = user?.id === provider.id
+  const showMessageBtn = !provider.isMock && !isOwnProfile
+
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
       {provider.isMock && (
@@ -291,7 +303,6 @@ export const ProviderProfilePage = () => {
           <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
-                {/* ✅ Exibe o avatar PROFISSIONAL, não o pessoal */}
                 <img
                   src={provider.providerAvatar}
                   alt={displayName}
@@ -389,6 +400,7 @@ export const ProviderProfilePage = () => {
             )}
           </div>
 
+          {/* Sidebar desktop */}
           <div className="hidden lg:block w-full space-y-6">
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-surface border border-border rounded-2xl p-6 sticky top-20">
               <div className="text-center mb-6">
@@ -396,12 +408,24 @@ export const ProviderProfilePage = () => {
                 <p className="text-3xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-lg text-muted font-normal">/serviço</span></p>
               </div>
               <div className="space-y-3 mb-6">
-                <button onClick={() => !provider.isMock && setModalOpen(true)} disabled={provider.isMock} className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Calendar className="w-5 h-5 inline mr-2" />{provider.isMock ? 'Perfil de Exemplo' : 'Solicitar Serviço'}
+                <button
+                  onClick={() => !provider.isMock && setModalOpen(true)}
+                  disabled={provider.isMock || isOwnProfile}
+                  className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Calendar className="w-5 h-5 inline mr-2" />
+                  {provider.isMock ? 'Perfil de Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar Serviço'}
                 </button>
-                <button disabled={provider.isMock} className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed">
-                  <MessageCircle className="w-5 h-5 inline mr-2" />{provider.isMock ? 'Perfil de Exemplo' : 'Enviar Mensagem'}
-                </button>
+
+                {showMessageBtn && (
+                  <button
+                    onClick={handleOpenChat}
+                    className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target"
+                  >
+                    <MessageCircle className="w-5 h-5 inline mr-2" />
+                    {user ? 'Enviar Mensagem' : 'Entrar para Mensagem'}
+                  </button>
+                )}
               </div>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center gap-3 text-muted"><Clock className="w-5 h-5 text-primary shrink-0" /><div><p className="text-white font-semibold">Tempo de resposta</p><p>{provider.providerProfile.responseTime}</p></div></div>
@@ -412,12 +436,31 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
+      {/* Barra inferior mobile */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border p-3 sm:p-4 z-40">
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-3"><p className="text-muted text-xs mb-0.5">A partir de</p><p className="text-xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-sm text-muted font-normal">/serviço</span></p></div>
-          <div className="flex gap-2 sm:gap-3">
-            <button onClick={() => !provider.isMock && setModalOpen(true)} disabled={provider.isMock} className="flex-1 bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target disabled:opacity-50"><Calendar className="w-4 h-4 inline mr-1.5" />{provider.isMock ? 'Exemplo' : 'Solicitar'}</button>
-            <button disabled={provider.isMock} className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target disabled:opacity-50"><MessageCircle className="w-4 h-4 inline mr-1.5" />{provider.isMock ? 'Exemplo' : 'Mensagem'}</button>
+          <div className="text-center mb-3">
+            <p className="text-muted text-xs mb-0.5">A partir de</p>
+            <p className="text-xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-sm text-muted font-normal">/serviço</span></p>
+          </div>
+          <div className={`flex gap-2 sm:gap-3 ${!showMessageBtn ? 'justify-center' : ''}`}>
+            <button
+              onClick={() => !provider.isMock && !isOwnProfile && setModalOpen(true)}
+              disabled={provider.isMock || isOwnProfile}
+              className={`${showMessageBtn ? 'flex-1' : 'w-48'} bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target disabled:opacity-50`}
+            >
+              <Calendar className="w-4 h-4 inline mr-1.5" />
+              {provider.isMock ? 'Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar'}
+            </button>
+            {showMessageBtn && (
+              <button
+                onClick={handleOpenChat}
+                className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target"
+              >
+                <MessageCircle className="w-4 h-4 inline mr-1.5" />
+                {user ? 'Mensagem' : 'Entrar'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -456,7 +499,6 @@ export const ProviderProfilePage = () => {
           provider={{
             id: provider.id,
             name: displayName,
-            // ✅ Modal também usa o avatar profissional
             avatar: provider.providerAvatar,
             specialty: provider.providerProfile.specialty,
             priceFrom: provider.providerProfile.priceFrom,
