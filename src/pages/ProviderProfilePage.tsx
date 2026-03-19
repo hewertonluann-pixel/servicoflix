@@ -13,8 +13,10 @@ import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
 import { RequestServiceModal } from '@/components/RequestServiceModal'
 import { ProgressiveImage } from '@/components/ProgressiveImage'
+import { UserAvatar } from '@/components/UserAvatar'
 import { mockProviders } from '@/data/mock'
 import { SocialLinks } from '@/types'
+import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 
 interface ProviderData {
   id: string
@@ -162,13 +164,15 @@ export const ProviderProfilePage = () => {
             return
           }
           const professionalName = data.providerProfile.professionalName || data.name || 'Sem nome'
+          // Usa resolveAvatarFromDoc para pegar a melhor foto disponível
+          // (Storage manual > Google photo salvo > URL antiga)
+          const resolvedAvatar = resolveAvatarFromDoc(data)
           setProvider({
             id: docSnap.id,
             name: data.name || 'Sem nome',
             professionalName,
             avatar: data.avatar || '',
-            // ✅ Prioridade: foto personalizada do prestador → foto do Google → vazio
-            providerAvatar: data.providerProfile.avatar || data.avatar || '',
+            providerAvatar: resolvedAvatar,
             email: data.email || '',
             isMock: false,
             providerProfile: {
@@ -234,15 +238,10 @@ export const ProviderProfilePage = () => {
     setHdPhotoLoaded(prev => ({ ...prev, [newIndex]: true }))
   }
 
-  // Abre o chat com este prestador
   const handleOpenChat = () => {
     if (!provider || provider.isMock) return
-    if (!user) {
-      // Redireciona para login e volta depois
-      navigate(`/entrar?redirect=/prestador/${provider.id}`)
-      return
-    }
-    if (user.id === provider.id) return // não faz sentido chamar a si mesmo
+    if (!user) { navigate(`/entrar?redirect=/prestador/${provider.id}`); return }
+    if (user.id === provider.id) return
     navigate(`/chat?with=${provider.id}`)
   }
 
@@ -277,8 +276,6 @@ export const ProviderProfilePage = () => {
   const socialLinks = provider.providerProfile.socialLinks
   const displayName = provider.professionalName || provider.name
   const hasSocialLinks = socialLinks && Object.values(socialLinks).some(value => value && value.trim() !== '')
-
-  // Oculta botão de mensagem se for o próprio perfil ou mock
   const isOwnProfile = user?.id === provider.id
   const showMessageBtn = !provider.isMock && !isOwnProfile
 
@@ -304,17 +301,13 @@ export const ProviderProfilePage = () => {
           <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
-                {provider.providerAvatar ? (
-                  <img
-                    src={provider.providerAvatar}
-                    alt={displayName}
-                    className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl object-cover border-4 border-background shrink-0"
-                  />
-                ) : (
-                  <div className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl border-4 border-background shrink-0 bg-primary/20 flex items-center justify-center">
-                    <span className="text-3xl font-black text-primary">{displayName.charAt(0).toUpperCase()}</span>
-                  </div>
-                )}
+                {/* Avatar grande — usa UserAvatar com fallback ⚡ */}
+                <UserAvatar
+                  src={provider.providerAvatar}
+                  name={displayName}
+                  size={112}
+                  className="border-4 border-background rounded-xl sm:rounded-2xl shrink-0"
+                />
                 <div className="flex-1 w-full">
                   <div className="flex flex-col gap-3 mb-3">
                     <div className="flex items-center justify-between gap-2">
@@ -423,12 +416,8 @@ export const ProviderProfilePage = () => {
                   <Calendar className="w-5 h-5 inline mr-2" />
                   {provider.isMock ? 'Perfil de Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar Serviço'}
                 </button>
-
                 {showMessageBtn && (
-                  <button
-                    onClick={handleOpenChat}
-                    className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target"
-                  >
+                  <button onClick={handleOpenChat} className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target">
                     <MessageCircle className="w-5 h-5 inline mr-2" />
                     {user ? 'Enviar Mensagem' : 'Entrar para Mensagem'}
                   </button>
@@ -460,10 +449,7 @@ export const ProviderProfilePage = () => {
               {provider.isMock ? 'Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar'}
             </button>
             {showMessageBtn && (
-              <button
-                onClick={handleOpenChat}
-                className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target"
-              >
+              <button onClick={handleOpenChat} className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target">
                 <MessageCircle className="w-4 h-4 inline mr-1.5" />
                 {user ? 'Mensagem' : 'Entrar'}
               </button>
@@ -475,12 +461,12 @@ export const ProviderProfilePage = () => {
       <AnimatePresence>
         {lightboxOpen && photos.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center" onClick={() => setLightboxOpen(false)}>
-            <button onClick={(e) => { e.stopPropagation(); setLightboxOpen(false) }} className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Fechar"><X className="w-6 h-6" /></button>
+            <button onClick={(e) => { e.stopPropagation(); setLightboxOpen(false) }} className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><X className="w-6 h-6" /></button>
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm font-semibold">{currentPhotoIndex + 1} / {photos.length}</div>
             {photos.length > 1 && (
               <>
-                <button onClick={(e) => { e.stopPropagation(); goToPrevPhoto() }} className="absolute left-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Foto anterior"><ChevronLeft className="w-7 h-7" /></button>
-                <button onClick={(e) => { e.stopPropagation(); goToNextPhoto() }} className="absolute right-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Próxima foto"><ChevronRight className="w-7 h-7" /></button>
+                <button onClick={(e) => { e.stopPropagation(); goToPrevPhoto() }} className="absolute left-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><ChevronLeft className="w-7 h-7" /></button>
+                <button onClick={(e) => { e.stopPropagation(); goToNextPhoto() }} className="absolute right-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><ChevronRight className="w-7 h-7" /></button>
               </>
             )}
             <motion.div key={currentPhotoIndex} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.2 }} className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
