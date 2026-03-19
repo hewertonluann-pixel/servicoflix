@@ -85,11 +85,9 @@ export const ProviderRequestsPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // Carrega solicitações do Firestore (sem orderBy para evitar índice composto)
   useEffect(() => {
     const loadRequests = async () => {
       if (!user?.id) return
-
       try {
         const q = query(
           collection(db, 'serviceRequests'),
@@ -100,10 +98,7 @@ export const ProviderRequestsPage = () => {
           id: doc.id,
           ...doc.data(),
         })) as ServiceRequest[]
-
-        // Ordenação no cliente: mais recentes primeiro
         data.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
-
         setRequests(data)
       } catch (err) {
         console.error('Erro ao carregar solicitações:', err)
@@ -111,11 +106,9 @@ export const ProviderRequestsPage = () => {
         setLoading(false)
       }
     }
-
     loadRequests()
   }, [user])
 
-  // Aceitar solicitação
   const handleAccept = async (requestId: string) => {
     setActionLoading(requestId)
     try {
@@ -133,10 +126,8 @@ export const ProviderRequestsPage = () => {
     }
   }
 
-  // Recusar solicitação
   const handleReject = async (requestId: string) => {
     if (!confirm('Tem certeza que deseja recusar esta solicitação?')) return
-    
     setActionLoading(requestId)
     try {
       await updateDoc(doc(db, 'serviceRequests', requestId), {
@@ -152,17 +143,19 @@ export const ProviderRequestsPage = () => {
     }
   }
 
-  // Filtrar solicitações
+  const handleOpenChat = (clientId: string) => {
+    navigate(`/chat?with=${clientId}`)
+  }
+
   const filteredRequests = requests.filter(req => {
     const matchesTab = activeTab === 'all' || req.status === activeTab
-    const matchesSearch = 
+    const matchesSearch =
       req.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.address.city.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesTab && matchesSearch
   })
 
-  // Contadores por status
   const counts = {
     all: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
@@ -190,7 +183,6 @@ export const ProviderRequestsPage = () => {
   return (
     <div className="min-h-screen bg-background pt-16 pb-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
             <MessageCircle className="w-6 h-6 text-primary" />
@@ -201,7 +193,6 @@ export const ProviderRequestsPage = () => {
           </div>
         </div>
 
-        {/* Barra de busca */}
         <div className="mb-6">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
@@ -215,7 +206,6 @@ export const ProviderRequestsPage = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
           {[
             { key: 'pending', label: 'Pendentes' },
@@ -244,14 +234,12 @@ export const ProviderRequestsPage = () => {
           ))}
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
         )}
 
-        {/* Lista de solicitações */}
         {!loading && filteredRequests.length === 0 && (
           <div className="text-center py-20">
             <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center mx-auto mb-4">
@@ -278,7 +266,6 @@ export const ProviderRequestsPage = () => {
                   transition={{ delay: index * 0.05 }}
                   className={`bg-surface border rounded-xl p-4 sm:p-6 ${config.border}`}
                 >
-                  {/* Header do card */}
                   <div className="flex items-start gap-3 mb-4">
                     <img
                       src={request.clientAvatar}
@@ -302,10 +289,8 @@ export const ProviderRequestsPage = () => {
                     </div>
                   </div>
 
-                  {/* Descrição */}
                   <p className="text-sm text-white mb-4 line-clamp-2">{request.description}</p>
 
-                  {/* Informações */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="w-4 h-4 text-primary" />
@@ -333,7 +318,6 @@ export const ProviderRequestsPage = () => {
                     )}
                   </div>
 
-                  {/* Ações */}
                   <div className="flex flex-wrap gap-2">
                     {request.status === 'pending' && (
                       <>
@@ -362,7 +346,10 @@ export const ProviderRequestsPage = () => {
                       </>
                     )}
                     {request.status === 'accepted' && (
-                      <button className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-background font-bold rounded-lg transition-colors">
+                      <button
+                        onClick={() => handleOpenChat(request.clientId)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-background font-bold rounded-lg transition-colors"
+                      >
                         <MessageCircle className="w-4 h-4" />
                         Abrir Chat
                       </button>
@@ -373,7 +360,6 @@ export const ProviderRequestsPage = () => {
                     </button>
                   </div>
 
-                  {/* Data de criação */}
                   <div className="mt-4 pt-4 border-t border-border">
                     <p className="text-xs text-muted">
                       Recebido em {request.createdAt.toDate().toLocaleDateString('pt-BR')} às {request.createdAt.toDate().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
