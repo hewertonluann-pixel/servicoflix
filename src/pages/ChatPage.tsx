@@ -13,6 +13,7 @@ import {
   markChatAsRead,
   ChatParticipantInfo,
 } from '@/lib/chatUtils'
+import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 
 const formatTime = (timestamp: any): string => {
   if (!timestamp) return ''
@@ -49,20 +50,19 @@ export const ChatPage = () => {
   usePresence()
   const { isOnline, lastSeen } = useUserPresence(otherUser?.id)
 
-  // Busca os dados atuais do outro usuário no Firestore e monta o objeto com avatar correto
+  // Busca dados do outro usuário e resolve avatar pela regra centralizada
   const fetchOtherUser = async (otherId: string, fallbackInfo?: Partial<ChatParticipantInfo>) => {
     const snap = await getDoc(doc(db, 'users', otherId))
     if (!snap.exists()) return null
     const data = snap.data()
     const isProvider = !!data.providerProfile
-    // Prioridade igual à HomePage: foto personalizada → foto Google → vazio
-    const freshAvatar = data.providerProfile?.avatar || data.avatar || fallbackInfo?.avatar || ''
+    // Usa resolveAvatarFromDoc: providerProfile.avatar > avatar
+    const resolvedAvatar = resolveAvatarFromDoc(data)
     return {
       id: otherId,
       isProvider,
       name: data.providerProfile?.professionalName || data.name || fallbackInfo?.name || 'Usuário',
-      avatar: freshAvatar,
-      providerAvatar: data.providerProfile?.avatar || undefined,
+      avatar: resolvedAvatar || fallbackInfo?.avatar || '',
     }
   }
 
@@ -76,7 +76,6 @@ export const ChatPage = () => {
         let resolvedChatId = chatIdParam || null
 
         if (withUserId && !chatIdParam) {
-          // Abrindo chat a partir do perfil do prestador (?with=uid)
           const otherInfo = await fetchOtherUser(withUserId)
           if (!otherInfo) {
             setError('Usuário não encontrado')
@@ -104,7 +103,6 @@ export const ChatPage = () => {
             const chatData = chatSnap.data()
             const otherId = chatData.participants.find((p: string) => p !== user.id)
             if (otherId) {
-              // Sempre busca foto atualizada do Firestore, usa participantsInfo só como fallback de nome
               const fallback = chatData.participantsInfo?.[otherId]
               const freshOther = await fetchOtherUser(otherId, fallback)
               if (freshOther) setOtherUser(freshOther)
@@ -150,10 +148,8 @@ export const ChatPage = () => {
   }
 
   const getDisplayAvatar = (senderId: string) => {
-    if (senderId === user?.id) {
-      return user.avatar || ''
-    }
-    return otherUser?.providerAvatar || otherUser?.avatar || ''
+    if (senderId === user?.id) return user.avatar || ''
+    return otherUser?.avatar || ''
   }
 
   if (!user) {
@@ -185,8 +181,7 @@ export const ChatPage = () => {
   }
 
   const otherDisplayName = otherUser?.name || 'Conversa'
-  const otherAvatar = otherUser?.providerAvatar || otherUser?.avatar || ''
-
+  const otherAvatar = otherUser?.avatar || ''
   const presenceLabel = isOnline ? null : formatLastSeen(lastSeen)
 
   return (
@@ -207,11 +202,7 @@ export const ChatPage = () => {
           >
             <div className="relative shrink-0">
               {otherAvatar ? (
-                <img
-                  src={otherAvatar}
-                  alt={otherDisplayName}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-border"
-                />
+                <img src={otherAvatar} alt={otherDisplayName} className="w-10 h-10 rounded-full object-cover border-2 border-border" />
               ) : (
                 <div className="w-10 h-10 rounded-full border-2 border-border bg-surface flex items-center justify-center">
                   <span className="text-base font-black text-muted">{otherDisplayName.charAt(0).toUpperCase()}</span>
@@ -235,11 +226,7 @@ export const ChatPage = () => {
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="relative shrink-0">
               {otherAvatar ? (
-                <img
-                  src={otherAvatar}
-                  alt={otherDisplayName}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-border"
-                />
+                <img src={otherAvatar} alt={otherDisplayName} className="w-10 h-10 rounded-full object-cover border-2 border-border" />
               ) : (
                 <div className="w-10 h-10 rounded-full border-2 border-border bg-surface flex items-center justify-center">
                   <span className="text-base font-black text-muted">{otherDisplayName.charAt(0).toUpperCase()}</span>
@@ -285,16 +272,10 @@ export const ChatPage = () => {
               >
                 {!isMe && (
                   avatarSrc ? (
-                    <img
-                      src={avatarSrc}
-                      alt=""
-                      className="w-7 h-7 rounded-full object-cover shrink-0"
-                    />
+                    <img src={avatarSrc} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                   ) : (
                     <div className="w-7 h-7 rounded-full bg-surface border border-border flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-black text-muted">
-                        {otherDisplayName.charAt(0).toUpperCase()}
-                      </span>
+                      <span className="text-[10px] font-black text-muted">{otherDisplayName.charAt(0).toUpperCase()}</span>
                     </div>
                   )
                 )}

@@ -14,6 +14,7 @@ import { doc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firesto
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage, auth } from '@/lib/firebase'
 import { deleteUser } from 'firebase/auth'
+import { getAvatarUrl } from '@/lib/avatarUtils'
 
 type Section = 'conta' | 'notificacoes' | 'privacidade' | 'aparencia' | 'pagamentos' | 'preferencias' | 'suporte'
 type Theme = 'dark' | 'light' | 'system'
@@ -52,7 +53,7 @@ interface UserSettings {
 }
 
 export const SettingsPage = () => {
-  const { user, firebaseUser, logout } = useSimpleAuth()
+  const { user, firebaseUser } = useSimpleAuth()
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<Section | null>(null)
   const [saving, setSaving] = useState(false)
@@ -65,10 +66,13 @@ export const SettingsPage = () => {
   const [categories, setCategories] = useState<any[]>([])
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
+  // Avatar resolvido pela regra centralizada
+  const resolvedAvatar = getAvatarUrl(user, firebaseUser?.photoURL)
+
   const [profile, setProfile] = useState({
     name: user?.name || '',
     phone: (user?.providerProfile as any)?.phone || (user?.clientProfile as any)?.phone || '',
-    avatar: user?.avatar || '',
+    avatar: resolvedAvatar,
   })
 
   const [settings, setSettings] = useState<UserSettings>({
@@ -101,7 +105,6 @@ export const SettingsPage = () => {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // Carrega categorias do Firestore
   useEffect(() => {
     const loadCategories = async () => {
       try {
@@ -131,6 +134,7 @@ export const SettingsPage = () => {
     localStorage.setItem('theme', settings.theme)
   }, [settings.theme])
 
+  // Ao fazer upload, salva APENAS em user.avatar (Storage)
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user?.id) return
@@ -143,12 +147,13 @@ export const SettingsPage = () => {
     try {
       const fileRef = storageRef(storage, `avatars/${user.id}/${Date.now()}_${file.name}`)
       const task = uploadBytesResumable(fileRef, file)
-      
+
       await new Promise((resolve, reject) => {
         task.on('state_changed', null, reject, resolve)
       })
 
       const url = await getDownloadURL(task.snapshot.ref)
+      // Salva em user.avatar (foto manual tem prioridade sobre Google)
       setProfile(prev => ({ ...prev, avatar: url }))
       await updateDoc(doc(db, 'users', user.id), { avatar: url })
       showToast('✅ Foto atualizada!')
@@ -195,14 +200,14 @@ export const SettingsPage = () => {
   }
 
   const handleLogout = async () => {
-    await logout()
+    await (useSimpleAuth as any)().signOut?.()
     navigate('/entrar')
   }
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText.toLowerCase() !== 'excluir') return
     if (!user?.id || !firebaseUser) return
-    
+
     setDeleting(true)
     try {
       await deleteDoc(doc(db, 'users', user.id))
@@ -236,13 +241,7 @@ export const SettingsPage = () => {
   const exportData = async () => {
     if (!user) return
     const data = {
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        roles: user.roles,
-        createdAt: user.createdAt,
-      },
+      user: { id: user.id, name: user.name, email: user.email, roles: user.roles, createdAt: user.createdAt },
       settings,
       exportedAt: new Date().toISOString(),
     }
@@ -350,6 +349,11 @@ export const SettingsPage = () => {
                 <div>
                   <p className="text-sm font-bold text-white">{profile.name}</p>
                   <p className="text-xs text-muted">{user.email}</p>
+                  {profile.avatar && (
+                    <p className="text-xs text-muted mt-1">
+                      {profile.avatar.includes('firebasestorage') ? '📷 Foto personalizada' : '🔵 Foto do Google'}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -398,7 +402,6 @@ export const SettingsPage = () => {
               className="mt-4 bg-surface border border-border rounded-xl p-6 space-y-4"
             >
               <p className="text-xs text-muted">Escolha como deseja receber notificações</p>
-
               {[
                 { key: 'email', label: 'Notificações por email', desc: 'Receber emails sobre atualizações importantes' },
                 { key: 'newProviders', label: 'Novos prestadores', desc: 'Avisar quando novos prestadores se cadastrarem na minha região' },
@@ -418,7 +421,6 @@ export const SettingsPage = () => {
                   </div>
                 </label>
               ))}
-
               <button onClick={saveSettings} disabled={saving}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50 mt-6"
               >
@@ -460,7 +462,6 @@ export const SettingsPage = () => {
                   ))}
                 </div>
               </div>
-
               <div className="space-y-3">
                 <label className="flex items-center justify-between gap-4 p-3 bg-background rounded-lg cursor-pointer">
                   <div>
@@ -473,7 +474,6 @@ export const SettingsPage = () => {
                     <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.privacy.showPhone ? 'translate-x-5' : 'translate-x-0'}`} />
                   </div>
                 </label>
-
                 <label className="flex items-center justify-between gap-4 p-3 bg-background rounded-lg cursor-pointer">
                   <div>
                     <p className="text-sm font-semibold text-white">Mostrar email no perfil</p>
@@ -486,7 +486,6 @@ export const SettingsPage = () => {
                   </div>
                 </label>
               </div>
-
               <button onClick={saveSettings} disabled={saving}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50"
               >
@@ -524,11 +523,7 @@ export const SettingsPage = () => {
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted mt-3">
-                  {settings.theme === 'system' ? 'Seguir preferência do sistema operacional' : `Tema ${settings.theme === 'dark' ? 'escuro' : 'claro'} ativado`}
-                </p>
               </div>
-
               <button onClick={saveSettings} disabled={saving}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50"
               >
@@ -549,14 +544,12 @@ export const SettingsPage = () => {
                   <p className="text-sm font-semibold text-white">Métodos de pagamento</p>
                   <p className="text-xs text-muted mt-0.5">Gerencie seus cartões e Pix</p>
                 </div>
-                <button
-                  onClick={() => setAddPaymentModal(true)}
+                <button onClick={() => setAddPaymentModal(true)}
                   className="flex items-center gap-1.5 px-3 py-2 bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 transition-colors"
                 >
                   <Plus className="w-4 h-4" /> Adicionar
                 </button>
               </div>
-
               {paymentMethods.length === 0 ? (
                 <div className="text-center py-12 bg-background rounded-xl">
                   <CreditCard className="w-12 h-12 text-muted mx-auto mb-3" />
@@ -581,7 +574,6 @@ export const SettingsPage = () => {
                   ))}
                 </div>
               )}
-
               <div className="border-t border-border pt-5">
                 <p className="text-sm font-semibold text-white mb-3">Histórico de transações</p>
                 <div className="text-center py-8 bg-background rounded-xl">
@@ -620,11 +612,8 @@ export const SettingsPage = () => {
                     )
                   })}
                 </div>
-                <p className="text-xs text-muted mt-2">
-                  {settings.preferences.favoriteCategories.length}/5 selecionadas
-                </p>
+                <p className="text-xs text-muted mt-2">{settings.preferences.favoriteCategories.length}/5 selecionadas</p>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-white mb-3">Faixa de preço (R$)</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -650,19 +639,14 @@ export const SettingsPage = () => {
                   </div>
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-white mb-3">Raio de busca: {settings.preferences.searchRadius}km</label>
                 <input type="range" min="5" max="100" step="5" value={settings.preferences.searchRadius}
                   onChange={e => setSettings(s => ({ ...s, preferences: { ...s.preferences, searchRadius: +e.target.value } }))}
                   className="w-full h-2 bg-border rounded-lg appearance-none cursor-pointer accent-primary"
                 />
-                <div className="flex justify-between text-xs text-muted mt-1">
-                  <span>5km</span>
-                  <span>100km</span>
-                </div>
+                <div className="flex justify-between text-xs text-muted mt-1"><span>5km</span><span>100km</span></div>
               </div>
-
               <div className="space-y-3">
                 <label className="flex items-center justify-between gap-4 p-3 bg-background rounded-lg cursor-pointer">
                   <div>
@@ -675,7 +659,6 @@ export const SettingsPage = () => {
                     <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.preferences.onlyVerified ? 'translate-x-5' : 'translate-x-0'}`} />
                   </div>
                 </label>
-
                 <div>
                   <label className="block text-sm font-semibold text-white mb-2">Avaliação mínima: {settings.preferences.minRating.toFixed(1)} ⭐</label>
                   <input type="range" min="0" max="5" step="0.5" value={settings.preferences.minRating}
@@ -684,7 +667,6 @@ export const SettingsPage = () => {
                   />
                 </div>
               </div>
-
               <button onClick={saveSettings} disabled={saving}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors disabled:opacity-50"
               >
@@ -704,50 +686,31 @@ export const SettingsPage = () => {
                 className="flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors"
               >
                 <Mail className="w-5 h-5 text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">Contatar suporte</p>
-                  <p className="text-xs text-muted">suporte@servicoflix.com</p>
-                </div>
+                <div className="flex-1"><p className="text-sm font-semibold text-white">Contatar suporte</p><p className="text-xs text-muted">suporte@servicoflix.com</p></div>
                 <ExternalLink className="w-4 h-4 text-muted" />
               </a>
-
-              <button
-                onClick={() => navigate('/faq')}
+              <button onClick={() => navigate('/faq')}
                 className="w-full flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors text-left"
               >
                 <HelpCircle className="w-5 h-5 text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">Central de Ajuda</p>
-                  <p className="text-xs text-muted">Perguntas frequentes e tutoriais</p>
-                </div>
+                <div className="flex-1"><p className="text-sm font-semibold text-white">Central de Ajuda</p><p className="text-xs text-muted">Perguntas frequentes e tutoriais</p></div>
                 <ChevronRight className="w-4 h-4 text-muted" />
               </button>
-
-              <button
-                onClick={() => window.open('https://wa.me/5538999999999', '_blank')}
+              <button onClick={() => window.open('https://wa.me/5538999999999', '_blank')}
                 className="w-full flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors text-left"
               >
                 <MessageCircle className="w-5 h-5 text-green-400" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">WhatsApp</p>
-                  <p className="text-xs text-muted">(38) 99999-9999</p>
-                </div>
+                <div className="flex-1"><p className="text-sm font-semibold text-white">WhatsApp</p><p className="text-xs text-muted">(38) 99999-9999</p></div>
                 <ExternalLink className="w-4 h-4 text-muted" />
               </button>
-
               <div className="border-t border-border pt-4">
-                <button
-                  onClick={exportData}
+                <button onClick={exportData}
                   className="w-full flex items-center gap-3 p-4 bg-background rounded-lg hover:bg-background/80 transition-colors text-left"
                 >
                   <Download className="w-5 h-5 text-primary" />
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-white">Baixar meus dados</p>
-                    <p className="text-xs text-muted">Exportar em JSON (LGPD)</p>
-                  </div>
+                  <div className="flex-1"><p className="text-sm font-semibold text-white">Baixar meus dados</p><p className="text-xs text-muted">Exportar em JSON (LGPD)</p></div>
                 </button>
               </div>
-
               <div className="bg-background rounded-lg p-4">
                 <p className="text-xs text-muted mb-2">ℹ️ Sobre</p>
                 <p className="text-xs text-white mb-1"><span className="font-semibold">Versão:</span> 1.0.0</p>
@@ -757,14 +720,12 @@ export const SettingsPage = () => {
           )}
         </AnimatePresence>
 
-        {/* BOTÕES DE AÇÃO */}
         <div className="mt-8 space-y-3">
           <button onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 py-3 bg-surface border border-border text-white font-semibold rounded-xl hover:bg-background transition-colors"
           >
             <LogOut className="w-5 h-5" /> Sair da conta
           </button>
-
           <button onClick={() => setDeleteModal(true)}
             className="w-full flex items-center justify-center gap-2 py-3 bg-red-500/10 border border-red-500/30 text-red-400 font-semibold rounded-xl hover:bg-red-500/20 transition-colors"
           >
@@ -793,7 +754,6 @@ export const SettingsPage = () => {
                   <p className="text-xs text-muted">Esta ação é irreversível</p>
                 </div>
               </div>
-
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
                 <p className="text-sm text-red-400">Ao excluir sua conta:</p>
                 <ul className="text-xs text-red-400/80 mt-2 space-y-1 list-disc list-inside">
@@ -802,7 +762,6 @@ export const SettingsPage = () => {
                   <li>Serviços agendados serão cancelados</li>
                 </ul>
               </div>
-
               <div className="mb-4">
                 <label className="block text-sm text-white mb-2">Digite <span className="font-bold">EXCLUIR</span> para confirmar:</label>
                 <input type="text" value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)}
@@ -810,7 +769,6 @@ export const SettingsPage = () => {
                   className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white text-sm outline-none focus:border-red-500 transition-colors"
                 />
               </div>
-
               <div className="flex gap-3">
                 <button onClick={() => { setDeleteModal(false); setDeleteConfirmText('') }}
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
