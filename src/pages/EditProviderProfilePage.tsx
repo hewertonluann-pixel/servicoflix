@@ -43,6 +43,10 @@ export const EditProviderProfilePage = () => {
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
 
+  // googleAvatar guarda a foto do Google para usar como preview/fallback
+  // sem nunca ser sobrescrita
+  const [googleAvatar, setGoogleAvatar] = useState('')
+
   const [profile, setProfile] = useState({
     name: '',
     specialty: '',
@@ -90,6 +94,10 @@ export const EditProviderProfilePage = () => {
         if (docSnap.exists()) {
           const data = docSnap.data()
           const providerProfile = data.providerProfile || {}
+
+          // Salva a foto do Google separadamente como fallback visual
+          setGoogleAvatar(data.avatar || '')
+
           setProfile({
             name: data.name || user.name || '',
             specialty: providerProfile.specialty || '',
@@ -98,7 +106,7 @@ export const EditProviderProfilePage = () => {
             neighborhood: providerProfile.neighborhood || 'Centro',
             priceFrom: providerProfile.priceFrom || 100,
             skills: providerProfile.skills || [],
-            // Carrega o avatar do PRESTADOR (providerProfile.avatar), sem usar o avatar pessoal
+            // Só carrega o avatar que o próprio prestador escolheu
             providerAvatar: providerProfile.avatar || '',
             coverImage: providerProfile.coverImage || '',
             phone: providerProfile.phone || '',
@@ -256,7 +264,7 @@ export const EditProviderProfilePage = () => {
             priceFrom: profile.priceFrom,
             skills: profile.skills,
             phone: profile.phone,
-            // ✅ Avatar do PRESTADOR fica isolado dentro de providerProfile
+            // ✅ Só salva avatar do prestador se ele trocou; deixa vazio se ainda usa o do Google
             avatar: profile.providerAvatar,
             coverImage: profile.coverImage,
             responseTime: profile.responseTime,
@@ -310,6 +318,10 @@ export const EditProviderProfilePage = () => {
     }
     if (coverInputRef.current) coverInputRef.current.value = ''
   }
+
+  // Foto exibida no preview: a personalizada do prestador, ou a do Google como fallback
+  const avatarPreview = profile.providerAvatar || googleAvatar
+  const usingGooglePhoto = !profile.providerAvatar && !!googleAvatar
 
   if (loading) {
     return (
@@ -475,7 +487,6 @@ export const EditProviderProfilePage = () => {
             <motion.div key="dados" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
               <div className="bg-surface border border-border rounded-xl p-6">
                 <h2 className="text-lg font-bold text-white mb-1">Imagens do Perfil Profissional</h2>
-                {/* Aviso de separação de identidades */}
                 <p className="text-xs text-muted mb-4 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
                   💡 A foto aqui é exclusiva do seu <strong className="text-primary">perfil de prestador</strong>. Sua foto de conta pessoal (Google) permanece inalterada.
                 </p>
@@ -483,18 +494,32 @@ export const EditProviderProfilePage = () => {
                   <div>
                     <label className="block text-sm text-muted mb-2">Foto do Prestador</label>
                     <div className="relative w-32 h-32">
-                      <img
-                        src={profile.providerAvatar || `https://i.pravatar.cc/150?u=provider-${user?.id}`}
-                        alt="Avatar do Prestador"
-                        className="w-full h-full rounded-xl object-cover border-4 border-background"
-                      />
+                      {avatarPreview ? (
+                        <img
+                          src={avatarPreview}
+                          alt="Avatar do Prestador"
+                          className="w-full h-full rounded-xl object-cover border-4 border-background"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-xl border-4 border-background bg-primary/20 flex items-center justify-center">
+                          <Camera className="w-10 h-10 text-primary/60" />
+                        </div>
+                      )}
                       <button onClick={() => avatarInputRef.current?.click()} className="absolute bottom-0 right-0 w-10 h-10 bg-primary rounded-full flex items-center justify-center hover:bg-primary-dark transition-colors">
                         <Camera className="w-5 h-5 text-background" />
                       </button>
                     </div>
+                    {usingGooglePhoto && (
+                      <p className="mt-2 text-xs text-primary/70 flex items-center gap-1">
+                        👤 Usando foto do Google — clique na câmera para trocar
+                      </p>
+                    )}
                     {profile.providerAvatar && (
-                      <button onClick={() => setProfile(prev => ({ ...prev, providerAvatar: '' }))} className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
-                        <X className="w-3 h-3" /> Remover foto
+                      <button
+                        onClick={() => setProfile(prev => ({ ...prev, providerAvatar: '' }))}
+                        className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" /> Remover foto personalizada
                       </button>
                     )}
                   </div>
