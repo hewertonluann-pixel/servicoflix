@@ -7,7 +7,7 @@ import {
   MapPin, DollarSign, User, MessageCircle, Phone,
   ChevronRight, Loader2, Filter, Search
 } from 'lucide-react'
-import { collection, query, where, getDocs, doc, updateDoc, Timestamp, orderBy } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 type RequestStatus = 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled'
@@ -85,7 +85,7 @@ export const ProviderRequestsPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // Carrega solicitações do Firestore
+  // Carrega solicitações do Firestore (sem orderBy para evitar índice composto)
   useEffect(() => {
     const loadRequests = async () => {
       if (!user?.id) return
@@ -93,14 +93,17 @@ export const ProviderRequestsPage = () => {
       try {
         const q = query(
           collection(db, 'serviceRequests'),
-          where('providerId', '==', user.id),
-          orderBy('createdAt', 'desc')
+          where('providerId', '==', user.id)
         )
         const snapshot = await getDocs(q)
         const data = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
         })) as ServiceRequest[]
+
+        // Ordenação no cliente: mais recentes primeiro
+        data.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
+
         setRequests(data)
       } catch (err) {
         console.error('Erro ao carregar solicitações:', err)
