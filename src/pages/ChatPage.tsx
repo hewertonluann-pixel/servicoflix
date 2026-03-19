@@ -46,11 +46,25 @@ export const ChatPage = () => {
 
   const { messages } = useMessages(chatId)
 
-  // Publica presença do usuário atual
   usePresence()
-
-  // Observa presença do outro usuário
   const { isOnline, lastSeen } = useUserPresence(otherUser?.id)
+
+  // Busca os dados atuais do outro usuário no Firestore e monta o objeto com avatar correto
+  const fetchOtherUser = async (otherId: string, fallbackInfo?: Partial<ChatParticipantInfo>) => {
+    const snap = await getDoc(doc(db, 'users', otherId))
+    if (!snap.exists()) return null
+    const data = snap.data()
+    const isProvider = !!data.providerProfile
+    // Prioridade igual à HomePage: foto personalizada → foto Google → vazio
+    const freshAvatar = data.providerProfile?.avatar || data.avatar || fallbackInfo?.avatar || ''
+    return {
+      id: otherId,
+      isProvider,
+      name: data.providerProfile?.professionalName || data.name || fallbackInfo?.name || 'Usuário',
+      avatar: freshAvatar,
+      providerAvatar: data.providerProfile?.avatar || undefined,
+    }
+  }
 
   useEffect(() => {
     if (!user?.id) return
@@ -62,19 +76,12 @@ export const ChatPage = () => {
         let resolvedChatId = chatIdParam || null
 
         if (withUserId && !chatIdParam) {
-          const otherSnap = await getDoc(doc(db, 'users', withUserId))
-          if (!otherSnap.exists()) {
+          // Abrindo chat a partir do perfil do prestador (?with=uid)
+          const otherInfo = await fetchOtherUser(withUserId)
+          if (!otherInfo) {
             setError('Usuário não encontrado')
             setLoading(false)
             return
-          }
-          const otherData = otherSnap.data()
-          const otherInfo = {
-            id: withUserId,
-            name: otherData.providerProfile?.professionalName || otherData.name || 'Usuário',
-            avatar: otherData.avatar || '',
-            providerAvatar: otherData.providerProfile?.avatar || undefined,
-            isProvider: !!otherData.providerProfile,
           }
           setOtherUser(otherInfo)
 
@@ -97,10 +104,10 @@ export const ChatPage = () => {
             const chatData = chatSnap.data()
             const otherId = chatData.participants.find((p: string) => p !== user.id)
             if (otherId) {
-              const info = chatData.participantsInfo?.[otherId]
-              const otherSnap = await getDoc(doc(db, 'users', otherId))
-              const isProvider = otherSnap.exists() && !!otherSnap.data().providerProfile
-              setOtherUser({ id: otherId, isProvider, ...info })
+              // Sempre busca foto atualizada do Firestore, usa participantsInfo só como fallback de nome
+              const fallback = chatData.participantsInfo?.[otherId]
+              const freshOther = await fetchOtherUser(otherId, fallback)
+              if (freshOther) setOtherUser(freshOther)
             }
           }
 
@@ -144,9 +151,9 @@ export const ChatPage = () => {
 
   const getDisplayAvatar = (senderId: string) => {
     if (senderId === user?.id) {
-      return user.avatar || `https://i.pravatar.cc/40?u=${user.id}`
+      return user.avatar || ''
     }
-    return otherUser?.providerAvatar || otherUser?.avatar || `https://i.pravatar.cc/40?u=${senderId}`
+    return otherUser?.providerAvatar || otherUser?.avatar || ''
   }
 
   if (!user) {
@@ -178,12 +185,9 @@ export const ChatPage = () => {
   }
 
   const otherDisplayName = otherUser?.name || 'Conversa'
-  const otherAvatar = otherUser?.providerAvatar || otherUser?.avatar || `https://i.pravatar.cc/40?u=${otherUser?.id}`
+  const otherAvatar = otherUser?.providerAvatar || otherUser?.avatar || ''
 
-  // Subítulo de presença
-  const presenceLabel = isOnline
-    ? null // exibido como badge verde separado
-    : formatLastSeen(lastSeen)
+  const presenceLabel = isOnline ? null : formatLastSeen(lastSeen)
 
   return (
     <div className="flex flex-col h-screen pt-16 bg-background">
@@ -201,13 +205,18 @@ export const ChatPage = () => {
             to={`/prestador/${otherUser.id}`}
             className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
           >
-            {/* Avatar com indicador de presença */}
             <div className="relative shrink-0">
-              <img
-                src={otherAvatar}
-                alt={otherDisplayName}
-                className="w-10 h-10 rounded-full object-cover border-2 border-border"
-              />
+              {otherAvatar ? (
+                <img
+                  src={otherAvatar}
+                  alt={otherDisplayName}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-border"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full border-2 border-border bg-surface flex items-center justify-center">
+                  <span className="text-base font-black text-muted">{otherDisplayName.charAt(0).toUpperCase()}</span>
+                </div>
+              )}
               {isOnline && (
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />
               )}
@@ -225,11 +234,17 @@ export const ChatPage = () => {
         ) : (
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="relative shrink-0">
-              <img
-                src={otherAvatar}
-                alt={otherDisplayName}
-                className="w-10 h-10 rounded-full object-cover border-2 border-border"
-              />
+              {otherAvatar ? (
+                <img
+                  src={otherAvatar}
+                  alt={otherDisplayName}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-border"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full border-2 border-border bg-surface flex items-center justify-center">
+                  <span className="text-base font-black text-muted">{otherDisplayName.charAt(0).toUpperCase()}</span>
+                </div>
+              )}
               {isOnline && (
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />
               )}
@@ -259,6 +274,7 @@ export const ChatPage = () => {
         <AnimatePresence initial={false}>
           {messages.map((msg) => {
             const isMe = msg.senderId === user.id
+            const avatarSrc = getDisplayAvatar(msg.senderId)
             return (
               <motion.div
                 key={msg.id}
@@ -268,11 +284,19 @@ export const ChatPage = () => {
                 className={`flex items-end gap-2 ${ isMe ? 'flex-row-reverse' : 'flex-row' }`}
               >
                 {!isMe && (
-                  <img
-                    src={getDisplayAvatar(msg.senderId)}
-                    alt=""
-                    className="w-7 h-7 rounded-full object-cover shrink-0"
-                  />
+                  avatarSrc ? (
+                    <img
+                      src={avatarSrc}
+                      alt=""
+                      className="w-7 h-7 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-surface border border-border flex items-center justify-center shrink-0">
+                      <span className="text-[10px] font-black text-muted">
+                        {otherDisplayName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )
                 )}
 
                 <div
