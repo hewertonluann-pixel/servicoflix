@@ -51,7 +51,6 @@ export const UserAvatar = ({
     )
   }
 
-  // Fallback: logo ⚡
   return (
     <div
       className={`shrink-0 rounded-full bg-primary flex items-center justify-center ${className}`}
