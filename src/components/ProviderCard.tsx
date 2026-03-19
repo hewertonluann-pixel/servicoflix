@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Star, MapPin, Clock, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { UserAvatar } from './UserAvatar'
 
 interface Provider {
   id: string
@@ -18,7 +19,7 @@ interface Provider {
   isTopRated?: boolean
   completedJobs: number
   responseTime: string
-  isMock?: boolean // se true, exibe faixa vermelha "EXEMPLO"
+  isMock?: boolean
 }
 
 interface Props {
@@ -44,7 +45,7 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
           animate={hovered ? { scale: 1.08, zIndex: 10, y: -8 } : { scale: 1, zIndex: 1, y: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
         >
-          {/* Imagem de capa */}
+          {/* Capa */}
           <div className="relative h-28 sm:h-32">
             <img
               src={provider.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80'}
@@ -53,37 +54,18 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
             />
             <div className="absolute inset-0 bg-gradient-card" />
 
-            {/* ── FAIXA DE EXEMPLO ── */}
+            {/* Faixa EXEMPLO */}
             {provider.isMock && (
-              <div
-                className="absolute inset-0 overflow-hidden pointer-events-none"
-                style={{ zIndex: 20 }}
-              >
-                {/* Faixa diagonal vermelha */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 12,
-                    right: -28,
-                    width: 110,
-                    transform: 'rotate(35deg)',
-                    backgroundColor: '#DC2626',
-                    color: 'white',
-                    fontSize: 9,
-                    fontWeight: 900,
-                    textAlign: 'center',
-                    padding: '3px 0',
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  Exemplo
-                </div>
+              <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 20 }}>
+                <div style={{
+                  position: 'absolute', top: 12, right: -28, width: 110,
+                  transform: 'rotate(35deg)', backgroundColor: '#DC2626', color: 'white',
+                  fontSize: 9, fontWeight: 900, textAlign: 'center', padding: '3px 0',
+                  letterSpacing: '0.1em', textTransform: 'uppercase', boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+                }}>Exemplo</div>
               </div>
             )}
 
-            {/* Badge online */}
             {provider.isOnline && (
               <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-primary text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ zIndex: 10 }}>
                 <span className="w-1.5 h-1.5 bg-primary rounded-full" />
@@ -91,42 +73,36 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
               </div>
             )}
 
-            {/* Top rated */}
             {provider.isTopRated && !provider.isMock && (
-              <div className="absolute top-2 right-2 bg-yellow-500/90 text-black text-[10px] font-black px-2 py-0.5 rounded-full" style={{ zIndex: 10 }}>
-                TOP
-              </div>
+              <div className="absolute top-2 right-2 bg-yellow-500/90 text-black text-[10px] font-black px-2 py-0.5 rounded-full" style={{ zIndex: 10 }}>TOP</div>
             )}
 
-            {/* Avatar */}
+            {/* Avatar com UserAvatar */}
             <div className="absolute -bottom-4 left-3">
-              <img
+              <UserAvatar
                 src={provider.avatar}
-                alt={provider.name}
-                className={`w-10 h-10 rounded-full border-2 object-cover ${
+                name={provider.name}
+                size={40}
+                className={`border-2 ${
                   provider.isMock ? 'border-red-600/60 grayscale-[30%]' : 'border-surface'
                 }`}
               />
             </div>
           </div>
 
-          {/* Info base */}
+          {/* Info */}
           <div className="pt-6 pb-3 px-3">
-            <p className={`text-xs font-bold truncate ${
-              provider.isMock ? 'text-white/70' : 'text-white'
-            }`}>{provider.name}</p>
+            <p className={`text-xs font-bold truncate ${ provider.isMock ? 'text-white/70' : 'text-white' }`}>{provider.name}</p>
             <p className="text-muted text-[11px] truncate">{provider.specialty}</p>
             <div className="flex items-center gap-1 mt-1">
               <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
               <span className="text-white text-[11px] font-semibold">{provider.rating}</span>
               <span className="text-muted text-[10px]">({provider.reviewCount})</span>
-              {provider.isMock && (
-                <span className="ml-auto text-[9px] text-red-400 font-bold">exemplo</span>
-              )}
+              {provider.isMock && <span className="ml-auto text-[9px] text-red-400 font-bold">exemplo</span>}
             </div>
           </div>
 
-          {/* Hover expandido */}
+          {/* Hover */}
           <AnimatePresence>
             {hovered && (
               <motion.div
@@ -164,11 +140,7 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
                     whileHover={provider.isMock ? {} : { scale: 1.02 }}
                     whileTap={provider.isMock ? {} : { scale: 0.98 }}
                   >
-                    {provider.isMock ? (
-                      '— Perfil de Exemplo —'
-                    ) : (
-                      <><Zap className="w-3 h-3" fill="currentColor" /> Contratar</>
-                    )}
+                    {provider.isMock ? '— Perfil de Exemplo —' : <><Zap className="w-3 h-3" fill="currentColor" /> Contratar</>}
                   </motion.button>
                 </div>
               </motion.div>

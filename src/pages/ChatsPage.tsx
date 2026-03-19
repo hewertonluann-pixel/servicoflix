@@ -6,6 +6,7 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { motion } from 'framer-motion'
 import { MessageCircle, Loader2, ArrowLeft, Compass } from 'lucide-react'
 import { ChatMeta } from '@/lib/chatUtils'
+import { UserAvatar } from '@/components/UserAvatar'
 
 const formatRelative = (timestamp: any): string => {
   if (!timestamp) return ''
@@ -62,12 +63,10 @@ export const ChatsPage = () => {
     )
   }
 
-  // total de não lidos globais
   const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount?.[user.id] || 0), 0)
 
   return (
     <div className="min-h-screen pt-16 pb-20 bg-background">
-      {/* Header */}
       <div className="bg-surface border-b border-border sticky top-16 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-background rounded-lg transition-colors">
@@ -114,8 +113,7 @@ export const ChatsPage = () => {
               const otherId = chat.participants.find((p) => p !== user.id) || ''
               const otherInfo = chat.participantsInfo?.[otherId]
               const unread = chat.unreadCount?.[user.id] || 0
-              // Usa avatar profissional se disponível
-              const otherAvatar = otherInfo?.providerAvatar || otherInfo?.avatar || `https://i.pravatar.cc/40?u=${otherId}`
+              const otherAvatar = otherInfo?.providerAvatar || otherInfo?.avatar || ''
               const otherName = otherInfo?.name || 'Usuário'
 
               return (
@@ -129,13 +127,8 @@ export const ChatsPage = () => {
                     unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
                   }`}
                 >
-                  {/* Avatar com badge de não lidos */}
                   <div className="relative shrink-0">
-                    <img
-                      src={otherAvatar}
-                      alt={otherName}
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
+                    <UserAvatar src={otherAvatar} name={otherName} size={48} />
                     {unread > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
                         {unread > 9 ? '9+' : unread}
@@ -143,7 +136,6 @@ export const ChatsPage = () => {
                     )}
                   </div>
 
-                  {/* Info da conversa */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-0.5">
                       <p className={`text-sm truncate ${ unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80' }`}>

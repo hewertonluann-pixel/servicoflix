@@ -4,11 +4,12 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNavigate } from 'react-router-dom'
 import {
   Clock, CheckCircle, XCircle, AlertTriangle, Calendar,
-  MapPin, DollarSign, User, MessageCircle, Phone,
-  ChevronRight, Loader2, Filter, Search
+  MapPin, DollarSign, MessageCircle, Phone,
+  ChevronRight, Loader2, Search
 } from 'lucide-react'
 import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { UserAvatar } from '@/components/UserAvatar'
 
 type RequestStatus = 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled'
 
@@ -39,41 +40,11 @@ interface ServiceRequest {
 }
 
 const statusConfig = {
-  pending: {
-    label: 'Pendente',
-    icon: Clock,
-    color: 'text-yellow-400',
-    bg: 'bg-yellow-500/10',
-    border: 'border-yellow-500/30',
-  },
-  accepted: {
-    label: 'Aceita',
-    icon: CheckCircle,
-    color: 'text-green-400',
-    bg: 'bg-green-500/10',
-    border: 'border-green-500/30',
-  },
-  rejected: {
-    label: 'Recusada',
-    icon: XCircle,
-    color: 'text-red-400',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/30',
-  },
-  completed: {
-    label: 'Concluída',
-    icon: CheckCircle,
-    color: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/30',
-  },
-  cancelled: {
-    label: 'Cancelada',
-    icon: AlertTriangle,
-    color: 'text-gray-400',
-    bg: 'bg-gray-500/10',
-    border: 'border-gray-500/30',
-  },
+  pending: { label: 'Pendente', icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30' },
+  accepted: { label: 'Aceita', icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/30' },
+  rejected: { label: 'Recusada', icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
+  completed: { label: 'Concluída', icon: CheckCircle, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
+  cancelled: { label: 'Cancelada', icon: AlertTriangle, color: 'text-gray-400', bg: 'bg-gray-500/10', border: 'border-gray-500/30' },
 }
 
 export const ProviderRequestsPage = () => {
@@ -89,15 +60,9 @@ export const ProviderRequestsPage = () => {
     const loadRequests = async () => {
       if (!user?.id) return
       try {
-        const q = query(
-          collection(db, 'serviceRequests'),
-          where('providerId', '==', user.id)
-        )
+        const q = query(collection(db, 'serviceRequests'), where('providerId', '==', user.id))
         const snapshot = await getDocs(q)
-        const data = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as ServiceRequest[]
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as ServiceRequest[]
         data.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())
         setRequests(data)
       } catch (err) {
@@ -112,15 +77,11 @@ export const ProviderRequestsPage = () => {
   const handleAccept = async (requestId: string) => {
     setActionLoading(requestId)
     try {
-      await updateDoc(doc(db, 'serviceRequests', requestId), {
-        status: 'accepted',
-        updatedAt: Timestamp.now(),
-        acceptedAt: Timestamp.now(),
-      })
+      await updateDoc(doc(db, 'serviceRequests', requestId), { status: 'accepted', updatedAt: Timestamp.now(), acceptedAt: Timestamp.now() })
       setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'accepted' } : r))
     } catch (err) {
       console.error('Erro ao aceitar:', err)
-      alert('Erro ao aceitar solicitação. Tente novamente.')
+      alert('Erro ao aceitar solicitação.')
     } finally {
       setActionLoading(null)
     }
@@ -130,21 +91,14 @@ export const ProviderRequestsPage = () => {
     if (!confirm('Tem certeza que deseja recusar esta solicitação?')) return
     setActionLoading(requestId)
     try {
-      await updateDoc(doc(db, 'serviceRequests', requestId), {
-        status: 'rejected',
-        updatedAt: Timestamp.now(),
-      })
+      await updateDoc(doc(db, 'serviceRequests', requestId), { status: 'rejected', updatedAt: Timestamp.now() })
       setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r))
     } catch (err) {
       console.error('Erro ao recusar:', err)
-      alert('Erro ao recusar solicitação. Tente novamente.')
+      alert('Erro ao recusar solicitação.')
     } finally {
       setActionLoading(null)
     }
-  }
-
-  const handleOpenChat = (clientId: string) => {
-    navigate(`/chat?with=${clientId}`)
   }
 
   const filteredRequests = requests.filter(req => {
@@ -172,9 +126,7 @@ export const ProviderRequestsPage = () => {
           <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <h1 className="text-2xl font-black text-white mb-2">Acesso Restrito</h1>
           <p className="text-muted mb-6">Esta página é apenas para prestadores.</p>
-          <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
-            Voltar para Início
-          </button>
+          <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">Voltar para Início</button>
         </div>
       </div>
     )
@@ -196,13 +148,8 @@ export const ProviderRequestsPage = () => {
         <div className="mb-6">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
-            <input
-              type="text"
-              placeholder="Buscar por cliente, serviço ou cidade..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-surface border border-border rounded-xl pl-12 pr-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors"
-            />
+            <input type="text" placeholder="Buscar por cliente, serviço ou cidade..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-surface border border-border rounded-xl pl-12 pr-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors" />
           </div>
         </div>
 
@@ -213,32 +160,20 @@ export const ProviderRequestsPage = () => {
             { key: 'completed', label: 'Concluídas' },
             { key: 'all', label: 'Todas' },
           ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as RequestStatus | 'all')}
+            <button key={tab.key} onClick={() => setActiveTab(tab.key as RequestStatus | 'all')}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors ${
-                activeTab === tab.key
-                  ? 'bg-primary text-background'
-                  : 'bg-surface text-muted hover:text-white border border-border'
+                activeTab === tab.key ? 'bg-primary text-background' : 'bg-surface text-muted hover:text-white border border-border'
               }`}
             >
               {tab.label}
-              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                activeTab === tab.key
-                  ? 'bg-background/20 text-background'
-                  : 'bg-background text-muted'
-              }`}>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${ activeTab === tab.key ? 'bg-background/20 text-background' : 'bg-background text-muted' }`}>
                 {counts[tab.key as keyof typeof counts]}
               </span>
             </button>
           ))}
         </div>
 
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          </div>
-        )}
+        {loading && <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>}
 
         {!loading && filteredRequests.length === 0 && (
           <div className="text-center py-20">
@@ -246,9 +181,7 @@ export const ProviderRequestsPage = () => {
               <MessageCircle className="w-10 h-10 text-muted" />
             </div>
             <h3 className="text-xl font-black text-white mb-2">Nenhuma solicitação</h3>
-            <p className="text-muted text-sm">
-              {searchTerm ? 'Nenhum resultado encontrado' : 'Você ainda não recebeu solicitações'}
-            </p>
+            <p className="text-muted text-sm">{searchTerm ? 'Nenhum resultado encontrado' : 'Você ainda não recebeu solicitações'}</p>
           </div>
         )}
 
@@ -257,28 +190,17 @@ export const ProviderRequestsPage = () => {
             {filteredRequests.map((request, index) => {
               const config = statusConfig[request.status]
               const StatusIcon = config.icon
-
               return (
-                <motion.div
-                  key={request.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
+                <motion.div key={request.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}
                   className={`bg-surface border rounded-xl p-4 sm:p-6 ${config.border}`}
                 >
                   <div className="flex items-start gap-3 mb-4">
-                    <img
-                      src={request.clientAvatar}
-                      alt={request.clientName}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-border"
-                    />
+                    <UserAvatar src={request.clientAvatar} name={request.clientName} size={48} className="border-2 border-border" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-base font-bold text-white truncate">{request.clientName}</h3>
                         {request.urgency === 'urgent' && (
-                          <span className="px-2 py-0.5 bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-bold rounded-full uppercase">
-                            Urgente
-                          </span>
+                          <span className="px-2 py-0.5 bg-red-500/20 border border-red-500/30 text-red-400 text-[10px] font-bold rounded-full uppercase">Urgente</span>
                         )}
                       </div>
                       <p className="text-sm text-muted">{request.service}</p>
@@ -294,15 +216,11 @@ export const ProviderRequestsPage = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="w-4 h-4 text-primary" />
-                      <span className="text-muted">
-                        {new Date(request.scheduledDate).toLocaleDateString('pt-BR')} às {request.scheduledTime}
-                      </span>
+                      <span className="text-muted">{new Date(request.scheduledDate).toLocaleDateString('pt-BR')} às {request.scheduledTime}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <MapPin className="w-4 h-4 text-primary" />
-                      <span className="text-muted truncate">
-                        {request.address.neighborhood}, {request.address.city}
-                      </span>
+                      <span className="text-muted truncate">{request.address.neighborhood}, {request.address.city}</span>
                     </div>
                     {request.budgetProposed && (
                       <div className="flex items-center gap-2 text-sm">
@@ -321,42 +239,27 @@ export const ProviderRequestsPage = () => {
                   <div className="flex flex-wrap gap-2">
                     {request.status === 'pending' && (
                       <>
-                        <button
-                          onClick={() => handleAccept(request.id)}
-                          disabled={actionLoading === request.id}
+                        <button onClick={() => handleAccept(request.id)} disabled={actionLoading === request.id}
                           className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-bold rounded-lg transition-colors disabled:opacity-50"
                         >
-                          {actionLoading === request.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <>
-                              <CheckCircle className="w-4 h-4" />
-                              Aceitar
-                            </>
-                          )}
+                          {actionLoading === request.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4" />Aceitar</>}
                         </button>
-                        <button
-                          onClick={() => handleReject(request.id)}
-                          disabled={actionLoading === request.id}
+                        <button onClick={() => handleReject(request.id)} disabled={actionLoading === request.id}
                           className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 font-bold rounded-lg transition-colors disabled:opacity-50"
                         >
-                          <XCircle className="w-4 h-4" />
-                          Recusar
+                          <XCircle className="w-4 h-4" />Recusar
                         </button>
                       </>
                     )}
                     {request.status === 'accepted' && (
-                      <button
-                        onClick={() => handleOpenChat(request.clientId)}
+                      <button onClick={() => navigate(`/chat?with=${request.clientId}`)}
                         className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-background font-bold rounded-lg transition-colors"
                       >
-                        <MessageCircle className="w-4 h-4" />
-                        Abrir Chat
+                        <MessageCircle className="w-4 h-4" />Abrir Chat
                       </button>
                     )}
                     <button className="flex items-center gap-2 px-4 py-2.5 bg-surface hover:bg-background border border-border text-white font-semibold rounded-lg transition-colors">
-                      Ver Detalhes
-                      <ChevronRight className="w-4 h-4" />
+                      Ver Detalhes<ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
 
