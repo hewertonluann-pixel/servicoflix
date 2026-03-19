@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Shield, Users, Briefcase, Tag, Plus, Trash2, Edit2,
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
   AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2, Sparkles,
-  ChevronUp, ChevronDown, Archive, CheckSquare, Bug, Wrench, ArrowRight
+  ChevronUp, ChevronDown, Archive, CheckSquare, Bug, Wrench, ArrowRight, Camera
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
   setDoc, serverTimestamp, arrayUnion, getDoc, query, where
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
-import { auth, db } from '@/lib/firebase'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { auth, db, storage } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { mocksByCategory } from '@/data/mock'
 import { useAllCities, type City } from '@/hooks/useCities'
@@ -87,6 +88,11 @@ export const AdminPage = () => {
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
   const [mockSettings, setMockSettings] = useState<MockSettings>({})
   const [loadingMocks, setLoadingMocks] = useState(false)
+
+  // Avatar upload
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string>('')
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   // Cidades
   const { cities: allCities, loading: loadingCities, reload: reloadCities } = useAllCities()
@@ -372,10 +378,26 @@ export const AdminPage = () => {
     } catch { showToast('Erro ao excluir usuário', 'error') }
   }
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarFile(file)
+    setAvatarPreview(URL.createObjectURL(file))
+  }
+
   const saveProvider = async () => {
     if (!providerForm.name.trim() || !providerForm.email.trim()) return
     setSavingProvider(true)
     try {
+      let avatarUrl: string | undefined = undefined
+
+      // Upload da foto se houver arquivo selecionado
+      if (avatarFile && editingProvider) {
+        const fileRef = storageRef(storage, `avatars/${editingProvider.id}/avatar`)
+        await uploadBytes(fileRef, avatarFile)
+        avatarUrl = await getDownloadURL(fileRef)
+      }
+
       if (editingProvider) {
         const providerProfile = {
           ...editingProvider.providerProfile,
@@ -386,6 +408,7 @@ export const AdminPage = () => {
           skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
           whatsapp: providerForm.whatsapp,
           verified: providerForm.verified,
+          ...(avatarUrl ? { avatar: avatarUrl } : {}),
         }
         await updateDoc(doc(db, 'users', editingProvider.id), { name: providerForm.name, providerProfile })
         setUsers(prev => prev.map(u => u.id === editingProvider.id ? { ...u, name: providerForm.name, providerProfile } : u))
@@ -412,6 +435,8 @@ export const AdminPage = () => {
       setProviderModal(false)
       setProviderForm(EMPTY_PROVIDER_FORM)
       setEditingProvider(null)
+      setAvatarFile(null)
+      setAvatarPreview('')
     } catch (err: any) {
       showToast(err?.message || 'Erro ao salvar prestador', 'error')
     } finally { setSavingProvider(false) }
@@ -429,6 +454,9 @@ export const AdminPage = () => {
       whatsapp: u.providerProfile?.whatsapp || '',
       verified: u.providerProfile?.verified || false,
     })
+    // Carrega avatar atual
+    setAvatarFile(null)
+    setAvatarPreview(u.providerProfile?.avatar || u.avatar || '')
     setProviderModal(true)
   }
 
@@ -662,7 +690,7 @@ export const AdminPage = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors"
             ><RefreshCw className="w-3.5 h-3.5" /> Atualizar</button>
             {activeTab === 'prestadores' && (
-              <button onClick={() => { setEditingProvider(null); setProviderForm(EMPTY_PROVIDER_FORM); setProviderModal(true) }}
+              <button onClick={() => { setEditingProvider(null); setProviderForm(EMPTY_PROVIDER_FORM); setAvatarFile(null); setAvatarPreview(''); setProviderModal(true) }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
               ><UserPlus className="w-3.5 h-3.5" /> Novo Prestador</button>
             )}
@@ -838,6 +866,166 @@ export const AdminPage = () => {
           </div>
         )}
       </div>
+
+      {/* MODAL: PRESTADOR */}
+      <AnimatePresence>
+        {providerModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview('') }}
+          >
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
+                  <Briefcase className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="text-lg font-black text-white">
+                  {editingProvider ? 'Editar Prestador' : 'Novo Prestador'}
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                {/* AVATAR */}
+                {editingProvider && (
+                  <div>
+                    <label className="block text-xs text-muted mb-2">Foto do prestador</label>
+                    <div className="flex items-center gap-4">
+                      <div className="relative shrink-0">
+                        <div className="w-20 h-20 rounded-full overflow-hidden bg-surface border-2 border-border flex items-center justify-center">
+                          {avatarPreview ? (
+                            <img src={avatarPreview} alt="avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-2xl font-black text-muted">
+                              {providerForm.name?.charAt(0)?.toUpperCase() || '?'}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => avatarInputRef.current?.click()}
+                          className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+                          title="Alterar foto"
+                        >
+                          <Camera className="w-3.5 h-3.5 text-background" />
+                        </button>
+                        <input
+                          ref={avatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarChange}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {avatarFile ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-green-400 font-semibold truncate">✅ {avatarFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAvatarFile(null)
+                                setAvatarPreview(editingProvider?.providerProfile?.avatar || editingProvider?.avatar || '')
+                              }}
+                              className="text-muted hover:text-red-400 transition-colors shrink-0"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted">
+                            {avatarPreview ? 'Foto atual do prestador' : 'Nenhuma foto cadastrada'}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => avatarInputRef.current?.click()}
+                          className="mt-1.5 text-xs text-primary hover:underline"
+                        >
+                          {avatarPreview ? 'Trocar foto' : 'Adicionar foto'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Nome *</label>
+                  <input value={providerForm.name} onChange={e => setProviderForm(p => ({ ...p, name: e.target.value }))}
+                    placeholder="Nome completo" className={inputCls} />
+                </div>
+                {!editingProvider && (
+                  <>
+                    <div>
+                      <label className="block text-xs text-muted mb-1.5">Email *</label>
+                      <input type="email" value={providerForm.email} onChange={e => setProviderForm(p => ({ ...p, email: e.target.value }))}
+                        placeholder="email@exemplo.com" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted mb-1.5">Senha (padrão: 123456)</label>
+                      <input type="password" value={providerForm.password} onChange={e => setProviderForm(p => ({ ...p, password: e.target.value }))}
+                        placeholder="Deixe em branco para usar 123456" className={inputCls} />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Especialidade</label>
+                  <input value={providerForm.specialty} onChange={e => setProviderForm(p => ({ ...p, specialty: e.target.value }))}
+                    placeholder="Ex: Fotógrafo, Eletricista..." className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Cidade</label>
+                  <input value={providerForm.city} onChange={e => setProviderForm(p => ({ ...p, city: e.target.value }))}
+                    placeholder="Ex: Diamantina" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Bio</label>
+                  <textarea value={providerForm.bio} onChange={e => setProviderForm(p => ({ ...p, bio: e.target.value }))}
+                    placeholder="Descrição do prestador..." rows={3}
+                    className={inputCls + ' resize-none'} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Preço a partir de (R$)</label>
+                  <input value={providerForm.priceFrom} onChange={e => setProviderForm(p => ({ ...p, priceFrom: e.target.value }))}
+                    placeholder="Ex: 80" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Skills (separadas por vírgula)</label>
+                  <input value={providerForm.skills} onChange={e => setProviderForm(p => ({ ...p, skills: e.target.value }))}
+                    placeholder="Ex: Fotografia, Edição, Casamento" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">WhatsApp</label>
+                  <input value={providerForm.whatsapp} onChange={e => setProviderForm(p => ({ ...p, whatsapp: e.target.value }))}
+                    placeholder="5538999999999" className={inputCls} />
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div onClick={() => setProviderForm(p => ({ ...p, verified: !p.verified }))}
+                    className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${providerForm.verified ? 'bg-primary' : 'bg-border'}`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${providerForm.verified ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </div>
+                  <span className="text-sm text-white">Verificado</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview('') }}
+                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
+                >Cancelar</button>
+                <button onClick={saveProvider} disabled={savingProvider || !providerForm.name.trim() || !providerForm.email.trim()}
+                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingProvider ? <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
+                  {editingProvider ? 'Salvar alterações' : 'Criar prestador'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL: CIDADE */}
       <AnimatePresence>
