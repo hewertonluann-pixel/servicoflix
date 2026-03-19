@@ -18,7 +18,7 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { mocksByCategory } from '@/data/mock'
 import { useAllCities, type City } from '@/hooks/useCities'
 
-const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1']
+const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1', '5KqkZ0SPnpMkKO684W7fZBWHo4J2']
 
 type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias' | 'mockups' | 'cidades'
 
