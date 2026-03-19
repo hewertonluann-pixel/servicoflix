@@ -25,7 +25,8 @@ interface MockSettings {
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
   name: data.providerProfile?.professionalName || data.name || 'Sem nome',
-  avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
+  // ✅ Prioridade: foto personalizada do prestador → foto do Google → vazio
+  avatar: data.providerProfile?.avatar || data.avatar || '',
   coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
   specialty: data.providerProfile?.specialty || 'Profissional',
   category: (data.providerProfile?.categories?.[0] || data.providerProfile?.category || 'outros').toLowerCase(),
@@ -63,7 +64,6 @@ export const HomePage = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        // Carregar prestadores reais
         const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
 
@@ -93,7 +93,6 @@ export const HomePage = () => {
         console.log(`⭐ Featured: ${providers.filter(p => p.isFeatured).length}`)
         setRealProviders(providers)
 
-        // Carregar categorias
         const catSnap = await getDocs(collection(db, 'categories'))
         const cats: Category[] = catSnap.docs
           .map(d => ({ id: d.id, ...d.data() } as Category))
@@ -102,12 +101,10 @@ export const HomePage = () => {
 
         setCategories(cats)
 
-        // Carregar configurações de mockups
         const mockSettingsDoc = await getDoc(doc(db, 'settings', 'mockups'))
         if (mockSettingsDoc.exists()) {
           setMockSettings(mockSettingsDoc.data().categories || {})
         } else {
-          // Padrão: todos ativos
           const defaultSettings: MockSettings = {}
           Object.keys(mocksByCategory).forEach(cat => {
             defaultSettings[cat] = true
@@ -137,7 +134,6 @@ export const HomePage = () => {
 
   const applyFilters = (providers: MockProvider[]): MockProvider[] => {
     return providers.filter(p => {
-      // Filtro de CIDADE
       if (!showAllCities && cityFilter && p.city) {
         const normalizeCity = (city: string) => 
           city.toLowerCase()
@@ -173,40 +169,32 @@ export const HomePage = () => {
   const getMerged = (categoryId: string) => {
     const reais = realProviders.filter(p => p.category === categoryId)
     
-    // Verifica se mockups estão ativos para esta categoria
     const mocksEnabled = mockSettings[categoryId] !== false
     
     if (!mocksEnabled) {
-      // Se mockups desativados, retorna apenas prestadores reais
       return applyFilters(reais)
     }
     
-    // Se mockups ativos, complementa com mocks até ter pelo menos 5
     const mocks = mocksByCategory[categoryId] || []
     const mocksNeeded = reais.length < 5 ? mocks.slice(0, 5 - reais.length) : []
     const merged = [...reais, ...mocksNeeded]
     return applyFilters(merged)
   }
 
-  // Filtra mockProviders baseado nas configurações
   const getActiveMocks = () => {
     return mockProviders.filter(p => {
-      if (!p.isMock) return true // Sempre inclui prestadores reais (owner)
-      // Verifica se mockups da categoria estão ativos
+      if (!p.isMock) return true
       return mockSettings[p.category] !== false
     })
   }
 
-  // TODOS os prestadores (reais + mocks ativos) com filtros aplicados
   const allProviders = applyFilters([
     ...realProviders,
     ...getActiveMocks().filter(p => p.isMock),
   ])
 
-  // Seção online
   const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
 
-  // DESTAQUE
   const featuredProviders = allProviders
     .filter(p => p.isFeatured)
     .sort((a, b) => {
@@ -238,7 +226,6 @@ export const HomePage = () => {
           initialFilters={filters}
         />
 
-        {/* Indicador de filtros ativos */}
         {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
           <div className="px-4 sm:px-8 mb-4">
             <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 flex items-center gap-2">
@@ -249,7 +236,6 @@ export const HomePage = () => {
           </div>
         )}
 
-        {/* SEÇÃO EM DESTAQUE */}
         {featuredProviders.length > 0 && (
           <CategoryRow title="⭐ Em Destaque" providers={featuredProviders} badge="top" />
         )}
