@@ -1,32 +1,22 @@
 /**
  * Retorna a URL do avatar do usuário seguindo a regra:
- * 1. Foto carregada manualmente (user.avatar com URL de Storage)
+ * 1. Foto carregada manualmente (Storage)
  * 2. Foto do Google (firebasePhotoURL)
- * 3. String vazia (sem foto)
+ * 3. String vazia
  *
- * Para prestadores, a foto do perfil de prestador (providerProfile.avatar)
- * é tratada como foto manual e tem prioridade máxima.
+ * Para prestadores, providerProfile.avatar tem prioridade máxima
+ * se for uma URL válida de Storage. Caso contrário, cai no Google.
  */
 
 import { User } from '@/types'
 
-/**
- * Detecta se uma URL é do Firebase Storage (foto carregada manualmente)
- * vs foto do Google (accounts.google.com / googleusercontent.com)
- */
-const isManualUpload = (url: string): boolean => {
-  return (
-    url.includes('firebasestorage.googleapis.com') ||
-    url.includes('storage.googleapis.com')
-  )
-}
+const isManualUpload = (url: string): boolean =>
+  url.includes('firebasestorage.googleapis.com') ||
+  url.includes('storage.googleapis.com')
 
-const isGooglePhoto = (url: string): boolean => {
-  return (
-    url.includes('googleusercontent.com') ||
-    url.includes('accounts.google.com')
-  )
-}
+const isGooglePhoto = (url: string): boolean =>
+  url.includes('googleusercontent.com') ||
+  url.includes('accounts.google.com')
 
 /**
  * Retorna o avatar correto para um usuário comum (cliente).
@@ -48,7 +38,10 @@ export const getClientAvatar = (
 
 /**
  * Retorna o avatar correto para um prestador.
- * Prioridade: providerProfile.avatar (manual) > user.avatar (manual) > foto Google
+ * Prioridade: providerProfile.avatar (Storage manual) > user.avatar (Storage) > foto Google
+ *
+ * URLs do Google no providerProfile são ignoradas (podem ser antigas/expiradas).
+ * O firebasePhotoURL sempre serve como último recurso válido.
  */
 export const getProviderAvatar = (
   user: Pick<User, 'avatar' | 'providerProfile'> | null | undefined,
@@ -58,16 +51,24 @@ export const getProviderAvatar = (
   const userAvatar = user?.avatar || ''
   const google = firebasePhotoURL || ''
 
-  if (providerAvatar && providerAvatar.startsWith('http')) return providerAvatar
+  // Só usa providerProfile.avatar se for upload manual do Storage
+  if (providerAvatar && isManualUpload(providerAvatar)) return providerAvatar
+
+  // user.avatar manual
   if (userAvatar && isManualUpload(userAvatar)) return userAvatar
+
+  // Foto do Google — fonte mais confiável como fallback
   if (google) return google
-  if (userAvatar) return userAvatar
+
+  // Último recurso: qualquer URL salva
+  if (providerAvatar && providerAvatar.startsWith('http')) return providerAvatar
+  if (userAvatar && userAvatar.startsWith('http')) return userAvatar
+
   return ''
 }
 
 /**
  * Função universal: detecta se é prestador automaticamente.
- * Use esta quando não souber o tipo de usuário.
  */
 export const getAvatarUrl = (
   user: Pick<User, 'avatar' | 'roles' | 'providerProfile'> | null | undefined,
@@ -80,13 +81,23 @@ export const getAvatarUrl = (
 }
 
 /**
- * Versão simplificada para dados externos (ex: documentos do Firestore)
+ * Versão simplificada para dados externos (documentos do Firestore)
  * onde não há acesso ao firebaseUser.
- * Prioridade: providerAvatar > avatar > ''
+ * Prioridade: providerAvatar (Storage) > avatar > googlePhotoURL salvo no doc
  */
 export const resolveAvatarFromDoc = (data: {
   avatar?: string
+  googlePhotoURL?: string
   providerProfile?: { avatar?: string }
 }): string => {
-  return data?.providerProfile?.avatar || data?.avatar || ''
+  const providerAvatar = data?.providerProfile?.avatar || ''
+  const userAvatar = data?.avatar || ''
+  const google = data?.googlePhotoURL || ''
+
+  if (providerAvatar && isManualUpload(providerAvatar)) return providerAvatar
+  if (userAvatar && isManualUpload(userAvatar)) return userAvatar
+  if (google) return google
+  if (providerAvatar && providerAvatar.startsWith('http')) return providerAvatar
+  if (userAvatar && userAvatar.startsWith('http')) return userAvatar
+  return ''
 }
