@@ -167,7 +167,8 @@ export const ProviderProfilePage = () => {
             name: data.name || 'Sem nome',
             professionalName,
             avatar: data.avatar || '',
-            providerAvatar: data.providerProfile.avatar || `https://i.pravatar.cc/150?u=provider-${id}`,
+            // ✅ Prioridade: foto personalizada do prestador → foto do Google → vazio
+            providerAvatar: data.providerProfile.avatar || data.avatar || '',
             email: data.email || '',
             isMock: false,
             providerProfile: {
@@ -303,11 +304,17 @@ export const ProviderProfilePage = () => {
           <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
-                <img
-                  src={provider.providerAvatar}
-                  alt={displayName}
-                  className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl object-cover border-4 border-background shrink-0"
-                />
+                {provider.providerAvatar ? (
+                  <img
+                    src={provider.providerAvatar}
+                    alt={displayName}
+                    className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl object-cover border-4 border-background shrink-0"
+                  />
+                ) : (
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl border-4 border-background shrink-0 bg-primary/20 flex items-center justify-center">
+                    <span className="text-3xl font-black text-primary">{displayName.charAt(0).toUpperCase()}</span>
+                  </div>
+                )}
                 <div className="flex-1 w-full">
                   <div className="flex flex-col gap-3 mb-3">
                     <div className="flex items-center justify-between gap-2">
