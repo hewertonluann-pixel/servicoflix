@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, arrayUnion, getDoc, query, where
+  setDoc, serverTimestamp, getDoc
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -46,11 +46,11 @@ interface MockSettings {
 }
 
 const ICON_GROUPS = [
-  { label: '🎵 Música', icons: ['🎵', '🎶', '🎷', '🎸', '🎹', '🎺', '🎻', '🥁', '🎼', '🎴', '🎰', '🎬'] },
-  { label: '🔧 Serviços', icons: ['🔧', '🏠', '🚿', '⚡', '🌿', '🎨', '🚗', '📦', '🍽️', '🐾', '💻', '📸'] },
-  { label: '🏋️ Saúde', icons: ['🏋️', '🧘', '💪', '🏥', '💊', '🦷', '🚴', '🏊', '🧖', '🤼', '🏃', '🧗'] },
-  { label: '📚 Educação', icons: ['📚', '🎓', '✏️', '📝', '💻', '🔬', '🧠', '🏆', '📊', '🗺️', '📰', '💼'] },
-  { label: '🌿 Casa', icons: ['🌿', '🪴', '🔑', '🧹', '🧪', '🚪', '🛌️', '🛢️', '💧', '🔥', '✂️', '🪣'] },
+  { label: '🎵 Música', icons: ['🎵','🎶','🎷','🎸','🎹','🎺','🎻','🥁','🎼','🎴','🎰','🎬'] },
+  { label: '🔧 Serviços', icons: ['🔧','🏠','🚿','⚡','🌿','🎨','🚗','📦','🍽️','🐾','💻','📸'] },
+  { label: '🏋️ Saúde', icons: ['🏋️','🧘','💪','🏥','💊','🦷','🚴','🏊','🧖','🤼','🏃','🧗'] },
+  { label: '📚 Educação', icons: ['📚','🎓','✏️','📝','💻','🔬','🧠','🏆','📊','🗺️','📰','💼'] },
+  { label: '🌿 Casa', icons: ['🌿','🪴','🔑','🧹','🧪','🚪','🛌️','🛢️','💧','🔥','✂️','🪣'] },
 ]
 
 const EMPTY_PROVIDER_FORM = {
@@ -61,9 +61,9 @@ const EMPTY_PROVIDER_FORM = {
 }
 
 const UF_OPTIONS = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA',
+  'MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN',
+  'RS','RO','RR','SC','SP','SE','TO'
 ]
 
 export const AdminPage = () => {
@@ -121,7 +121,6 @@ export const AdminPage = () => {
       })
       setUsers(allUsers)
     } catch (err: any) {
-      console.error('Erro ao carregar usuários:', err)
       showToast('Erro ao carregar: ' + (err?.message || err?.code || 'desconhecido'), 'error')
     } finally {
       setLoadingData(false)
@@ -145,101 +144,76 @@ export const AdminPage = () => {
         setMockSettings(settingsDoc.data().categories || {})
       } else {
         const initialSettings: MockSettings = {}
-        Object.keys(mocksByCategory).forEach(cat => {
-          initialSettings[cat] = true
-        })
+        Object.keys(mocksByCategory).forEach(cat => { initialSettings[cat] = true })
         setMockSettings(initialSettings)
       }
-    } catch (err) {
-      console.error('Erro ao carregar configurações de mockups:', err)
-      showToast('Erro ao carregar mockups', 'error')
-    } finally {
-      setLoadingMocks(false)
-    }
+    } catch { showToast('Erro ao carregar mockups', 'error') }
+    finally { setLoadingMocks(false) }
   }
 
   const loadProviderCounts = async () => {
     try {
       const snap = await getDocs(collection(db, 'users'))
-      const providers = snap.docs
-        .map(d => ({ id: d.id, ...d.data() } as UserData))
-        .filter(u => u.roles?.includes('provider'))
-      
       const counts: Record<string, number> = {}
-      providers.forEach(p => {
-        const citySlug = p.providerProfile?.city_base || p.providerProfile?.city?.toLowerCase().replace(/\s+/g, '-')
-        if (citySlug) {
-          counts[citySlug] = (counts[citySlug] || 0) + 1
-        }
-      })
+      snap.docs.map(d => ({ id: d.id, ...d.data() } as UserData))
+        .filter(u => u.roles?.includes('provider'))
+        .forEach(p => {
+          const citySlug = p.providerProfile?.city_base || p.providerProfile?.city?.toLowerCase().replace(/\s+/g, '-')
+          if (citySlug) counts[citySlug] = (counts[citySlug] || 0) + 1
+        })
       setProviderCounts(counts)
-    } catch (err) {
-      console.error('Erro ao contar prestadores:', err)
-    }
+    } catch {}
   }
 
   const toggleMockCategory = async (categoryId: string, currentState: boolean) => {
     try {
       const newSettings = { ...mockSettings, [categoryId]: !currentState }
-      await setDoc(doc(db, 'settings', 'mockups'), {
-        categories: newSettings,
-        updatedAt: serverTimestamp(),
-      })
+      await setDoc(doc(db, 'settings', 'mockups'), { categories: newSettings, updatedAt: serverTimestamp() })
       setMockSettings(newSettings)
       showToast(`Mockups de ${categoryId} ${!currentState ? 'ativados' : 'desativados'}!`)
     } catch (err: any) {
-      console.error('Erro ao atualizar mockups:', err)
       showToast('Erro ao atualizar: ' + (err?.message || ''), 'error')
     }
   }
 
   useEffect(() => {
-    if (!authLoading && isAdmin) { 
-      loadUsers() 
+    if (!authLoading && isAdmin) {
+      loadUsers()
       loadCategories()
       loadMockSettings()
       loadProviderCounts()
     }
   }, [authLoading, isAdmin])
 
-  // Cidades - Funções
+  // ---------- Cidades ----------
   const toggleCityStatus = async (city: City) => {
     try {
       const newStatus = city.status === 'ativa' ? 'inativa' : 'ativa'
       await updateDoc(doc(db, 'cities', city.id), { status: newStatus })
       await reloadCities()
       showToast(`Cidade ${newStatus === 'ativa' ? 'ativada' : 'desativada'}!`)
-    } catch (err: any) {
-      showToast('Erro ao atualizar: ' + (err?.message || ''), 'error')
-    }
+    } catch (err: any) { showToast('Erro ao atualizar: ' + (err?.message || ''), 'error') }
   }
 
   const archiveCity = async (city: City) => {
-    if (!confirm(`Arquivar "${city.nome}"? Ela não aparecerá mais em nenhum dropdown.`)) return
+    if (!confirm(`Arquivar "${city.nome}"?`)) return
     try {
       await updateDoc(doc(db, 'cities', city.id), { status: 'arquivada' })
       await reloadCities()
       showToast('Cidade arquivada!')
-    } catch (err: any) {
-      showToast('Erro ao arquivar: ' + (err?.message || ''), 'error')
-    }
+    } catch (err: any) { showToast('Erro ao arquivar: ' + (err?.message || ''), 'error') }
   }
 
   const moveCityOrder = async (city: City, direction: 'up' | 'down') => {
     const index = allCities.findIndex(c => c.id === city.id)
     if ((direction === 'up' && index === 0) || (direction === 'down' && index === allCities.length - 1)) return
-
     try {
-      const otherIndex = direction === 'up' ? index - 1 : index + 1
-      const otherCity = allCities[otherIndex]
-
-      await updateDoc(doc(db, 'cities', city.id), { ordem: otherCity.ordem })
-      await updateDoc(doc(db, 'cities', otherCity.id), { ordem: city.ordem })
+      const other = allCities[direction === 'up' ? index - 1 : index + 1]
+      await updateDoc(doc(db, 'cities', city.id), { ordem: other.ordem })
+      await updateDoc(doc(db, 'cities', other.id), { ordem: city.ordem })
       await reloadCities()
       showToast('Ordem atualizada!')
-    } catch (err: any) {
-      showToast('Erro ao reordenar: ' + (err?.message || ''), 'error')
-    }
+    } catch (err: any) { showToast('Erro ao reordenar: ' + (err?.message || ''), 'error') }
   }
 
   const saveCity = async () => {
@@ -249,66 +223,41 @@ export const AdminPage = () => {
       const slug = cityForm.slug || cityForm.nome.toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-
       if (editingCity) {
-        await updateDoc(doc(db, 'cities', editingCity.id), {
-          nome: cityForm.nome,
-          uf: cityForm.uf,
-          slug
-        })
+        await updateDoc(doc(db, 'cities', editingCity.id), { nome: cityForm.nome, uf: cityForm.uf, slug })
         showToast('Cidade atualizada!')
       } else {
-        const newCity: any = {
-          nome: cityForm.nome,
-          uf: cityForm.uf,
-          slug,
-          status: 'ativa',
-          ordem: allCities.length + 1,
-          created_at: serverTimestamp()
-        }
-        await setDoc(doc(db, 'cities', slug), newCity)
+        await setDoc(doc(db, 'cities', slug), {
+          nome: cityForm.nome, uf: cityForm.uf, slug,
+          status: 'ativa', ordem: allCities.length + 1, created_at: serverTimestamp()
+        })
         showToast('Cidade criada!')
       }
       await reloadCities()
       setCityModal(false)
       setCityForm({ nome: '', uf: 'MG', slug: '' })
       setEditingCity(null)
-    } catch (err: any) {
-      showToast('Erro ao salvar: ' + (err?.message || ''), 'error')
-    } finally {
-      setSavingCity(false)
-    }
+    } catch (err: any) { showToast('Erro ao salvar: ' + (err?.message || ''), 'error') }
+    finally { setSavingCity(false) }
   }
 
+  // ---------- Prestadores pendentes ----------
   const approveProvider = async (u: UserData) => {
     setProcessingIds(prev => new Set(prev).add(u.id))
     try {
       const currentRoles: string[] = Array.isArray(u.roles) ? u.roles : ['client']
       const newRoles = currentRoles.includes('provider') ? currentRoles : [...currentRoles, 'provider']
-
-      await setDoc(
-        doc(db, 'users', u.id),
-        {
-          roles: newRoles,
-          providerProfile: {
-            ...(u.providerProfile || {}),
-            status: 'approved',
-            verified: true,
-            approvedAt: new Date().toISOString(),
-          },
-        },
-        { merge: true }
-      )
-
-      setUsers(prev => prev.map(p => p.id === u.id ? {
-        ...p,
+      await setDoc(doc(db, 'users', u.id), {
         roles: newRoles,
+        providerProfile: { ...(u.providerProfile || {}), status: 'approved', verified: true, approvedAt: new Date().toISOString() },
+      }, { merge: true })
+      setUsers(prev => prev.map(p => p.id === u.id ? {
+        ...p, roles: newRoles,
         providerProfile: { ...p.providerProfile, status: 'approved', verified: true },
       } : p))
       showToast(`✅ ${u.name} aprovado como prestador!`)
     } catch (err: any) {
-      console.error('Erro ao aprovar:', err)
-      showToast('❌ Erro ao aprovar: ' + (err?.message || err?.code || 'verifique as regras do Firestore'), 'error')
+      showToast('❌ Erro ao aprovar: ' + (err?.message || err?.code || ''), 'error')
     } finally {
       setProcessingIds(prev => { const s = new Set(prev); s.delete(u.id); return s })
     }
@@ -319,27 +268,14 @@ export const AdminPage = () => {
     const u = rejectModal
     setProcessingIds(prev => new Set(prev).add(u.id))
     try {
-      await setDoc(
-        doc(db, 'users', u.id),
-        {
-          providerProfile: {
-            ...(u.providerProfile || {}),
-            status: 'rejected',
-            rejectedAt: new Date().toISOString(),
-            rejectionReason: rejectReason,
-          },
-        },
-        { merge: true }
-      )
-      setUsers(prev => prev.map(p => p.id === u.id ? {
-        ...p,
-        providerProfile: { ...p.providerProfile, status: 'rejected' },
-      } : p))
+      await setDoc(doc(db, 'users', u.id), {
+        providerProfile: { ...(u.providerProfile || {}), status: 'rejected', rejectedAt: new Date().toISOString(), rejectionReason: rejectReason },
+      }, { merge: true })
+      setUsers(prev => prev.map(p => p.id === u.id ? { ...p, providerProfile: { ...p.providerProfile, status: 'rejected' } } : p))
       showToast(`Solicitação de ${u.name} rejeitada`)
       setRejectModal(null)
       setRejectReason('')
     } catch (err: any) {
-      console.error('Erro ao rejeitar:', err)
       showToast('❌ Erro ao rejeitar: ' + (err?.message || err?.code || ''), 'error')
     } finally {
       setProcessingIds(prev => { const s = new Set(prev); s.delete(u.id); return s })
@@ -359,14 +295,9 @@ export const AdminPage = () => {
   const toggleFeatured = async (userId: string, isFeatured: boolean) => {
     try {
       await updateDoc(doc(db, 'users', userId), { 'providerProfile.featured': !isFeatured })
-      setUsers(prev => prev.map(u => u.id === userId ? {
-        ...u,
-        providerProfile: { ...u.providerProfile, featured: !isFeatured }
-      } : u))
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, providerProfile: { ...u.providerProfile, featured: !isFeatured } } : u))
       showToast(`${!isFeatured ? '⭐ Adicionado aos' : '❌ Removido dos'} destaques!`)
-    } catch (err: any) {
-      showToast('❌ Erro ao atualizar destaque: ' + (err?.message || ''), 'error')
-    }
+    } catch (err: any) { showToast('❌ Erro ao atualizar destaque: ' + (err?.message || ''), 'error') }
   }
 
   const deleteUser = async (userId: string) => {
@@ -386,18 +317,15 @@ export const AdminPage = () => {
   }
 
   const saveProvider = async () => {
-    if (!providerForm.name.trim() || !providerForm.email.trim()) return
+    if (!providerForm.name.trim() || (!editingProvider && !providerForm.email.trim())) return
     setSavingProvider(true)
     try {
       let avatarUrl: string | undefined = undefined
-
-      // Upload da foto se houver arquivo selecionado
       if (avatarFile && editingProvider) {
         const fileRef = storageRef(storage, `avatars/${editingProvider.id}/avatar`)
         await uploadBytes(fileRef, avatarFile)
         avatarUrl = await getDownloadURL(fileRef)
       }
-
       if (editingProvider) {
         const providerProfile = {
           ...editingProvider.providerProfile,
@@ -423,8 +351,7 @@ export const AdminPage = () => {
             specialty: providerForm.specialty, city: providerForm.city,
             bio: providerForm.bio, priceFrom: providerForm.priceFrom,
             skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
-            whatsapp: providerForm.whatsapp, verified: providerForm.verified,
-            status: 'approved',
+            whatsapp: providerForm.whatsapp, verified: providerForm.verified, status: 'approved',
           },
           createdAt: serverTimestamp(),
         }
@@ -454,7 +381,6 @@ export const AdminPage = () => {
       whatsapp: u.providerProfile?.whatsapp || '',
       verified: u.providerProfile?.verified || false,
     })
-    // Carrega avatar atual
     setAvatarFile(null)
     setAvatarPreview(u.providerProfile?.avatar || u.avatar || '')
     setProviderModal(true)
@@ -536,11 +462,9 @@ export const AdminPage = () => {
     u.email?.toLowerCase().includes(search.toLowerCase())
   )
 
-  const inputCls = "w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors placeholder:text-muted"
-
+  const inputCls = 'w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors placeholder:text-muted'
   const totalMocks = Object.keys(mocksByCategory).reduce((sum, cat) => sum + mocksByCategory[cat].length, 0)
   const activeMocks = Object.keys(mockSettings).filter(cat => mockSettings[cat] === true).reduce((sum, cat) => sum + (mocksByCategory[cat]?.length || 0), 0)
-
   const activeCities = allCities.filter(c => c.status === 'ativa').length
 
   return (
@@ -550,11 +474,11 @@ export const AdminPage = () => {
           <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
             className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl font-semibold text-sm shadow-lg max-w-sm ${
               toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`}
-          >{toast.msg}</motion.div>
+            }`}>{toast.msg}</motion.div>
         )}
       </AnimatePresence>
 
+      {/* Header */}
       <div className="bg-surface border-b border-border sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -574,49 +498,21 @@ export const AdminPage = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
 
-        {/* ⚡ ATALHOS RÁPIDOS */}
+        {/* Atalhos rápidos */}
         <div className="grid grid-cols-3 gap-3 mb-8">
-          <Link
-            to="/admin/aprovacoes"
-            className="flex items-center justify-between gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 hover:bg-yellow-500/20 transition-colors group"
-          >
-            <div className="flex items-center gap-3">
-              <CheckSquare className="w-5 h-5 text-yellow-400 shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-yellow-300">Aprovações</p>
-                <p className="text-[11px] text-yellow-500/70">Revisar solicitações</p>
-              </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-yellow-500/50 group-hover:text-yellow-400 transition-colors" />
-          </Link>
-          <Link
-            to="/debug"
-            className="flex items-center justify-between gap-3 bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 hover:bg-blue-500/20 transition-colors group"
-          >
-            <div className="flex items-center gap-3">
-              <Bug className="w-5 h-5 text-blue-400 shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-blue-300">Debug</p>
-                <p className="text-[11px] text-blue-500/70">Inspecionar prestadores</p>
-              </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-blue-500/50 group-hover:text-blue-400 transition-colors" />
-          </Link>
-          <Link
-            to="/fix"
-            className="flex items-center justify-between gap-3 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-3 hover:bg-orange-500/20 transition-colors group"
-          >
-            <div className="flex items-center gap-3">
-              <Wrench className="w-5 h-5 text-orange-400 shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-orange-300">Fix</p>
-                <p className="text-[11px] text-orange-500/70">Corrigir dados</p>
-              </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-orange-500/50 group-hover:text-orange-400 transition-colors" />
-          </Link>
+          {[
+            { to: '/admin/aprovacoes', bg: 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20', icon: <CheckSquare className="w-5 h-5 text-yellow-400 shrink-0" />, title: 'Aprovações', sub: 'Revisar solicitações', arrow: 'text-yellow-500/50 group-hover:text-yellow-400' },
+            { to: '/debug', bg: 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20', icon: <Bug className="w-5 h-5 text-blue-400 shrink-0" />, title: 'Debug', sub: 'Inspecionar prestadores', arrow: 'text-blue-500/50 group-hover:text-blue-400' },
+            { to: '/fix', bg: 'bg-orange-500/10 border-orange-500/30 hover:bg-orange-500/20', icon: <Wrench className="w-5 h-5 text-orange-400 shrink-0" />, title: 'Fix', sub: 'Corrigir dados', arrow: 'text-orange-500/50 group-hover:text-orange-400' },
+          ].map(({ to, bg, icon, title, sub, arrow }) => (
+            <Link key={to} to={to} className={`flex items-center justify-between gap-3 border rounded-xl px-4 py-3 transition-colors group ${bg}`}>
+              <div className="flex items-center gap-3">{icon}<div><p className="text-sm font-bold text-white">{title}</p><p className="text-[11px] text-muted/70">{sub}</p></div></div>
+              <ArrowRight className={`w-4 h-4 transition-colors ${arrow}`} />
+            </Link>
+          ))}
         </div>
 
+        {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Total Usuários', value: users.length, icon: Users, color: 'text-blue-400' },
@@ -625,8 +521,7 @@ export const AdminPage = () => {
             { label: 'Aguardando', value: pendingProviders.length, icon: Clock, color: pendingProviders.length > 0 ? 'text-yellow-400' : 'text-muted' },
           ].map((stat, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="bg-surface border border-border rounded-xl p-4"
-            >
+              className="bg-surface border border-border rounded-xl p-4">
               <stat.icon className={`w-5 h-5 ${stat.color} mb-2`} />
               <p className="text-2xl font-black text-white">{stat.value}</p>
               <p className="text-xs text-muted">{stat.label}</p>
@@ -634,6 +529,7 @@ export const AdminPage = () => {
           ))}
         </div>
 
+        {/* Tabs */}
         <div className="flex gap-1.5 mb-6 bg-surface border border-border rounded-xl p-1 flex-wrap">
           {[
             { id: 'pendentes', label: 'Pendentes', icon: Clock, badge: pendingProviders.length },
@@ -646,8 +542,7 @@ export const AdminPage = () => {
             <button key={tab.id} onClick={() => { setActiveTab(tab.id as Tab); setSearch('') }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-sm font-semibold transition-colors relative ${
                 activeTab === tab.id ? 'bg-primary text-background' : 'text-muted hover:text-white'
-              }`}
-            >
+              }`}>
               <tab.icon className="w-4 h-4" />
               <span className="hidden sm:inline">{tab.label}</span>
               {tab.badge && tab.badge > 0 ? (
@@ -664,8 +559,7 @@ export const AdminPage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por nome ou email..."
-              className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-muted outline-none focus:border-primary transition-colors"
-            />
+              className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-muted outline-none focus:border-primary transition-colors" />
           </div>
         )}
 
@@ -674,12 +568,7 @@ export const AdminPage = () => {
             {activeTab === 'pendentes' && `${pendingProviders.length} aguardando aprovação`}
             {activeTab === 'usuarios' && `${filteredUsers.length} usuários`}
             {activeTab === 'prestadores' && (
-              <span>
-                {filteredProviders.length} prestadores
-                {featuredProviders.length > 0 && (
-                  <span className="ml-2 text-yellow-400">• {featuredProviders.length} em destaque</span>
-                )}
-              </span>
+              <span>{filteredProviders.length} prestadores{featuredProviders.length > 0 && <span className="ml-2 text-yellow-400">• {featuredProviders.length} em destaque</span>}</span>
             )}
             {activeTab === 'categorias' && `${categories.length} categorias`}
             {activeTab === 'mockups' && `${activeMocks}/${totalMocks} perfis mockup ativos`}
@@ -687,22 +576,26 @@ export const AdminPage = () => {
           </p>
           <div className="flex gap-2">
             <button onClick={() => { loadUsers(); loadCategories(); loadMockSettings(); reloadCities(); loadProviderCounts() }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors"
-            ><RefreshCw className="w-3.5 h-3.5" /> Atualizar</button>
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors">
+              <RefreshCw className="w-3.5 h-3.5" /> Atualizar
+            </button>
             {activeTab === 'prestadores' && (
               <button onClick={() => { setEditingProvider(null); setProviderForm(EMPTY_PROVIDER_FORM); setAvatarFile(null); setAvatarPreview(''); setProviderModal(true) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
-              ><UserPlus className="w-3.5 h-3.5" /> Novo Prestador</button>
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg">
+                <UserPlus className="w-3.5 h-3.5" /> Novo Prestador
+              </button>
             )}
             {activeTab === 'categorias' && (
               <button onClick={() => { setEditingCat(null); setCatForm({ name: '', icon: '🔧' }); setActiveIconGroup(0); setCatModal(true) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
-              ><Plus className="w-3.5 h-3.5" /> Nova Categoria</button>
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg">
+                <Plus className="w-3.5 h-3.5" /> Nova Categoria
+              </button>
             )}
             {activeTab === 'cidades' && (
               <button onClick={() => { setEditingCity(null); setCityForm({ nome: '', uf: 'MG', slug: '' }); setCityModal(true) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg"
-              ><Plus className="w-3.5 h-3.5" /> Nova Cidade</button>
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg">
+                <Plus className="w-3.5 h-3.5" /> Nova Cidade
+              </button>
             )}
           </div>
         </div>
@@ -713,93 +606,188 @@ export const AdminPage = () => {
           </div>
         )}
 
-        {/* ABA: CIDADES */}
-        {activeTab === 'cidades' && (
-          <div className="space-y-4">
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
-                  <MapPin className="w-5 h-5 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white mb-1">Gerenciar Cidades Atendidas</h3>
-                  <p className="text-xs text-blue-300 leading-relaxed">
-                    Adicione ou desative cidades. Cidades inativas mantêm prestadores existentes visíveis na busca,
-                    mas não aparecem mais nos dropdowns de seleção. Use "Arquivar" para ocultar completamente.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {loadingCities ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : allCities.length === 0 ? (
+        {/* ABA: PENDENTES */}
+        {activeTab === 'pendentes' && !loadingData && (
+          <div className="space-y-3">
+            {pendingProviders.length === 0 ? (
               <div className="text-center py-16">
-                <MapPin className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
-                <p className="font-semibold text-white">Nenhuma cidade cadastrada</p>
-                <p className="text-xs text-muted mt-1">Clique em "Nova Cidade" para adicionar</p>
+                <Check className="w-12 h-12 mx-auto mb-3 opacity-30 text-green-400" />
+                <p className="font-semibold text-white">Nenhuma solicitação pendente</p>
+                <p className="text-xs text-muted mt-1">Tudo em dia! 🎉</p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {allCities.map((city, index) => {
-                  const count = providerCounts[city.slug] || 0
-                  const statusColor = city.status === 'ativa' ? 'text-green-400' : city.status === 'inativa' ? 'text-red-400' : 'text-muted'
-                  const statusBg = city.status === 'ativa' ? 'bg-green-500/10 border-green-500/30' : city.status === 'inativa' ? 'bg-red-500/10 border-red-500/30' : 'bg-background border-border'
-
-                  return (
-                    <motion.div
-                      key={city.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className={`bg-surface border rounded-xl p-4 ${statusBg}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="text-sm font-bold text-white">{city.nome}</p>
-                            <span className="px-2 py-0.5 bg-background/50 border border-border text-muted text-[10px] font-semibold rounded-full">
-                              {city.uf}
-                            </span>
-                            <span className={`px-2 py-0.5 border text-[10px] font-semibold rounded-full ${statusColor} ${
-                              city.status === 'ativa' ? 'bg-green-500/10 border-green-500/30'
-                              : city.status === 'inativa' ? 'bg-red-500/10 border-red-500/30'
-                              : 'bg-background border-border'
-                            }`}>
-                              {city.status === 'ativa' ? '🟢 Ativa' : city.status === 'inativa' ? '🔴 Inativa' : '🗂️ Arquivada'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-muted">
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {count} {count === 1 ? 'prestador' : 'prestadores'}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Tag className="w-3 h-3" />
-                              {city.slug}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => moveCityOrder(city, 'up')} disabled={index === 0} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors" title="Mover para cima"><ChevronUp className="w-4 h-4" /></button>
-                          <button onClick={() => moveCityOrder(city, 'down')} disabled={index === allCities.length - 1} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors" title="Mover para baixo"><ChevronDown className="w-4 h-4" /></button>
-                          <button onClick={() => toggleCityStatus(city)} disabled={city.status === 'arquivada'} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title={city.status === 'ativa' ? 'Desativar' : 'Ativar'}>
-                            {city.status === 'ativa' ? <ToggleRight className="w-5 h-5 text-green-400" /> : <ToggleLeft className="w-5 h-5 text-red-400" />}
-                          </button>
-                          <button onClick={() => { setEditingCity(city); setCityForm({ nome: city.nome, uf: city.uf, slug: city.slug }); setCityModal(true) }} className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors" title="Editar"><Edit2 className="w-4 h-4" /></button>
-                          <button onClick={() => archiveCity(city)} disabled={city.status === 'arquivada'} className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="Arquivar"><Archive className="w-4 h-4" /></button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )
-                })}
-              </div>
-            )}
+            ) : pendingProviders.map(u => (
+              <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-surface border border-yellow-500/30 rounded-xl p-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-full bg-background border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                    {u.avatar
+                      ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                      : <span className="text-lg font-black text-muted">{u.name?.charAt(0)?.toUpperCase()}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <p className="font-bold text-white">{u.name}</p>
+                      <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] font-semibold rounded-full">Pendente</span>
+                    </div>
+                    <p className="text-xs text-muted mb-1">{u.email}</p>
+                    {u.providerProfile?.specialty && <p className="text-xs text-muted">🎯 {u.providerProfile.specialty}</p>}
+                    {u.providerProfile?.city && <p className="text-xs text-muted">📍 {u.providerProfile.city}</p>}
+                    {u.providerProfile?.bio && <p className="text-xs text-muted mt-1 line-clamp-2">{u.providerProfile.bio}</p>}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => approveProvider(u)} disabled={processingIds.has(u.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/20 text-green-400 border border-green-500/30 text-xs font-bold rounded-lg hover:bg-green-500/30 transition-colors disabled:opacity-50">
+                      {processingIds.has(u.id) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      Aprovar
+                    </button>
+                    <button onClick={() => setRejectModal(u)} disabled={processingIds.has(u.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50">
+                      <X className="w-3.5 h-3.5" /> Rejeitar
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
 
+        {/* ABA: USUÁRIOS */}
+        {activeTab === 'usuarios' && !loadingData && (
+          <div className="space-y-3">
+            {filteredUsers.length === 0 ? (
+              <div className="text-center py-16">
+                <Users className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
+                <p className="font-semibold text-white">Nenhum usuário encontrado</p>
+              </div>
+            ) : filteredUsers.map(u => (
+              <motion.div key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="bg-surface border border-border rounded-xl p-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-background border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                    {u.avatar
+                      ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                      : <span className="text-sm font-black text-muted">{u.name?.charAt(0)?.toUpperCase()}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-white text-sm truncate">{u.name}</p>
+                    <p className="text-xs text-muted truncate">{u.email}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {(u.roles || []).map(r => (
+                        <span key={r} className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-semibold rounded-md">{r}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => toggleRole(u.id, 'provider', u.roles?.includes('provider'))}
+                      className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors" title={u.roles?.includes('provider') ? 'Remover prestador' : 'Tornar prestador'}>
+                      <Briefcase className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => deleteUser(u.id)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* ABA: PRESTADORES */}
+        {activeTab === 'prestadores' && !loadingData && (
+          <div className="space-y-3">
+            {filteredProviders.length === 0 ? (
+              <div className="text-center py-16">
+                <Briefcase className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
+                <p className="font-semibold text-white">Nenhum prestador encontrado</p>
+              </div>
+            ) : filteredProviders.map(u => {
+              const isFeatured = u.providerProfile?.featured === true
+              const isVerified = u.providerProfile?.verified === true
+              const avatarSrc = u.providerProfile?.avatar || u.avatar
+              return (
+                <motion.div key={u.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className={`bg-surface border rounded-xl p-4 ${ isFeatured ? 'border-yellow-500/40' : 'border-border' }`}>
+                  <div className="flex items-center gap-4">
+                    <div className="relative shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-background border-2 border-border overflow-hidden flex items-center justify-center">
+                        {avatarSrc
+                          ? <img src={avatarSrc} alt={u.name} className="w-full h-full object-cover" />
+                          : <span className="text-lg font-black text-muted">{u.name?.charAt(0)?.toUpperCase()}</span>}
+                      </div>
+                      {isVerified && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5 text-background" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="font-bold text-white text-sm truncate">{u.name}</p>
+                        {isFeatured && <Star className="w-3.5 h-3.5 text-yellow-400 shrink-0" fill="currentColor" />}
+                      </div>
+                      <p className="text-xs text-muted truncate">{u.providerProfile?.specialty || u.email}</p>
+                      {u.providerProfile?.city && <p className="text-[11px] text-muted/70">📍 {u.providerProfile.city}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={() => toggleFeatured(u.id, isFeatured)}
+                        className={`p-1.5 rounded-lg transition-colors ${ isFeatured ? 'text-yellow-400 hover:bg-yellow-500/20' : 'text-muted hover:text-yellow-400 hover:bg-background' }`}
+                        title={isFeatured ? 'Remover destaque' : 'Destacar'}>
+                        <Star className="w-4 h-4" fill={isFeatured ? 'currentColor' : 'none'} />
+                      </button>
+                      <button onClick={() => openEditProvider(u)}
+                        className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors" title="Editar">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => deleteUser(u.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* ABA: CATEGORIAS */}
+        {activeTab === 'categorias' && !loadingData && (
+          <div className="space-y-3">
+            {categories.length === 0 ? (
+              <div className="text-center py-16">
+                <Tag className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
+                <p className="font-semibold text-white">Nenhuma categoria cadastrada</p>
+              </div>
+            ) : categories.map(cat => (
+              <motion.div key={cat.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="bg-surface border border-border rounded-xl p-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl shrink-0">{cat.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-white text-sm">{cat.name}</p>
+                    <p className="text-xs text-muted">{cat.id}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => toggleCategory(cat)} className="p-1.5 rounded-lg hover:bg-background transition-colors" title={cat.active ? 'Desativar' : 'Ativar'}>
+                      {cat.active ? <ToggleRight className="w-5 h-5 text-primary" /> : <ToggleLeft className="w-5 h-5 text-muted" />}
+                    </button>
+                    <button onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, icon: cat.icon }); setActiveIconGroup(0); setCatModal(true) }}
+                      className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => deleteCategory(cat.id)}
+                      className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* ABA: MOCKUPS */}
         {activeTab === 'mockups' && (
           <div className="space-y-4">
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
@@ -809,14 +797,10 @@ export const AdminPage = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white mb-1">Gerenciar Perfis Mockup</h3>
-                  <p className="text-xs text-blue-300 leading-relaxed">
-                    Ative ou desative perfis de exemplo por categoria. Quando desativados, apenas prestadores reais aparecerão na plataforma.
-                    Os mockups ajudam a preencher conteúdo enquanto a plataforma cresce.
-                  </p>
+                  <p className="text-xs text-blue-300 leading-relaxed">Ative ou desative perfis de exemplo por categoria. Quando desativados, apenas prestadores reais aparecerão na plataforma.</p>
                 </div>
               </div>
             </div>
-
             {loadingMocks ? (
               <div className="flex items-center justify-center py-12">
                 <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -826,18 +810,15 @@ export const AdminPage = () => {
                 {Object.keys(mocksByCategory).map(categoryId => {
                   const mocks = mocksByCategory[categoryId]
                   const isActive = mockSettings[categoryId] !== false
-                  const categoryName = categoryId.charAt(0).toUpperCase() + categoryId.slice(1)
-                  
                   return (
                     <motion.div key={categoryId} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                      className={`bg-surface border rounded-xl p-5 transition-all ${ isActive ? 'border-primary/50' : 'border-border opacity-60' }`}
-                    >
+                      className={`bg-surface border rounded-xl p-5 transition-all ${ isActive ? 'border-primary/50' : 'border-border opacity-60' }`}>
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <h3 className="text-base font-bold text-white mb-1">{categoryName}</h3>
+                          <h3 className="text-base font-bold text-white mb-1">{categoryId.charAt(0).toUpperCase() + categoryId.slice(1)}</h3>
                           <p className="text-xs text-muted">{mocks.length} perfis de exemplo</p>
                         </div>
-                        <button onClick={() => toggleMockCategory(categoryId, isActive)} className="p-2 rounded-lg hover:bg-background transition-colors" title={isActive ? 'Desativar mockups' : 'Ativar mockups'}>
+                        <button onClick={() => toggleMockCategory(categoryId, isActive)} className="p-2 rounded-lg hover:bg-background transition-colors">
                           {isActive ? <ToggleRight className="w-6 h-6 text-primary" /> : <ToggleLeft className="w-6 h-6 text-muted" />}
                         </button>
                       </div>
@@ -865,161 +846,238 @@ export const AdminPage = () => {
             )}
           </div>
         )}
+
+        {/* ABA: CIDADES */}
+        {activeTab === 'cidades' && (
+          <div className="space-y-4">
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
+                  <MapPin className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white mb-1">Gerenciar Cidades Atendidas</h3>
+                  <p className="text-xs text-blue-300 leading-relaxed">Adicione ou desative cidades. Cidades inativas mantêm prestadores existentes visíveis na busca, mas não aparecem mais nos dropdowns de seleção.</p>
+                </div>
+              </div>
+            </div>
+            {loadingCities ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : allCities.length === 0 ? (
+              <div className="text-center py-16">
+                <MapPin className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
+                <p className="font-semibold text-white">Nenhuma cidade cadastrada</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allCities.map((city, index) => {
+                  const count = providerCounts[city.slug] || 0
+                  const statusBg = city.status === 'ativa' ? 'bg-green-500/10 border-green-500/30' : city.status === 'inativa' ? 'bg-red-500/10 border-red-500/30' : 'bg-background border-border'
+                  return (
+                    <motion.div key={city.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      className={`bg-surface border rounded-xl p-4 ${statusBg}`}>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-bold text-white">{city.nome}</p>
+                            <span className="px-2 py-0.5 bg-background/50 border border-border text-muted text-[10px] font-semibold rounded-full">{city.uf}</span>
+                            <span className={`px-2 py-0.5 border text-[10px] font-semibold rounded-full ${
+                              city.status === 'ativa' ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                              : city.status === 'inativa' ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                              : 'bg-background border-border text-muted'
+                            }`}>
+                              {city.status === 'ativa' ? '🟢 Ativa' : city.status === 'inativa' ? '🔴 Inativa' : '🗂️ Arquivada'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted">
+                            <span className="flex items-center gap-1"><Users className="w-3 h-3" />{count} {count === 1 ? 'prestador' : 'prestadores'}</span>
+                            <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{city.slug}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => moveCityOrder(city, 'up')} disabled={index === 0} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors"><ChevronUp className="w-4 h-4" /></button>
+                          <button onClick={() => moveCityOrder(city, 'down')} disabled={index === allCities.length - 1} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed text-muted hover:text-white transition-colors"><ChevronDown className="w-4 h-4" /></button>
+                          <button onClick={() => toggleCityStatus(city)} disabled={city.status === 'arquivada'} className="p-1.5 rounded-lg hover:bg-background disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                            {city.status === 'ativa' ? <ToggleRight className="w-5 h-5 text-green-400" /> : <ToggleLeft className="w-5 h-5 text-red-400" />}
+                          </button>
+                          <button onClick={() => { setEditingCity(city); setCityForm({ nome: city.nome, uf: city.uf, slug: city.slug }); setCityModal(true) }} className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={() => archiveCity(city)} disabled={city.status === 'arquivada'} className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><Archive className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* MODAL: REJEITAR */}
+      <AnimatePresence>
+        {rejectModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setRejectModal(null)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md">
+              <h2 className="text-lg font-black text-white mb-4">Rejeitar Solicitação</h2>
+              <p className="text-sm text-muted mb-4">Informe um motivo para rejeitar <span className="text-white font-semibold">{rejectModal.name}</span>:</p>
+              <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                placeholder="Ex: Documentação insuficiente, perfil incompleto..."
+                rows={3} className={inputCls + ' resize-none mb-4'} />
+              <div className="flex gap-3">
+                <button onClick={() => setRejectModal(null)} className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors">Cancelar</button>
+                <button onClick={rejectProvider} className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors">Rejeitar</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL: PRESTADOR */}
       <AnimatePresence>
         {providerModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview('') }}
-          >
+            onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview('') }}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()}
-              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
-            >
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
                   <Briefcase className="w-5 h-5 text-primary" />
                 </div>
-                <h2 className="text-lg font-black text-white">
-                  {editingProvider ? 'Editar Prestador' : 'Novo Prestador'}
-                </h2>
+                <h2 className="text-lg font-black text-white">{editingProvider ? 'Editar Prestador' : 'Novo Prestador'}</h2>
               </div>
-
               <div className="space-y-4">
-                {/* AVATAR */}
                 {editingProvider && (
                   <div>
                     <label className="block text-xs text-muted mb-2">Foto do prestador</label>
                     <div className="flex items-center gap-4">
                       <div className="relative shrink-0">
                         <div className="w-20 h-20 rounded-full overflow-hidden bg-surface border-2 border-border flex items-center justify-center">
-                          {avatarPreview ? (
-                            <img src={avatarPreview} alt="avatar" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-2xl font-black text-muted">
-                              {providerForm.name?.charAt(0)?.toUpperCase() || '?'}
-                            </span>
-                          )}
+                          {avatarPreview
+                            ? <img src={avatarPreview} alt="avatar" className="w-full h-full object-cover" />
+                            : <span className="text-2xl font-black text-muted">{providerForm.name?.charAt(0)?.toUpperCase() || '?'}</span>}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => avatarInputRef.current?.click()}
-                          className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
-                          title="Alterar foto"
-                        >
+                        <button type="button" onClick={() => avatarInputRef.current?.click()}
+                          className="absolute -bottom-1 -right-1 w-7 h-7 bg-primary rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
                           <Camera className="w-3.5 h-3.5 text-background" />
                         </button>
-                        <input
-                          ref={avatarInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleAvatarChange}
-                        />
+                        <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
                       </div>
                       <div className="flex-1 min-w-0">
                         {avatarFile ? (
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-green-400 font-semibold truncate">✅ {avatarFile.name}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAvatarFile(null)
-                                setAvatarPreview(editingProvider?.providerProfile?.avatar || editingProvider?.avatar || '')
-                              }}
-                              className="text-muted hover:text-red-400 transition-colors shrink-0"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
+                            <button type="button" onClick={() => { setAvatarFile(null); setAvatarPreview(editingProvider?.providerProfile?.avatar || editingProvider?.avatar || '') }}
+                              className="text-muted hover:text-red-400 transition-colors shrink-0"><X className="w-3.5 h-3.5" /></button>
                           </div>
                         ) : (
-                          <p className="text-xs text-muted">
-                            {avatarPreview ? 'Foto atual do prestador' : 'Nenhuma foto cadastrada'}
-                          </p>
+                          <p className="text-xs text-muted">{avatarPreview ? 'Foto atual do prestador' : 'Nenhuma foto cadastrada'}</p>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => avatarInputRef.current?.click()}
-                          className="mt-1.5 text-xs text-primary hover:underline"
-                        >
+                        <button type="button" onClick={() => avatarInputRef.current?.click()} className="mt-1.5 text-xs text-primary hover:underline">
                           {avatarPreview ? 'Trocar foto' : 'Adicionar foto'}
                         </button>
                       </div>
                     </div>
                   </div>
                 )}
-
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Nome *</label>
-                  <input value={providerForm.name} onChange={e => setProviderForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="Nome completo" className={inputCls} />
+                  <input value={providerForm.name} onChange={e => setProviderForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" className={inputCls} />
                 </div>
                 {!editingProvider && (
                   <>
                     <div>
                       <label className="block text-xs text-muted mb-1.5">Email *</label>
-                      <input type="email" value={providerForm.email} onChange={e => setProviderForm(p => ({ ...p, email: e.target.value }))}
-                        placeholder="email@exemplo.com" className={inputCls} />
+                      <input type="email" value={providerForm.email} onChange={e => setProviderForm(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" className={inputCls} />
                     </div>
                     <div>
                       <label className="block text-xs text-muted mb-1.5">Senha (padrão: 123456)</label>
-                      <input type="password" value={providerForm.password} onChange={e => setProviderForm(p => ({ ...p, password: e.target.value }))}
-                        placeholder="Deixe em branco para usar 123456" className={inputCls} />
+                      <input type="password" value={providerForm.password} onChange={e => setProviderForm(p => ({ ...p, password: e.target.value }))} placeholder="Deixe em branco para usar 123456" className={inputCls} />
                     </div>
                   </>
                 )}
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Especialidade</label>
-                  <input value={providerForm.specialty} onChange={e => setProviderForm(p => ({ ...p, specialty: e.target.value }))}
-                    placeholder="Ex: Fotógrafo, Eletricista..." className={inputCls} />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Cidade</label>
-                  <input value={providerForm.city} onChange={e => setProviderForm(p => ({ ...p, city: e.target.value }))}
-                    placeholder="Ex: Diamantina" className={inputCls} />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Bio</label>
-                  <textarea value={providerForm.bio} onChange={e => setProviderForm(p => ({ ...p, bio: e.target.value }))}
-                    placeholder="Descrição do prestador..." rows={3}
-                    className={inputCls + ' resize-none'} />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Preço a partir de (R$)</label>
-                  <input value={providerForm.priceFrom} onChange={e => setProviderForm(p => ({ ...p, priceFrom: e.target.value }))}
-                    placeholder="Ex: 80" className={inputCls} />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Skills (separadas por vírgula)</label>
-                  <input value={providerForm.skills} onChange={e => setProviderForm(p => ({ ...p, skills: e.target.value }))}
-                    placeholder="Ex: Fotografia, Edição, Casamento" className={inputCls} />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">WhatsApp</label>
-                  <input value={providerForm.whatsapp} onChange={e => setProviderForm(p => ({ ...p, whatsapp: e.target.value }))}
-                    placeholder="5538999999999" className={inputCls} />
-                </div>
+                <div><label className="block text-xs text-muted mb-1.5">Especialidade</label><input value={providerForm.specialty} onChange={e => setProviderForm(p => ({ ...p, specialty: e.target.value }))} placeholder="Ex: Fotógrafo, Eletricista..." className={inputCls} /></div>
+                <div><label className="block text-xs text-muted mb-1.5">Cidade</label><input value={providerForm.city} onChange={e => setProviderForm(p => ({ ...p, city: e.target.value }))} placeholder="Ex: Diamantina" className={inputCls} /></div>
+                <div><label className="block text-xs text-muted mb-1.5">Bio</label><textarea value={providerForm.bio} onChange={e => setProviderForm(p => ({ ...p, bio: e.target.value }))} placeholder="Descrição do prestador..." rows={3} className={inputCls + ' resize-none'} /></div>
+                <div><label className="block text-xs text-muted mb-1.5">Preço a partir de (R$)</label><input value={providerForm.priceFrom} onChange={e => setProviderForm(p => ({ ...p, priceFrom: e.target.value }))} placeholder="Ex: 80" className={inputCls} /></div>
+                <div><label className="block text-xs text-muted mb-1.5">Skills (separadas por vírgula)</label><input value={providerForm.skills} onChange={e => setProviderForm(p => ({ ...p, skills: e.target.value }))} placeholder="Ex: Fotografia, Edição, Casamento" className={inputCls} /></div>
+                <div><label className="block text-xs text-muted mb-1.5">WhatsApp</label><input value={providerForm.whatsapp} onChange={e => setProviderForm(p => ({ ...p, whatsapp: e.target.value }))} placeholder="5538999999999" className={inputCls} /></div>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <div onClick={() => setProviderForm(p => ({ ...p, verified: !p.verified }))}
-                    className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${providerForm.verified ? 'bg-primary' : 'bg-border'}`}
-                  >
+                    className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${providerForm.verified ? 'bg-primary' : 'bg-border'}`}>
                     <div className={`w-4 h-4 bg-white rounded-full transition-transform ${providerForm.verified ? 'translate-x-4' : 'translate-x-0'}`} />
                   </div>
                   <span className="text-sm text-white">Verificado</span>
                 </label>
               </div>
-
               <div className="flex gap-3 mt-6">
                 <button onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview('') }}
-                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
-                >Cancelar</button>
-                <button onClick={saveProvider} disabled={savingProvider || !providerForm.name.trim() || !providerForm.email.trim()}
-                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
-                >
+                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors">Cancelar</button>
+                <button onClick={saveProvider} disabled={savingProvider || !providerForm.name.trim()}
+                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
                   {savingProvider ? <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
                   {editingProvider ? 'Salvar alterações' : 'Criar prestador'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL: CATEGORIA */}
+      <AnimatePresence>
+        {catModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setCatModal(false)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
+                  <Tag className="w-5 h-5 text-primary" />
+                </div>
+                <h2 className="text-lg font-black text-white">{editingCat ? 'Editar Categoria' : 'Nova Categoria'}</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Nome *</label>
+                  <input value={catForm.name} onChange={e => setCatForm(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Fotografia" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-2">Ícone — <span className="text-2xl">{catForm.icon}</span></label>
+                  <div className="flex gap-1.5 flex-wrap mb-3">
+                    {ICON_GROUPS.map((g, i) => (
+                      <button key={i} type="button" onClick={() => setActiveIconGroup(i)}
+                        className={`px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${ activeIconGroup === i ? 'bg-primary text-background' : 'bg-background text-muted hover:text-white' }`}>
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {ICON_GROUPS[activeIconGroup].icons.map(icon => (
+                      <button key={icon} type="button" onClick={() => setCatForm(p => ({ ...p, icon }))}
+                        className={`text-xl p-2 rounded-xl transition-colors ${ catForm.icon === icon ? 'bg-primary/20 ring-2 ring-primary' : 'hover:bg-background' }`}>
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => { setCatModal(false); setEditingCat(null) }}
+                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors">Cancelar</button>
+                <button onClick={saveCategory} disabled={!catForm.name.trim()}
+                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
+                  <Save className="w-4 h-4" />
+                  {editingCat ? 'Salvar alterações' : 'Criar categoria'}
                 </button>
               </div>
             </motion.div>
@@ -1032,12 +1090,10 @@ export const AdminPage = () => {
         {cityModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setCityModal(false)}
-          >
+            onClick={() => setCityModal(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()}
-              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
-            >
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
                   <MapPin className="w-5 h-5 text-primary" />
@@ -1047,9 +1103,7 @@ export const AdminPage = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Nome da cidade *</label>
-                  <input value={cityForm.nome} onChange={e => setCityForm(p => ({ ...p, nome: e.target.value }))}
-                    placeholder="Ex: Diamantina, Felício dos Santos..."
-                    className={inputCls} />
+                  <input value={cityForm.nome} onChange={e => setCityForm(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: Diamantina, Felício dos Santos..." className={inputCls} />
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1.5">UF *</label>
@@ -1059,19 +1113,15 @@ export const AdminPage = () => {
                 </div>
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Slug (opcional)</label>
-                  <input value={cityForm.slug} onChange={e => setCityForm(p => ({ ...p, slug: e.target.value }))}
-                    placeholder="diamantina (gerado automaticamente se vazio)"
-                    className={inputCls} />
+                  <input value={cityForm.slug} onChange={e => setCityForm(p => ({ ...p, slug: e.target.value }))} placeholder="diamantina (gerado automaticamente se vazio)" className={inputCls} />
                   <p className="text-[11px] text-muted mt-1">Deixe em branco para gerar automaticamente</p>
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => { setCityModal(false); setEditingCity(null) }}
-                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
-                >Cancelar</button>
+                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors">Cancelar</button>
                 <button onClick={saveCity} disabled={savingCity || !cityForm.nome.trim() || !cityForm.uf}
-                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
-                >
+                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
                   {savingCity ? <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
                   {editingCity ? 'Salvar alterações' : 'Criar cidade'}
                 </button>
