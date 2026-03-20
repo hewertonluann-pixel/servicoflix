@@ -16,8 +16,9 @@ export const getChatId = (uid1: string, uid2: string): string =>
 
 export interface ChatParticipantInfo {
   name: string
-  avatar: string  // avatar pessoal
-  providerAvatar?: string  // avatar profissional (se for prestador)
+  avatar: string
+  providerAvatar?: string
+  googlePhotoURL?: string  // foto Google — fallback confiável mesmo após URL de Storage expirar
 }
 
 export interface ChatMeta {
@@ -45,8 +46,8 @@ export interface Message {
  * Retorna o chatId.
  */
 export const createOrGetChat = async (
-  currentUser: { id: string; name: string; avatar?: string; providerAvatar?: string },
-  otherUser: { id: string; name: string; avatar?: string; providerAvatar?: string },
+  currentUser: { id: string; name: string; avatar?: string; providerAvatar?: string; googlePhotoURL?: string },
+  otherUser: { id: string; name: string; avatar?: string; providerAvatar?: string; googlePhotoURL?: string },
   relatedServiceRequest?: string
 ): Promise<string> => {
   const chatId = getChatId(currentUser.id, otherUser.id)
@@ -61,11 +62,13 @@ export const createOrGetChat = async (
           name: currentUser.name,
           avatar: currentUser.avatar || '',
           ...(currentUser.providerAvatar ? { providerAvatar: currentUser.providerAvatar } : {}),
+          ...(currentUser.googlePhotoURL ? { googlePhotoURL: currentUser.googlePhotoURL } : {}),
         },
         [otherUser.id]: {
           name: otherUser.name,
           avatar: otherUser.avatar || '',
           ...(otherUser.providerAvatar ? { providerAvatar: otherUser.providerAvatar } : {}),
+          ...(otherUser.googlePhotoURL ? { googlePhotoURL: otherUser.googlePhotoURL } : {}),
         },
       },
       lastMessage: '',
@@ -119,5 +122,5 @@ export const markChatAsRead = async (chatId: string, userId: string): Promise<vo
   const chatRef = doc(db, 'chats', chatId)
   await updateDoc(chatRef, {
     [`unreadCount.${userId}`]: 0,
-  }).catch(() => {})  // silencia se o chat ainda não existe
+  }).catch(() => {})
 }

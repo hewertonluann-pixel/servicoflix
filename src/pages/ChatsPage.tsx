@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { MessageCircle, Loader2, ArrowLeft, Compass } from 'lucide-react'
 import { ChatMeta } from '@/lib/chatUtils'
 import { UserAvatar } from '@/components/UserAvatar'
+import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 
 const formatRelative = (timestamp: any): string => {
   if (!timestamp) return ''
@@ -113,7 +114,16 @@ export const ChatsPage = () => {
               const otherId = chat.participants.find((p) => p !== user.id) || ''
               const otherInfo = chat.participantsInfo?.[otherId]
               const unread = chat.unreadCount?.[user.id] || 0
-              const otherAvatar = otherInfo?.providerAvatar || otherInfo?.avatar || ''
+
+              // Usa resolveAvatarFromDoc para aplicar hierarquia correta:
+              // Storage manual > googlePhotoURL salvo > providerAvatar > avatar
+              const otherAvatar = resolveAvatarFromDoc({
+                avatar: otherInfo?.avatar,
+                googlePhotoURL: (otherInfo as any)?.googlePhotoURL,
+                providerProfile: otherInfo?.providerAvatar
+                  ? { avatar: otherInfo.providerAvatar }
+                  : undefined,
+              })
               const otherName = otherInfo?.name || 'Usuário'
 
               return (
