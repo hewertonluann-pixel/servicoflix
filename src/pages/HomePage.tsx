@@ -35,7 +35,8 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
   city: data.providerProfile?.city || '',
   neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
-  isOnline: true,
+  // ✅ Status real de disponibilidade lido do Firestore (providerProfile.isOnline)
+  isOnline: data.providerProfile?.isOnline === true,
   isTopRated: data.providerProfile?.verified || false,
   isFeatured: data.providerProfile?.featured || id === OWNER_UID,
   bio: data.providerProfile?.bio || '',
@@ -84,13 +85,15 @@ export const HomePage = () => {
               isOwner ? '👑 Owner:' : '✅ Prestador:',
               provider.name,
               '- Cidade:', provider.city,
-              '- Featured:', provider.isFeatured
+              '- Featured:', provider.isFeatured,
+              '- Online:', provider.isOnline
             )
           }
         })
 
         console.log(`📊 Total de prestadores: ${providers.length}`)
         console.log(`⭐ Featured: ${providers.filter(p => p.isFeatured).length}`)
+        console.log(`🟢 Online agora: ${providers.filter(p => p.isOnline).length}`)
         setRealProviders(providers)
 
         const catSnap = await getDocs(collection(db, 'categories'))
