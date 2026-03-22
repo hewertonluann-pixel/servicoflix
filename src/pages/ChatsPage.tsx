@@ -29,6 +29,7 @@ export const ChatsPage = () => {
   const [loading, setLoading] = useState(true)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [deleteSuccess, setDeleteSuccess] = useState(false)
 
   useEffect(() => {
     if (!user?.id) return
@@ -75,6 +76,8 @@ export const ChatsPage = () => {
     setDeletingId(chatId)
     try {
       await deleteChat(chatId)
+            setDeleteSuccess(true)
+      setTimeout(() => setDeleteSuccess(false), 3000)
     } catch (err) {
       console.error('[ChatsPage] Erro ao excluir chat:', err)
     } finally {
@@ -87,6 +90,13 @@ export const ChatsPage = () => {
 
   return (
     <>
+          {/* Toast de sucesso ao excluir */}
+      {deleteSuccess && (
+        <div className="fixed bottom-4 right-4 z-50 bg-surface border border-green-500/40 text-green-300 px-4 py-3 rounded-xl shadow-lg text-sm flex items-center gap-2 animate-in slide-in-from-bottom">
+          <MessageCircle className="w-4 h-4" />
+          Conversa excluída com sucesso.
+        </div>
+      )}
       <div className="min-h-screen pt-16 pb-20 bg-background">
         <div className="bg-surface border-b border-border sticky top-16 z-10">
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
