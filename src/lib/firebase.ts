@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore, enableIndexedDbPersistence, initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, CACHE_SIZE_UNLIMITED } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getAnalytics, isSupported } from 'firebase/analytics'
 
@@ -30,25 +30,13 @@ const app = initializeApp(firebaseConfig)
 // Serviços Firebase
 export const auth = getAuth(app)
 
-// 🔴 Firestore com configuração otimizada
+// ✅ Firestore com persistência offline usando a nova API (SDK v11+)
 export const db = initializeFirestore(app, {
-  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  }),
 })
-
-// Habilita persistência offline (IndexedDB)
-if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db, {
-    forceOwnership: true // Força ownership em múltiplas abas
-  }).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('⚠️ [Firebase] Múltiplas abas abertas, persistência desabilitada')
-    } else if (err.code === 'unimplemented') {
-      console.warn('⚠️ [Firebase] Navegador não suporta persistência')
-    } else {
-      console.error('❌ [Firebase] Erro ao habilitar persistência:', err)
-    }
-  })
-}
 
 export const storage = getStorage(app)
 
