@@ -9,7 +9,7 @@ interface Props {
 export const CategoryGrid = ({ categories }: Props) => (
   <div className="px-4 sm:px-8 mb-12">
     <h2 className="text-white font-bold text-lg mb-4">Explorar por Categoria</h2>
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+    <div className="flex flex-wrap gap-2">
       {categories.map((cat, i) => (
         <motion.div
           key={cat.id}
@@ -22,12 +22,11 @@ export const CategoryGrid = ({ categories }: Props) => (
         >
           <Link
             to={`/buscar?categoria=${cat.id}`}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface border border-border hover:border-opacity-60 transition-all text-center"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-surface border border-border hover:border-opacity-60 transition-all text-sm font-semibold text-white whitespace-nowrap"
             style={{ '--hover-color': cat.color } as React.CSSProperties}
           >
-            <span className="text-3xl">{cat.icon}</span>
-            <span className="text-xs font-semibold text-white">{cat.name}</span>
-            <span className="text-[10px] text-muted">{cat.count} profissionais</span>
+            <span className="text-base">{cat.icon}</span>
+            <span>{cat.name}</span>
           </Link>
         </motion.div>
       ))}
