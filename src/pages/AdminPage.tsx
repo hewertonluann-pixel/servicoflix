@@ -56,7 +56,7 @@ const ICON_GROUPS = [
 const EMPTY_PROVIDER_FORM = {
   name: '', email: '', password: '',
   specialty: '', city: '', bio: '',
-  priceFrom: '', skills: '', whatsapp: '',
+  priceFrom: '', skills: '', whatsapp: '', category: '',
   verified: false,
 }
 
@@ -334,7 +334,7 @@ export const AdminPage = () => {
           bio: providerForm.bio,
           priceFrom: providerForm.priceFrom,
           skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
-          whatsapp: providerForm.whatsapp,
+          whatsapp: providerForm.whatsapp, categories: providerForm.category ? [providerForm.category] : [],
           verified: providerForm.verified,
           ...(avatarUrl ? { avatar: avatarUrl } : {}),
         }
@@ -351,7 +351,7 @@ export const AdminPage = () => {
             specialty: providerForm.specialty, city: providerForm.city,
             bio: providerForm.bio, priceFrom: providerForm.priceFrom,
             skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
-            whatsapp: providerForm.whatsapp, verified: providerForm.verified, status: 'approved',
+            whatsapp: providerForm.whatsapp, categories: providerForm.category ? [providerForm.category] : [], verified: providerForm.verified, status: 'approved',
           },
           createdAt: serverTimestamp(),
         }
@@ -378,7 +378,7 @@ export const AdminPage = () => {
       bio: u.providerProfile?.bio || '',
       priceFrom: u.providerProfile?.priceFrom || '',
       skills: (u.providerProfile?.skills || []).join(', '),
-      whatsapp: u.providerProfile?.whatsapp || '',
+      whatsapp: u.providerProfile?.whatsapp || '', category: (u.providerProfile?.categories?.[0] || u.providerProfile?.category || ''),
       verified: u.providerProfile?.verified || false,
     })
     setAvatarFile(null)
@@ -1003,7 +1003,7 @@ export const AdminPage = () => {
                     </div>
                   </>
                 )}
-                <div><label className="block text-xs text-muted mb-1.5">Especialidade</label><input value={providerForm.specialty} onChange={e => setProviderForm(p => ({ ...p, specialty: e.target.value }))} placeholder="Ex: Fotógrafo, Eletricista..." className={inputCls} /></div>
+                <div><label className="block text-xs text-muted mb-1.5">Especialidade</label><input value={providerForm.specialty} onChange={e => setProviderForm(p => ({ ...p, specialty: e.target.value }))} placeholder="Ex: Fotógrafo, Eletricista..." className={inputCls} /></div><div><label className="block text-xs text-muted mb-1.5">Categoria</label><select value={providerForm.category} onChange={e => setProviderForm(p => ({ ...p, category: e.target.value }))} className={inputCls}><option value="">-- Selecione uma categoria --</option>{categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>))}</select></div>
                 <div><label className="block text-xs text-muted mb-1.5">Cidade</label><input value={providerForm.city} onChange={e => setProviderForm(p => ({ ...p, city: e.target.value }))} placeholder="Ex: Diamantina" className={inputCls} /></div>
                 <div><label className="block text-xs text-muted mb-1.5">Bio</label><textarea value={providerForm.bio} onChange={e => setProviderForm(p => ({ ...p, bio: e.target.value }))} placeholder="Descrição do prestador..." rows={3} className={inputCls + ' resize-none'} /></div>
                 <div><label className="block text-xs text-muted mb-1.5">Preço a partir de (R$)</label><input value={providerForm.priceFrom} onChange={e => setProviderForm(p => ({ ...p, priceFrom: e.target.value }))} placeholder="Ex: 80" className={inputCls} /></div>
