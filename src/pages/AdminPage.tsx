@@ -5,11 +5,12 @@ import {
   Shield, Users, Briefcase, Tag, Plus, Trash2, Edit2,
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
   AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2, Sparkles,
-  ChevronUp, ChevronDown, Archive, CheckSquare, Bug, Wrench, ArrowRight, Camera
+  ChevronUp, ChevronDown, Archive, CheckSquare, Bug, Wrench, ArrowRight, Camera,
+  Flag, Eye, CheckCircle2
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, getDoc
+  setDoc, serverTimestamp, getDoc, query, orderBy
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -20,7 +21,7 @@ import { useAllCities, type City } from '@/hooks/useCities'
 
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1', '5KqkZ0SPnpMkKO684W7fZBWHo4J2']
 
-type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias' | 'mockups' | 'cidades'
+type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias' | 'mockups' | 'cidades' | 'denuncias'
 
 interface UserData {
   id: string
@@ -43,6 +44,19 @@ interface Category {
 
 interface MockSettings {
   [categoryId: string]: boolean
+}
+
+interface Report {
+  id: string
+  reportedBy: string
+  reportedUser: string
+  chatId: string
+  reason: string
+  description?: string
+  createdAt: any
+  status: 'pending' | 'reviewed' | 'resolved'
+  reportedByName?: string
+  reportedUserName?: string
 }
 
 const ICON_GROUPS = [
@@ -89,6 +103,11 @@ export const AdminPage = () => {
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
   const [mockSettings, setMockSettings] = useState<MockSettings>({})
   const [loadingMocks, setLoadingMocks] = useState(false)
+
+  // Denúncias
+  const [reports, setReports] = useState<Report[]>([])
+  const [loadingReports, setLoadingReports] = useState(false)
+  const [reportFilter, setReportFilter] = useState<'all' | 'pending' | 'reviewed' | 'resolved'>('pending')
 
   // Avatar upload
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -169,6 +188,57 @@ export const AdminPage = () => {
     } catch {}
   }
 
+  const loadReports = async () => {
+    setLoadingReports(true)
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'reports'), orderBy('createdAt', 'desc'))
+      )
+      const list: Report[] = await Promise.all(
+        snap.docs.map(async (d) => {
+          const data = d.data() as Omit<Report, 'id'>
+          let reportedByName = data.reportedBy
+          let reportedUserName = data.reportedUser
+          try {
+            const [bySnap, userSnap] = await Promise.all([
+              getDoc(doc(db, 'users', data.reportedBy)),
+              getDoc(doc(db, 'users', data.reportedUser)),
+            ])
+            if (bySnap.exists()) reportedByName = bySnap.data().name || data.reportedBy
+            if (userSnap.exists()) reportedUserName = userSnap.data().providerProfile?.professionalName || userSnap.data().name || data.reportedUser
+          } catch {}
+          return { id: d.id, ...data, reportedByName, reportedUserName }
+        })
+      )
+      setReports(list)
+    } catch (err: any) {
+      showToast('Erro ao carregar denúncias: ' + (err?.message || ''), 'error')
+    } finally {
+      setLoadingReports(false)
+    }
+  }
+
+  const updateReportStatus = async (reportId: string, status: 'reviewed' | 'resolved') => {
+    try {
+      await updateDoc(doc(db, 'reports', reportId), { status, updatedAt: serverTimestamp() })
+      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status } : r))
+      showToast(status === 'reviewed' ? '👁 Marcada como revisada' : '✅ Denúncia resolvida')
+    } catch (err: any) {
+      showToast('Erro ao atualizar: ' + (err?.message || ''), 'error')
+    }
+  }
+
+  const deleteReport = async (reportId: string) => {
+    if (!confirm('Excluir esta denúncia permanentemente?')) return
+    try {
+      await deleteDoc(doc(db, 'reports', reportId))
+      setReports(prev => prev.filter(r => r.id !== reportId))
+      showToast('Denúncia excluída')
+    } catch (err: any) {
+      showToast('Erro ao excluir: ' + (err?.message || ''), 'error')
+    }
+  }
+
   const toggleMockCategory = async (categoryId: string, currentState: boolean) => {
     try {
       const newSettings = { ...mockSettings, [categoryId]: !currentState }
@@ -186,6 +256,7 @@ export const AdminPage = () => {
       loadCategories()
       loadMockSettings()
       loadProviderCounts()
+      loadReports()
     }
   }, [authLoading, isAdmin])
 
@@ -369,7 +440,7 @@ export const AdminPage = () => {
           roles: ['client', 'provider'], clientProfile: {},
           providerProfile: {
             specialty: providerForm.specialty, city: providerForm.city,
-                      professionalName: providerForm.professionalName,
+            professionalName: providerForm.professionalName,
             bio: providerForm.bio, priceFrom: providerForm.priceFrom,
             skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
             whatsapp: providerForm.whatsapp,
@@ -495,6 +566,7 @@ export const AdminPage = () => {
   const totalMocks = Object.keys(mocksByCategory).reduce((sum, cat) => sum + mocksByCategory[cat].length, 0)
   const activeMocks = Object.keys(mockSettings).filter(cat => mockSettings[cat] === true).reduce((sum, cat) => sum + (mocksByCategory[cat]?.length || 0), 0)
   const activeCities = allCities.filter(c => c.status === 'ativa').length
+  const pendingReports = reports.filter(r => r.status === 'pending').length
 
   return (
     <div className="min-h-screen bg-background">
@@ -567,6 +639,7 @@ export const AdminPage = () => {
             { id: 'categorias', label: 'Categorias', icon: Tag },
             { id: 'mockups', label: 'Mockups', icon: Sparkles },
             { id: 'cidades', label: 'Cidades', icon: MapPin },
+            { id: 'denuncias', label: 'Denúncias', icon: Flag, badge: pendingReports },
           ].map(tab => (
             <button key={tab.id} onClick={() => { setActiveTab(tab.id as Tab); setSearch('') }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-sm font-semibold transition-colors relative ${
@@ -576,14 +649,14 @@ export const AdminPage = () => {
               <span className="hidden sm:inline">{tab.label}</span>
               {tab.badge && tab.badge > 0 ? (
                 <span className={`absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] font-black flex items-center justify-center ${
-                  activeTab === tab.id ? 'bg-background text-primary' : 'bg-yellow-400 text-background'
+                  activeTab === tab.id ? 'bg-background text-primary' : 'bg-red-500 text-white'
                 }`}>{tab.badge}</span>
               ) : null}
             </button>
           ))}
         </div>
 
-        {activeTab !== 'categorias' && activeTab !== 'pendentes' && activeTab !== 'mockups' && activeTab !== 'cidades' && (
+        {activeTab !== 'categorias' && activeTab !== 'pendentes' && activeTab !== 'mockups' && activeTab !== 'cidades' && activeTab !== 'denuncias' && (
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -602,9 +675,10 @@ export const AdminPage = () => {
             {activeTab === 'categorias' && `${categories.length} categorias`}
             {activeTab === 'mockups' && `${activeMocks}/${totalMocks} perfis mockup ativos`}
             {activeTab === 'cidades' && `${activeCities}/${allCities.length} cidades ativas`}
+            {activeTab === 'denuncias' && `${reports.length} denúncias • ${pendingReports} pendentes`}
           </p>
           <div className="flex gap-2">
-            <button onClick={() => { loadUsers(); loadCategories(); loadMockSettings(); reloadCities(); loadProviderCounts() }}
+            <button onClick={() => { loadUsers(); loadCategories(); loadMockSettings(); reloadCities(); loadProviderCounts(); loadReports() }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors">
               <RefreshCw className="w-3.5 h-3.5" /> Atualizar
             </button>
@@ -629,7 +703,7 @@ export const AdminPage = () => {
           </div>
         </div>
 
-        {loadingData && activeTab !== 'mockups' && activeTab !== 'cidades' && (
+        {loadingData && activeTab !== 'mockups' && activeTab !== 'cidades' && activeTab !== 'denuncias' && (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
@@ -942,6 +1016,174 @@ export const AdminPage = () => {
             )}
           </div>
         )}
+
+        {/* ABA: DENÚNCIAS */}
+        {activeTab === 'denuncias' && (
+          <div className="space-y-4">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center shrink-0">
+                  <Flag className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white mb-1">Central de Denúncias</h3>
+                  <p className="text-xs text-red-300 leading-relaxed">
+                    Revise as denúncias enviadas pelos usuários. Tome as ações necessárias e marque como resolvidas.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filtros */}
+            <div className="flex gap-1.5 bg-surface border border-border rounded-xl p-1">
+              {([
+                { key: 'pending', label: 'Pendentes', color: 'text-yellow-400' },
+                { key: 'reviewed', label: 'Revisadas', color: 'text-blue-400' },
+                { key: 'resolved', label: 'Resolvidas', color: 'text-green-400' },
+                { key: 'all', label: 'Todas', color: 'text-muted' },
+              ] as const).map(f => {
+                const count = f.key === 'all' ? reports.length : reports.filter(r => r.status === f.key).length
+                return (
+                  <button
+                    key={f.key}
+                    onClick={() => setReportFilter(f.key)}
+                    className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+                      reportFilter === f.key ? 'bg-primary text-background' : `${f.color} hover:text-white`
+                    }`}
+                  >
+                    {f.label}
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                      reportFilter === f.key ? 'bg-background/30' : 'bg-background border border-border'
+                    }`}>{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {loadingReports ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+              </div>
+            ) : (() => {
+              const filtered = reportFilter === 'all' ? reports : reports.filter(r => r.status === reportFilter)
+              if (filtered.length === 0) return (
+                <div className="text-center py-16">
+                  <Flag className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
+                  <p className="font-semibold text-white">
+                    {reportFilter === 'pending' ? 'Nenhuma denúncia pendente' :
+                     reportFilter === 'reviewed' ? 'Nenhuma denúncia revisada' :
+                     reportFilter === 'resolved' ? 'Nenhuma denúncia resolvida' : 'Nenhuma denúncia'}
+                  </p>
+                  {reportFilter === 'pending' && <p className="text-xs text-muted mt-1">Tudo limpo por aqui! 🎉</p>}
+                </div>
+              )
+              return (
+                <div className="space-y-3">
+                  {filtered.map(report => (
+                    <motion.div key={report.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      className={`bg-surface border rounded-xl p-4 ${
+                        report.status === 'pending' ? 'border-yellow-500/30' :
+                        report.status === 'reviewed' ? 'border-blue-500/30' :
+                        'border-green-500/30 opacity-70'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                          report.status === 'pending' ? 'bg-yellow-500/15' :
+                          report.status === 'reviewed' ? 'bg-blue-500/15' : 'bg-green-500/15'
+                        }`}>
+                          <Flag className={`w-4 h-4 ${
+                            report.status === 'pending' ? 'text-yellow-400' :
+                            report.status === 'reviewed' ? 'text-blue-400' : 'text-green-400'
+                          }`} />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                              report.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
+                              report.status === 'reviewed' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' :
+                              'bg-green-500/10 border-green-500/30 text-green-400'
+                            }`}>
+                              {report.status === 'pending' ? '⏳ Pendente' :
+                               report.status === 'reviewed' ? '👁 Revisada' : '✅ Resolvida'}
+                            </span>
+                            <span className="text-[10px] text-muted">
+                              {report.createdAt?.toDate
+                                ? report.createdAt.toDate().toLocaleDateString('pt-BR', {
+                                    day: '2-digit', month: '2-digit', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit'
+                                  })
+                                : '—'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 mb-3 text-xs">
+                            <div className="bg-background rounded-lg px-3 py-2">
+                              <p className="text-muted mb-0.5">Denunciante</p>
+                              <p className="text-white font-semibold truncate">{report.reportedByName}</p>
+                            </div>
+                            <div className="bg-background rounded-lg px-3 py-2">
+                              <p className="text-muted mb-0.5">Denunciado</p>
+                              <p className="text-red-300 font-semibold truncate">{report.reportedUserName}</p>
+                            </div>
+                          </div>
+
+                          <div className="bg-background rounded-lg px-3 py-2 mb-3">
+                            <p className="text-[11px] text-muted mb-0.5">Motivo</p>
+                            <p className="text-xs text-white font-medium">{report.reason}</p>
+                            {report.description && (
+                              <p className="text-xs text-muted mt-1 leading-relaxed">{report.description}</p>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2 flex-wrap">
+                            <a
+                              href={`/chat/${report.chatId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-background border border-border text-muted hover:text-white text-xs rounded-lg transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Ver chat
+                            </a>
+
+                            {report.status === 'pending' && (
+                              <button
+                                onClick={() => updateReportStatus(report.id, 'reviewed')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 text-xs font-semibold rounded-lg transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                Marcar revisada
+                              </button>
+                            )}
+
+                            {report.status !== 'resolved' && (
+                              <button
+                                onClick={() => updateReportStatus(report.id, 'resolved')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 text-xs font-semibold rounded-lg transition-colors"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Resolver
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => deleteReport(report.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs rounded-lg transition-colors ml-auto"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        )}
       </div>
 
       {/* MODAL: REJEITAR */}
@@ -1037,12 +1279,12 @@ export const AdminPage = () => {
                 )}
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Nome *</label>
-              <input value={providerForm.name} onChange={e => setProviderForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome pessoal" className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs text-muted mb-1.5">Nome profissional (prestador)</label>
-                              <input value={providerForm.professionalName} onChange={e => setProviderForm(p => ({ ...p, professionalName: e.target.value }))} placeholder="Ex: Carol Fotografia, DJ Silva..." className={inputCls} />
-                                          </div>
+                  <input value={providerForm.name} onChange={e => setProviderForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome pessoal" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted mb-1.5">Nome profissional (prestador)</label>
+                  <input value={providerForm.professionalName} onChange={e => setProviderForm(p => ({ ...p, professionalName: e.target.value }))} placeholder="Ex: Carol Fotografia, DJ Silva..." className={inputCls} />
+                </div>
                 {!editingProvider && (
                   <>
                     <div>
@@ -1071,7 +1313,6 @@ export const AdminPage = () => {
                 </label>
               </div>
               <div className="flex gap-3 mt-6">
-                {/* ✅ CORREÇÃO AQUI: ; após setAvatarPreview('') e setCoverImagePreview('') */}
                 <button onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview(''); setCoverImageFile(null); setCoverImagePreview(''); }}
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors">Cancelar</button>
                 <button onClick={saveProvider} disabled={savingProvider || !providerForm.name.trim()}
