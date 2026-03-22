@@ -135,8 +135,7 @@ service cloud.firestore {
       allow update: if isAdmin() ||
         (isParticipant(resource.data) && notChanging('participants'));
 
-      allow delete: if isAdmin();
-
+    allow delete: if isAdmin() || isParticipant(resource.data);
       // ── /chats/{chatId}/messages/{messageId} ──
       match /messages/{messageId} {
         // Apenas participantes do chat pai lêem mensagens
@@ -155,7 +154,9 @@ service cloud.firestore {
 
         // Mensagens são imutáveis (sem edição ou deleção por clientes)
         allow update: if isAdmin();
-        allow delete: if isAdmin();
+              allow delete: if isAdmin() ||
+                        (isAuth() && request.auth.uid in
+                         get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
       }
     }
 
