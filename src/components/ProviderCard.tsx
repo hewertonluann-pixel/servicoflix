@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Star, MapPin, Clock, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { UserAvatar } from './UserAvatar'
+import { useUserPresence } from '@/hooks/usePresence'
 
 interface Provider {
   id: string
@@ -29,6 +30,7 @@ interface Props {
 
 export const ProviderCard = ({ provider, index = 0 }: Props) => {
   const [hovered, setHovered] = useState(false)
+    const { isOnline } = useUserPresence(provider.isMock ? null : provider.id)
 
   return (
     <motion.div
@@ -66,7 +68,7 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
               </div>
             )}
 
-            {provider.isOnline && (
+            {isOnline && (
               <div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-primary text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ zIndex: 10 }}>
                 <span className="w-1.5 h-1.5 bg-primary rounded-full" />
                 Online

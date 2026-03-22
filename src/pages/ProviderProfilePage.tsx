@@ -17,6 +17,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { mockProviders } from '@/data/mock'
 import { SocialLinks } from '@/types'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
+import { useUserPresence, formatLastSeen } from '@/hooks/usePresence'
 
 interface ProviderData {
   id: string
@@ -276,6 +277,7 @@ export const ProviderProfilePage = () => {
   const socialLinks = provider.providerProfile.socialLinks
   const displayName = provider.professionalName || provider.name
   const hasSocialLinks = socialLinks && Object.values(socialLinks).some(value => value && value.trim() !== '')
+  const { isOnline, lastSeen } = useUserPresence(provider.isMock ? null : provider.id)
   const isOwnProfile = user?.id === provider.id
   const showMessageBtn = !provider.isMock && !isOwnProfile
 
@@ -315,6 +317,15 @@ export const ProviderProfilePage = () => {
                         <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{displayName}</h1>
                         <p className="text-primary text-base sm:text-lg font-semibold">{provider.providerProfile.specialty}</p>
                       </div>
+                                  {isOnline && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/20 border border-green-500/40 rounded-full mb-1">
+                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <span className="text-xs font-semibold text-green-400">Online agora</span>
+              </div>
+            )}
+            {!isOnline && lastSeen && (
+              <p className="text-xs text-muted mb-1">{formatLastSeen(lastSeen)}</p>
+            )}
                       {provider.providerProfile.verified && (
                         <div className="hidden sm:flex items-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold shrink-0"><CheckCircle className="w-3.5 h-3.5" />Verificado</div>
                       )}

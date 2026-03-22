@@ -16,12 +16,14 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { EditProviderProfilePage } from '@/pages/EditProviderProfilePage'
 import { ChatPage } from '@/pages/ChatPage'
 import { ChatsPage } from '@/pages/ChatsPage'
+import { usePresence } from '@/hooks/usePresence'
 
 function App() {
   const location = useLocation()
   const hideNavbar = location.pathname.startsWith('/admin') || 
                      location.pathname.startsWith('/debug') || 
                      location.pathname.startsWith('/fix')
+    usePresence() // Heartbeat de presença online
 
   return (
     <div className="min-h-screen bg-background text-white font-sans">
