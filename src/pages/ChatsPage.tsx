@@ -75,14 +75,23 @@ export const ChatsPage = () => {
   const handleDeleteChat = async (chatId: string) => {
     setDeletingId(chatId)
     try {
+          let hasError = false
       await deleteChat(chatId)
-            setDeleteSuccess(true)
-      setTimeout(() => setDeleteSuccess(false), 3000)
+
+            // Log para debug
+      console.log('[ChatsPage] Chat excluído com sucesso:', chatId)
     } catch (err) {
       console.error('[ChatsPage] Erro ao excluir chat:', err)
+            hasError = true
     } finally {
       setDeletingId(null)
       setConfirmDeleteId(null)
+
+      // Mostra mensagem de sucesso apenas se não houver erro
+      if (!hasError) {
+        setDeleteSuccess(true)
+        setTimeout(() => setDeleteSuccess(false), 3000)
+      }
     }
   }
 
