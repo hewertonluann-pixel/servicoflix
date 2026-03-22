@@ -1006,7 +1006,6 @@ export const AdminPage = () => {
                         </button>
                       </div>
                     </div>
-                  </div>
                             <div className="mt-4">
                                           <label className="block text-xs text-muted mb-2">Foto de capa</label>
                                                         <div className="relative w-full h-28 rounded-xl overflow-hidden bg-background border border-border flex items-center justify-center">
@@ -1026,6 +1025,7 @@ export const AdminPage = () => {
                                                                                                                                                                                                                                                                                                   )}
                                                                                                                                                                                                                                                                                                                 <input ref={coverImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverImageChange} />
                                                                                                                                                                                                                                                                                                                             </div>
+                          </div>
                 )}
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Nome *</label>
