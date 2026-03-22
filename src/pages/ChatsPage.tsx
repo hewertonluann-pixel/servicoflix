@@ -146,16 +146,18 @@ export const ChatsPage = () => {
                 const otherName = otherInfo?.name || 'Usuário'
 
                 return (
-                  <motion.button
+                  <motion.div
                     key={chat.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04 }}
-                    onClick={() => navigate(`/chat/${chat.id}`)}
                     className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all text-left ${
                       unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
                     }`}
                   >
+                                  <button
+                onClick={() => navigate(`/chat/${chat.id}`)}
+                className="flex-1 flex items-center gap-4 text-left min-w-0"
                     <div className="relative shrink-0">
                       <UserAvatar src={otherAvatar} name={otherName} size={48} />
                       {unread > 0 && (
@@ -179,7 +181,17 @@ export const ChatsPage = () => {
                         {chat.lastMessage || 'Sem mensagens ainda'}
                       </p>
                     </div>
-                  </motion.button>
+                                  </button>
+
+              {/* Botão de excluir */}
+              <button
+                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(chat.id) }}
+                className="shrink-0 p-2 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                title="Excluir conversa"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+                  </motion.div>
                 )
               })}
             </div>
