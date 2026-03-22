@@ -49,7 +49,7 @@ export const EditProviderProfilePage = () => {
 
   const [profile, setProfile] = useState({
     name: '',
-    professionalname: '',
+        professionalName: '',
     specialty: '',
     bio: '',
     city: '',
@@ -101,7 +101,7 @@ export const EditProviderProfilePage = () => {
 
           setProfile({
             name: data.name || user.name || '',
-            professionalname: providerprofile.professionalname || data.name || user.name || ''    professionalname: '',,
+                        professionalName: providerProfile.professionalName || data.name || user.name || '',
             specialty: providerProfile.specialty || '',
             bio: providerProfile.bio || '',
             city: providerProfile.city || '',
@@ -259,7 +259,7 @@ export const EditProviderProfilePage = () => {
           // ✅ NÃO toca no campo `avatar` raiz (foto do Google) — apenas atualiza o nome
           name: profile.name,
           providerProfile: {
-            professionalname: profile.professionalname,
+                          professionalName: profile.professionalName,
           specialty: profile.specialty,
             bio: profile.bio,
             city: profile.city,
