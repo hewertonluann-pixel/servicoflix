@@ -58,7 +58,10 @@ export const SearchPage = () => {
           return countReal < 5
         })
         // Reais primeiro, depois mocks complementares
-        setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])         const catSnap = await getDocs(collection(db, 'categories'))         const cats = catSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter((c: any) => c.active).sort((a: any, b: any) => a.name.localeCompare(b.name))         setCategories(cats)
+        setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])         
+          const catSnap = await getDocs(collection(db, 'categories'))         
+          const cats = catSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter((c: any) => c.active).sort((a: any, b: any) => a.name.localeCompare(b.name))        
+      setCategories(cats)
       } catch (err) {
         console.warn('Fallback para mocks:', err)
         setAllProviders(mockProviders)
