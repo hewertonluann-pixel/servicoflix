@@ -405,7 +405,7 @@ export const AdminPage = () => {
       skills: (u.providerProfile?.skills || []).join(', '),
       whatsapp: u.providerProfile?.whatsapp || '',
       category: (u.providerProfile?.categories?.[0] || u.providerProfile?.category || ''),
-      professionalName: u.providerProfile?.professionalName || u.name || ''
+      professionalName: u.providerProfile?.professionalName || u.name || '',
       verified: u.providerProfile?.verified || false,
     })
     setAvatarFile(null)
