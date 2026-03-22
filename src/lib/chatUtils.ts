@@ -4,9 +4,12 @@ import {
   setDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
+  getDocs,
   serverTimestamp,
   collection,
   increment,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
@@ -123,4 +126,25 @@ export const markChatAsRead = async (chatId: string, userId: string): Promise<vo
   await updateDoc(chatRef, {
     [`unreadCount.${userId}`]: 0,
   }).catch(() => {})
+}
+
+/**
+ * Exclui um chat e todas as suas mensagens do Firestore.
+ * Usa writeBatch para deletar mensagens em lote (limite 500 por batch).
+ */
+export const deleteChat = async (chatId: string): Promise<void> => {
+  const messagesRef = collection(db, 'chats', chatId, 'messages')
+  const messagesSnap = await getDocs(messagesRef)
+
+  // Deleta mensagens em lotes de até 500
+  const batchSize = 500
+  const docs = messagesSnap.docs
+  for (let i = 0; i < docs.length; i += batchSize) {
+    const batch = writeBatch(db)
+    docs.slice(i, i + batchSize).forEach((d) => batch.delete(d.ref))
+    await batch.commit()
+  }
+
+  // Deleta o documento do chat
+  await deleteDoc(doc(db, 'chats', chatId))
 }
