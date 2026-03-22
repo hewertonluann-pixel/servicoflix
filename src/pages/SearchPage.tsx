@@ -9,19 +9,28 @@ import { ProviderCard } from '@/components/ProviderCard'
 
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
-  name: data.name || 'Sem nome',
+  // nome “comercial” se existir, senão o name normal
+  name: data.providerProfile?.professionalName || data.name || 'Sem nome',
   avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
-  coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
+  coverImage:
+    data.providerProfile?.coverImage ||
+    'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
   specialty: data.providerProfile?.specialty || 'Profissional',
-  category: (data.providerProfile?.categories?.[0] || data.providerProfile?.category || 'outros').toLowerCase(),
-  rating: data.providerProfile?.ratinname: data.providerProfile?.professionalName || data.name || 'Sem nome',gname: data.providerProfile?.professionalName || data.name || 'Sem nome',isOnline: data.providerProfile?.isOnline === true, || 5.0,
+  category:
+    (
+      data.providerProfile?.categories?.[0] ||
+      data.providerProfile?.category ||
+      'outros'
+    ).toLowerCase(),
+  rating: data.providerProfile?.rating || 5.0,
   reviewCount: data.providerProfile?.reviewCount || 0,
   priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
   city: data.providerProfile?.city || '',
-  neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
-  isOnline: true,
+  neighborhood:
+    data.providerProfile?.neighborhood || data.providerProfile?.city || '',
+  isOnline: data.providerProfile?.isOnline === true,
   isTopRated: data.providerProfile?.verified || false,
-  isFeatured: false,
+  isFeatured: data.providerProfile?.featured || false,
   bio: data.providerProfile?.bio || '',
   skills: data.providerProfile?.skills || [],
   completedJobs: data.providerProfile?.completedJobs || 0,
@@ -33,35 +42,47 @@ const docToProvider = (id: string, data: any): MockProvider => ({
 export const SearchPage = () => {
   const [searchParams] = useSearchParams()
   const [query, setQuery] = useState(searchParams.get('q') || '')
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoria') || '')
+  const [selectedCategory, setSelectedCategory] = useState(
+    searchParams.get('categoria') || ''
+  )
   const [allProviders, setAllProviders] = useState<MockProvider[]>([])
-  const [loading, setLoading] = useState(true) 
-  const [categories, setCategories] = useState<{id: string; name: string; icon: string}[]>([])
+  const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState<
+    { id: string; name: string; icon: string }[]
+  >([])
 
   useEffect(() => {
     const load = async () => {
       try {
         const snap = await getDocs(collection(db, 'users'))
         const reais: MockProvider[] = []
+
         snap.docs.forEach(d => {
           const data = d.data()
-          if (data.roles?.includes('provider') && data.providerProfile?.status === 'approved') {
+          if (
+            data.roles?.includes('provider') &&
+            data.providerProfile?.status === 'approved'
+          ) {
             reais.push(docToProvider(d.id, data))
           }
         })
+
         // Mocks como preenchimento: exibe apenas mocks de categorias sem reais suficientes
-        const categoriesWithReais = new Set(reais.map(p => p.category))
         const mocksFiltered = mockProviders.filter(p => {
           if (!p.isMock) return true // perfil real do dono sempre aparece
-          // Exibe o mock se a categoria ainda tem menos de 5 reais
           const countReal = reais.filter(r => r.category === p.category).length
           return countReal < 5
         })
+
         // Reais primeiro, depois mocks complementares
-        setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])         
-          const catSnap = await getDocs(collection(db, 'categories'))         
-          const cats = catSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter((c: any) => c.active).sort((a: any, b: any) => a.name.localeCompare(b.name))        
-      setCategories(cats)
+        setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])
+
+        const catSnap = await getDocs(collection(db, 'categories'))
+        const cats = catSnap.docs
+          .map(d => ({ id: d.id, ...(d.data() as any) }))
+          .filter((c: any) => c.active)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name))
+        setCategories(cats)
       } catch (err) {
         console.warn('Fallback para mocks:', err)
         setAllProviders(mockProviders)
@@ -73,10 +94,12 @@ export const SearchPage = () => {
   }, [])
 
   const filtered = allProviders.filter(p => {
-    const matchQuery = query === '' ||
-      p.name.toLowerCase().includes(query.toLowerCase()) ||
-      p.specialty.toLowerCase().includes(query.toLowerCase()) ||
-      p.skills?.some(s => s.toLowerCase().includes(query.toLowerCase()))
+    const q = query.toLowerCase()
+    const matchQuery =
+      query === '' ||
+      p.name.toLowerCase().includes(q) ||
+      p.specialty.toLowerCase().includes(q) ||
+      p.skills?.some(s => s.toLowerCase().includes(q))
     const matchCat = selectedCategory === '' || p.category === selectedCategory
     return matchQuery && matchCat
   })
@@ -86,7 +109,11 @@ export const SearchPage = () => {
 
   return (
     <div className="min-h-screen pt-20 px-4 sm:px-8 max-w-7xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
         <h1 className="text-2xl font-black mb-6">Explorar Profissionais</h1>
 
         <div className="flex gap-3 mb-6">
@@ -108,7 +135,9 @@ export const SearchPage = () => {
           <button
             onClick={() => setSelectedCategory('')}
             className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-              selectedCategory === '' ? 'bg-primary text-background' : 'bg-surface text-muted hover:text-white border border-border'
+              selectedCategory === ''
+                ? 'bg-primary text-background'
+                : 'bg-surface text-muted hover:text-white border border-border'
             }`}
           >
             Todos
@@ -118,7 +147,9 @@ export const SearchPage = () => {
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                selectedCategory === cat.id ? 'bg-primary text-background' : 'bg-surface text-muted hover:text-white border border-border'
+                selectedCategory === cat.id
+                  ? 'bg-primary text-background'
+                  : 'bg-surface text-muted hover:text-white border border-border'
               }`}
             >
               {cat.icon} {cat.name}
@@ -135,9 +166,19 @@ export const SearchPage = () => {
         <>
           <div className="flex items-center gap-3 mb-4">
             <p className="text-muted text-sm">
-              {realCount > 0 && <span className="text-white font-semibold">{realCount} real{realCount > 1 ? 'is' : ''}</span>}
-              {realCount > 0 && mockCount > 0 && <span className="text-muted"> + </span>}
-              {mockCount > 0 && <span className="text-red-400 text-sm">{mockCount} exemplo{mockCount > 1 ? 's' : ''}</span>}
+              {realCount > 0 && (
+                <span className="text-white font-semibold">
+                  {realCount} real{realCount > 1 ? 'is' : ''}
+                </span>
+              )}
+              {realCount > 0 && mockCount > 0 && (
+                <span className="text-muted"> + </span>
+              )}
+              {mockCount > 0 && (
+                <span className="text-red-400 text-sm">
+                  {mockCount} exemplo{mockCount > 1 ? 's' : ''}
+                </span>
+              )}
               {filtered.length === 0 && 'Nenhum profissional encontrado'}
             </p>
             {mockCount > 0 && (
