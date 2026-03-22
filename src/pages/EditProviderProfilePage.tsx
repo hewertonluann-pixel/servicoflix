@@ -49,6 +49,7 @@ export const EditProviderProfilePage = () => {
 
   const [profile, setProfile] = useState({
     name: '',
+    professionalname: '',
     specialty: '',
     bio: '',
     city: '',
@@ -100,6 +101,7 @@ export const EditProviderProfilePage = () => {
 
           setProfile({
             name: data.name || user.name || '',
+            professionalname: providerprofile.professionalname || data.name || user.name || ''    professionalname: '',,
             specialty: providerProfile.specialty || '',
             bio: providerProfile.bio || '',
             city: providerProfile.city || '',
@@ -257,7 +259,8 @@ export const EditProviderProfilePage = () => {
           // ✅ NÃO toca no campo `avatar` raiz (foto do Google) — apenas atualiza o nome
           name: profile.name,
           providerProfile: {
-            specialty: profile.specialty,
+            professionalname: profile.professionalname,
+          specialty: profile.specialty,
             bio: profile.bio,
             city: profile.city,
             neighborhood: profile.neighborhood,
@@ -538,7 +541,12 @@ export const EditProviderProfilePage = () => {
               <div className="bg-surface border border-border rounded-xl p-6">
                 <h2 className="text-lg font-bold text-white mb-4">Dados Básicos</h2>
                 <div className="space-y-4">
-                  <div><label className="block text-sm text-muted mb-2">Nome</label><input type="text" value={profile.name} onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Seu nome" /></div>
+                  <div><label className="block text-sm text-muted mb-2">Nome</label><input type="text" value={profile.name} onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Seu nome" />
+          </div>
+          <div>
+            <label className="block text-sm text-muted mb-2">Nome profissional (como prestador)</label>
+            <input type="text" value={profile.professionalName} onChange={e => setProfile(prev => ({ ...prev, professionalName: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Ex: Carol Fotografia, DJ Silva..." />
+            <p className="text-xs text-muted mt-1">Exibido nos cards e no seu perfil público</p></div>
                   <div><label className="block text-sm text-muted mb-2">Especialidade</label><input type="text" value={profile.specialty} onChange={e => setProfile(prev => ({ ...prev, specialty: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Ex: Músico, Eletricista, Designer" /></div>
                   <div><label className="block text-sm text-muted mb-2">Sobre você</label><textarea value={profile.bio} onChange={e => setProfile(prev => ({ ...prev, bio: e.target.value }))} rows={5} maxLength={500} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors resize-none" placeholder="Conte sobre sua experiência profissional..." /></div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

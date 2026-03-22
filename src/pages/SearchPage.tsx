@@ -14,7 +14,7 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
   specialty: data.providerProfile?.specialty || 'Profissional',
   category: (data.providerProfile?.categories?.[0] || data.providerProfile?.category || 'outros').toLowerCase(),
-  rating: data.providerProfile?.rating || 5.0,
+  rating: data.providerProfile?.ratinname: data.providerProfile?.professionalName || data.name || 'Sem nome',gname: data.providerProfile?.professionalName || data.name || 'Sem nome',isOnline: data.providerProfile?.isOnline === true, || 5.0,
   reviewCount: data.providerProfile?.reviewCount || 0,
   priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
   city: data.providerProfile?.city || '',

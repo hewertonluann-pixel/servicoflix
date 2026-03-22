@@ -58,6 +58,7 @@ const EMPTY_PROVIDER_FORM = {
   specialty: '', city: '', bio: '',
   priceFrom: '', skills: '', whatsapp: '', category: '',
   verified: false,
+  professionalname: ''
 }
 
 const UF_OPTIONS = [
@@ -345,6 +346,7 @@ export const AdminPage = () => {
       if (editingProvider) {
         const providerProfile = {
           ...editingProvider.providerProfile,
+          professionalName: providerForm.professionalName,
           specialty: providerForm.specialty,
           city: providerForm.city,
           bio: providerForm.bio,
@@ -367,6 +369,7 @@ export const AdminPage = () => {
           roles: ['client', 'provider'], clientProfile: {},
           providerProfile: {
             specialty: providerForm.specialty, city: providerForm.city,
+                      professionalName: providerForm.professionalName,
             bio: providerForm.bio, priceFrom: providerForm.priceFrom,
             skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
             whatsapp: providerForm.whatsapp,
@@ -402,6 +405,7 @@ export const AdminPage = () => {
       skills: (u.providerProfile?.skills || []).join(', '),
       whatsapp: u.providerProfile?.whatsapp || '',
       category: (u.providerProfile?.categories?.[0] || u.providerProfile?.category || ''),
+      professionalName: u.providerProfile?.professionalName || u.name || ''
       verified: u.providerProfile?.verified || false,
     })
     setAvatarFile(null)
@@ -1033,8 +1037,12 @@ export const AdminPage = () => {
                 )}
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Nome *</label>
-                  <input value={providerForm.name} onChange={e => setProviderForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" className={inputCls} />
-                </div>
+              <input value={providerForm.name} onChange={e => setProviderForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome pessoal" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs text-muted mb-1.5">Nome profissional (prestador)</label>
+                              <input value={providerForm.professionalName} onChange={e => setProviderForm(p => ({ ...p, professionalName: e.target.value }))} placeholder="Ex: Carol Fotografia, DJ Silva..." className={inputCls} />
+                                          </div>
                 {!editingProvider && (
                   <>
                     <div>
