@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Send, Loader2, MessageCircle, AlertCircle, ExternalLink, EllipsisVertical, Trash2, ShieldX, Flag } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, MessageCircle, AlertCircle, ExternalLink, MoreVertical, Trash2, ShieldX, Flag } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
@@ -35,7 +35,6 @@ export const ChatPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // ✅ Estados do menu "..."
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deletingChat, setDeletingChat] = useState(false)
@@ -49,7 +48,6 @@ export const ChatPage = () => {
   usePresence()
   const { isOnline, lastSeen } = useUserPresence(otherUser?.id)
 
-  // ✅ Fecha menu ao clicar fora
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -139,7 +137,6 @@ export const ChatPage = () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
-  // ✅ Excluir chat a partir do ChatPage
   const handleDeleteChat = async () => {
     if (!chatId) return
     setDeletingChat(true)
@@ -206,14 +203,14 @@ export const ChatPage = () => {
             </div>
           )}
 
-          {/* ✅ Botão "..." com menu */}
+          {/* Menu "..." */}
           <div className="relative shrink-0" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className="p-2 rounded-full hover:bg-background transition-colors"
               aria-label="Mais opções"
             >
-              <EllipsisVertical className="w-5 h-5 text-muted" />
+              <MoreVertical className="w-5 h-5 text-muted" />
             </button>
 
             <AnimatePresence>
@@ -225,27 +222,24 @@ export const ChatPage = () => {
                   transition={{ duration: 0.15 }}
                   className="absolute right-0 mt-2 w-48 bg-surface border border-border rounded-xl shadow-xl py-1 z-50"
                 >
-                  {/* Excluir */}
                   <button
                     onClick={() => { setMenuOpen(false); setConfirmDeleteOpen(true) }}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-red-400 text-sm rounded-lg mx-0"
+                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-red-400 text-sm"
                   >
                     <Trash2 className="w-4 h-4" />
                     Excluir conversa
                   </button>
 
-                  {/* Bloquear — stub, implementar depois */}
                   <button
-                    onClick={() => { setMenuOpen(false) /* TODO: abrir modal bloquear */ }}
+                    onClick={() => { setMenuOpen(false) }}
                     className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
                   >
                     <ShieldX className="w-4 h-4" />
                     Bloquear usuário
                   </button>
 
-                  {/* Denunciar — stub, implementar depois */}
                   <button
-                    onClick={() => { setMenuOpen(false) /* TODO: abrir ReportModal */ }}
+                    onClick={() => { setMenuOpen(false) }}
                     className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
                   >
                     <Flag className="w-4 h-4" />
@@ -310,7 +304,7 @@ export const ChatPage = () => {
         </div>
       </div>
 
-      {/* ✅ Modal de confirmação de exclusão */}
+      {/* Modal exclusão */}
       {confirmDeleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -349,4 +343,3 @@ export const ChatPage = () => {
     </>
   )
 }
-a
