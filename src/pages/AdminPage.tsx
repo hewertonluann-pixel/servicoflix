@@ -964,7 +964,7 @@ export const AdminPage = () => {
         {providerModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview('')  setCoverImageFile(null); setCoverImagePreview('')}}>
+            onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview(''); setCoverImageFile(null); setCoverImagePreview('')}}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()}
               className="bg-surface border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
