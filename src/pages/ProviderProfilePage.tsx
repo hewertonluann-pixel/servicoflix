@@ -109,6 +109,11 @@ export const ProviderProfilePage = () => {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [hdPhotoLoaded, setHdPhotoLoaded] = useState<Record<number, boolean>>({})
 
+  // ✅ Hook sempre chamado antes de qualquer return condicional (regra dos hooks do React)
+  const { isOnline, lastSeen } = useUserPresence(
+    loading || !provider || provider.isMock ? null : provider.id
+  )
+
   useEffect(() => {
     const loadProvider = async () => {
       if (!id) { setError('ID não fornecido'); setLoading(false); return }
@@ -277,7 +282,6 @@ export const ProviderProfilePage = () => {
   const socialLinks = provider.providerProfile.socialLinks
   const displayName = provider.professionalName || provider.name
   const hasSocialLinks = socialLinks && Object.values(socialLinks).some(value => value && value.trim() !== '')
-  const { isOnline, lastSeen } = useUserPresence(provider.isMock ? null : provider.id)
   const isOwnProfile = user?.id === provider.id
   const showMessageBtn = !provider.isMock && !isOwnProfile
 
