@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, Loader2, ArrowLeft, Compass, Trash2, AlertTriangle } from 'lucide-react'
+import { MessageCircle, Loader2, ArrowLeft, Compass, Trash2, AlertTriangle, MoreVertical, Flag, ShieldX } from 'lucide-react'
 import { ChatMeta, deleteChat } from '@/lib/chatUtils'
 import { UserAvatar } from '@/components/UserAvatar'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
+import { ReportModal } from '@/components/ReportModal'
 
 const formatRelative = (timestamp: any): string => {
   if (!timestamp) return ''
@@ -31,6 +32,23 @@ export const ChatsPage = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   const [deleteSuccess, setDeleteSuccess] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [reportChatId, setReportChatId] = useState<string | null>(null)
+  const [reportUserId, setReportUserId] = useState<string | null>(null)
+  const menuRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (openMenuId) {
+        const ref = menuRefs.current[openMenuId]
+        if (ref && !ref.contains(e.target as Node)) {
+          setOpenMenuId(null)
+        }
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [openMenuId])
 
   useEffect(() => {
     if (!user?.id) return
@@ -74,15 +92,12 @@ export const ChatsPage = () => {
   }
 
   const handleDeleteChat = async (chatId: string) => {
-    // Fecha modal e dispara animação de saída imediatamente
     setConfirmDeleteId(null)
     setRemovingId(chatId)
     setDeletingId(chatId)
 
-    // Aguarda animação terminar (320ms)
     await new Promise((res) => setTimeout(res, 320))
 
-    // Remove localmente sem esperar o Firestore
     setChats((prev) => prev.filter((c) => c.id !== chatId))
     setRemovingId(null)
 
@@ -160,6 +175,7 @@ export const ChatsPage = () => {
                   const otherInfo = chat.participantsInfo?.[otherId]
                   const unread = chat.unreadCount?.[user.id] || 0
                   const isRemoving = removingId === chat.id
+                  const isMenuOpen = openMenuId === chat.id
 
                   const otherAvatar = resolveAvatarFromDoc({
                     avatar: otherInfo?.avatar,
@@ -192,6 +208,7 @@ export const ChatsPage = () => {
                         unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
                       }`}
                     >
+                      {/* Área clicável do chat */}
                       <button
                         onClick={() => navigate(`/chat/${chat.id}`)}
                         className="flex-1 flex items-center gap-4 text-left min-w-0"
@@ -221,17 +238,71 @@ export const ChatsPage = () => {
                         </div>
                       </button>
 
-                      {/* Botão de excluir */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setConfirmDeleteId(chat.id)
-                        }}
-                        className="shrink-0 p-2 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                        title="Excluir conversa"
+                      {/* Menu "..." */}
+                      <div
+                        className="relative shrink-0"
+                        ref={(el) => { menuRefs.current[chat.id] = el }}
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenMenuId(isMenuOpen ? null : chat.id)
+                          }}
+                          className="p-2 rounded-full hover:bg-background transition-colors text-muted hover:text-white"
+                          aria-label="Mais opções"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        <AnimatePresence>
+                          {isMenuOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                              transition={{ duration: 0.15 }}
+                              className="absolute right-0 mt-2 w-48 bg-surface border border-border rounded-xl shadow-xl py-1 z-50"
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setOpenMenuId(null)
+                                  setConfirmDeleteId(chat.id)
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-red-400 text-sm"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Excluir conversa
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setOpenMenuId(null)
+                                  // TODO: bloquear
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
+                              >
+                                <ShieldX className="w-4 h-4" />
+                                Bloquear usuário
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setOpenMenuId(null)
+                                  setReportUserId(otherId)
+                                  setReportChatId(chat.id)
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
+                              >
+                                <Flag className="w-4 h-4" />
+                                Denunciar
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </motion.div>
                   )
                 })}
@@ -241,7 +312,7 @@ export const ChatsPage = () => {
         </div>
       </div>
 
-      {/* Modal de confirmação */}
+      {/* Modal de confirmação de exclusão */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -280,6 +351,17 @@ export const ChatsPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ReportModal */}
+      {reportUserId && reportChatId && (
+        <ReportModal
+          open={!!(reportUserId && reportChatId)}
+          onClose={() => { setReportUserId(null); setReportChatId(null) }}
+          reportedUserId={reportUserId}
+          chatId={reportChatId}
+          reportedByUserId={user.id}
+        />
       )}
     </>
   )
