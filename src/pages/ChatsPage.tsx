@@ -4,8 +4,8 @@ import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestor
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { motion } from 'framer-motion'
-import { MessageCircle, Loader2, ArrowLeft, Compass } from 'lucide-react'
-import { ChatMeta } from '@/lib/chatUtils'
+import { MessageCircle, Loader2, ArrowLeft, Compass, Trash2, AlertTriangle } from 'lucide-react'
+import { ChatMeta, deleteChat } from '@/lib/chatUtils'
 import { UserAvatar } from '@/components/UserAvatar'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 
@@ -27,6 +27,8 @@ export const ChatsPage = () => {
   const navigate = useNavigate()
   const [chats, setChats] = useState<ChatMeta[]>([])
   const [loading, setLoading] = useState(true)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user?.id) return
@@ -62,6 +64,18 @@ export const ChatsPage = () => {
         </div>
       </div>
     )
+  }
+
+  const handleDeleteChat = async (chatId: string) => {
+    setDeletingId(chatId)
+    try {
+      await deleteChat(chatId)
+    } catch (err) {
+      console.error('[ChatsPage] Erro ao excluir chat:', err)
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
+    }
   }
 
   const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount?.[user.id] || 0), 0)
@@ -167,5 +181,46 @@ export const ChatsPage = () => {
         )}
       </div>
     </div>
+
+    {/* modal de confirmação de exclusão */}
+    {confirmdeleteid && (
+      <div classname="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+        <div classname="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+          <div classname="flex items-center gap-3 mb-4">
+            <div classname="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+              <alerttriangle classname="w-5 h-5 text-red-400" />
+            </div>
+            <div>
+              <h3 classname="font-bold text-white text-base">excluir conversa</h3>
+              <p classname="text-sm text-muted">esta ação não pode ser desfeita.</p>
+            </div>
+          </div>
+          <p classname="text-sm text-muted mb-6">
+            todas as mensagens desta conversa serão apagadas permanentemente.
+          </p>
+          <div classname="flex gap-3">
+            <button
+              onclick={() => setconfirmdeleteid(null)}
+              disabled={deletingid === confirmdeleteid}
+              classname="flex-1 py-2.5 rounded-xl border border-border text-muted font-semibold text-sm hover:text-white transition-colors disabled:opacity-50"
+            >
+              cancelar
+            </button>
+            <button
+              onclick={() => handledeletechat(confirmdeleteid)}
+              disabled={deletingid === confirmdeleteid}
+              classname="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {deletingid === confirmdeleteid ? (
+                <loader2 classname="w-4 h-4 animate-spin" />
+              ) : (
+                <trash2 classname="w-4 h-4" />
+              )}
+              {deletingid === confirmdeleteid ? 'excluindo...' : 'excluir'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   )
 }
