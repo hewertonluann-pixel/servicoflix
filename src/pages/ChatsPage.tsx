@@ -60,7 +60,12 @@ export const ChatsPage = () => {
         <div className="text-center">
           <MessageCircle className="w-12 h-12 text-muted mx-auto mb-4" />
           <p className="text-white font-semibold mb-2">Faça login para ver suas mensagens</p>
-          <button onClick={() => navigate('/entrar?redirect=/chats')} className="mt-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl text-sm">Entrar</button>
+          <button
+            onClick={() => navigate('/entrar?redirect=/chats')}
+            className="mt-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl text-sm"
+          >
+            Entrar
+          </button>
         </div>
       </div>
     )
@@ -80,147 +85,148 @@ export const ChatsPage = () => {
 
   const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount?.[user.id] || 0), 0)
 
+  // ✅ Fragment envolvendo o return inteiro para permitir o modal fora do div principal
   return (
-    <div className="min-h-screen pt-16 pb-20 bg-background">
-      <div className="bg-surface border-b border-border sticky top-16 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-background rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-muted" />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-white flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-primary" />
-              Mensagens
-              {totalUnread > 0 && (
-                <span className="ml-1 px-2 py-0.5 bg-primary text-background text-[11px] font-black rounded-full">
-                  {totalUnread > 99 ? '99+' : totalUnread}
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-muted">{chats.length} conversa{chats.length !== 1 ? 's' : ''}</p>
+    <>
+      <div className="min-h-screen pt-16 pb-20 bg-background">
+        <div className="bg-surface border-b border-border sticky top-16 z-10">
+          <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
+            <button onClick={() => navigate(-1)} className="p-2 hover:bg-background rounded-lg transition-colors">
+              <ArrowLeft className="w-5 h-5 text-muted" />
+            </button>
+            <div className="flex-1">
+              <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-primary" />
+                Mensagens
+                {totalUnread > 0 && (
+                  <span className="ml-1 px-2 py-0.5 bg-primary text-background text-[11px] font-black rounded-full">
+                    {totalUnread > 99 ? '99+' : totalUnread}
+                  </span>
+                )}
+              </h1>
+              <p className="text-xs text-muted">{chats.length} conversa{chats.length !== 1 ? 's' : ''}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-2xl mx-auto px-4 mt-4">
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          </div>
-        ) : chats.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center">
-              <MessageCircle className="w-10 h-10 text-muted" />
+        <div className="max-w-2xl mx-auto px-4 mt-4">
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
-            <p className="text-white font-semibold text-lg">Nenhuma conversa ainda</p>
-            <p className="text-muted text-sm max-w-xs">Quando você entrar em contato com um prestador, a conversa aparecerá aqui.</p>
-            <Link
-              to="/buscar"
-              className="mt-2 flex items-center gap-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors text-sm"
-            >
-              <Compass className="w-4 h-4" />
-              Explorar prestadores
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {chats.map((chat, i) => {
-              const otherId = chat.participants.find((p) => p !== user.id) || ''
-              const otherInfo = chat.participantsInfo?.[otherId]
-              const unread = chat.unreadCount?.[user.id] || 0
+          ) : chats.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+              <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center">
+                <MessageCircle className="w-10 h-10 text-muted" />
+              </div>
+              <p className="text-white font-semibold text-lg">Nenhuma conversa ainda</p>
+              <p className="text-muted text-sm max-w-xs">Quando você entrar em contato com um prestador, a conversa aparecerá aqui.</p>
+              <Link
+                to="/buscar"
+                className="mt-2 flex items-center gap-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors text-sm"
+              >
+                <Compass className="w-4 h-4" />
+                Explorar prestadores
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {chats.map((chat, i) => {
+                const otherId = chat.participants.find((p) => p !== user.id) || ''
+                const otherInfo = chat.participantsInfo?.[otherId]
+                const unread = chat.unreadCount?.[user.id] || 0
 
-              // Usa resolveAvatarFromDoc para aplicar hierarquia correta:
-              // Storage manual > googlePhotoURL salvo > providerAvatar > avatar
-              const otherAvatar = resolveAvatarFromDoc({
-                avatar: otherInfo?.avatar,
-                googlePhotoURL: (otherInfo as any)?.googlePhotoURL,
-                providerProfile: otherInfo?.providerAvatar
-                  ? { avatar: otherInfo.providerAvatar }
-                  : undefined,
-              })
-              const otherName = otherInfo?.name || 'Usuário'
+                const otherAvatar = resolveAvatarFromDoc({
+                  avatar: otherInfo?.avatar,
+                  googlePhotoURL: (otherInfo as any)?.googlePhotoURL,
+                  providerProfile: otherInfo?.providerAvatar
+                    ? { avatar: otherInfo.providerAvatar }
+                    : undefined,
+                })
+                const otherName = otherInfo?.name || 'Usuário'
 
-              return (
-                <motion.button
-                  key={chat.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  onClick={() => navigate(`/chat/${chat.id}`)}
-                  className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all text-left ${
-                    unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                    <UserAvatar src={otherAvatar} name={otherName} size={48} />
-                    {unread > 0 && (
-                      <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
-                        {unread > 9 ? '9+' : unread}
-                      </span>
-                    )}
-                  </div>
+                return (
+                  <motion.button
+                    key={chat.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    onClick={() => navigate(`/chat/${chat.id}`)}
+                    className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all text-left ${
+                      unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
+                    }`}
+                  >
+                    <div className="relative shrink-0">
+                      <UserAvatar src={otherAvatar} name={otherName} size={48} />
+                      {unread > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
+                          {unread > 9 ? '9+' : unread}
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <p className={`text-sm truncate ${ unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80' }`}>
-                        {otherName}
-                      </p>
-                      <p className={`text-[11px] shrink-0 ml-2 ${ unread > 0 ? 'text-primary font-semibold' : 'text-muted' }`}>
-                        {formatRelative(chat.lastMessageAt)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <p className={`text-sm truncate ${unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80'}`}>
+                          {otherName}
+                        </p>
+                        <p className={`text-[11px] shrink-0 ml-2 ${unread > 0 ? 'text-primary font-semibold' : 'text-muted'}`}>
+                          {formatRelative(chat.lastMessageAt)}
+                        </p>
+                      </div>
+                      <p className={`text-xs truncate ${unread > 0 ? 'text-white/70 font-medium' : 'text-muted'}`}>
+                        {chat.lastMessageBy === user.id ? 'Você: ' : ''}
+                        {chat.lastMessage || 'Sem mensagens ainda'}
                       </p>
                     </div>
-                    <p className={`text-xs truncate ${ unread > 0 ? 'text-white/70 font-medium' : 'text-muted' }`}>
-                      {chat.lastMessageBy === user.id ? 'Você: ' : ''}
-                      {chat.lastMessage || 'Sem mensagens ainda'}
-                    </p>
-                  </div>
-                </motion.button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-
-    {/* modal de confirmação de exclusão */}
-    {confirmdeleteid && (
-      <div classname="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-        <div classname="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-          <div classname="flex items-center gap-3 mb-4">
-            <div classname="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
-              <alerttriangle classname="w-5 h-5 text-red-400" />
+                  </motion.button>
+                )
+              })}
             </div>
-            <div>
-              <h3 classname="font-bold text-white text-base">excluir conversa</h3>
-              <p classname="text-sm text-muted">esta ação não pode ser desfeita.</p>
-            </div>
-          </div>
-          <p classname="text-sm text-muted mb-6">
-            todas as mensagens desta conversa serão apagadas permanentemente.
-          </p>
-          <div classname="flex gap-3">
-            <button
-              onclick={() => setconfirmdeleteid(null)}
-              disabled={deletingid === confirmdeleteid}
-              classname="flex-1 py-2.5 rounded-xl border border-border text-muted font-semibold text-sm hover:text-white transition-colors disabled:opacity-50"
-            >
-              cancelar
-            </button>
-            <button
-              onclick={() => handledeletechat(confirmdeleteid)}
-              disabled={deletingid === confirmdeleteid}
-              classname="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {deletingid === confirmdeleteid ? (
-                <loader2 classname="w-4 h-4 animate-spin" />
-              ) : (
-                <trash2 classname="w-4 h-4" />
-              )}
-              {deletingid === confirmdeleteid ? 'excluindo...' : 'excluir'}
-            </button>
-          </div>
+          )}
         </div>
       </div>
-    )}
+
+      {/* ✅ Modal de confirmação de exclusão — agora dentro do Fragment, fora do div principal */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Excluir conversa</h3>
+                <p className="text-sm text-muted">Esta ação não pode ser desfeita.</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted mb-6">
+              Todas as mensagens desta conversa serão apagadas permanentemente.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                disabled={deletingId === confirmDeleteId}
+                className="flex-1 py-2.5 rounded-xl border border-border text-muted font-semibold text-sm hover:text-white transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDeleteChat(confirmDeleteId)}
+                disabled={deletingId === confirmDeleteId}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deletingId === confirmDeleteId ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                {deletingId === confirmDeleteId ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
