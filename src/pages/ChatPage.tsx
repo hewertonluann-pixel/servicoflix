@@ -10,6 +10,7 @@ import { usePresence, useUserPresence, formatLastSeen } from '@/hooks/usePresenc
 import { createOrGetChat, sendMessage, markChatAsRead, ChatParticipantInfo, deleteChat } from '@/lib/chatUtils'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 import { UserAvatar } from '@/components/UserAvatar'
+import { ReportModal } from '@/components/ReportModal' // ✅ 1. Import novo
 
 const formatTime = (timestamp: any): string => {
   if (!timestamp) return ''
@@ -38,6 +39,7 @@ export const ChatPage = () => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deletingChat, setDeletingChat] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false) // ✅ 2. State novo
   const menuRef = useRef<HTMLDivElement>(null)
 
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -238,8 +240,9 @@ export const ChatPage = () => {
                     Bloquear usuário
                   </button>
 
+                  {/* ✅ 3. Botão Denunciar conectado ao ReportModal */}
                   <button
-                    onClick={() => { setMenuOpen(false) }}
+                    onClick={() => { setMenuOpen(false); setReportOpen(true) }}
                     className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
                   >
                     <Flag className="w-4 h-4" />
@@ -339,6 +342,17 @@ export const ChatPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ✅ 3. ReportModal conectado */}
+      {otherUser && chatId && (
+        <ReportModal
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          reportedUserId={otherUser.id}
+          chatId={chatId}
+          reportedByUserId={user.id}
+        />
       )}
     </>
   )
