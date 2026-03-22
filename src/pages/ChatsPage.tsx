@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { MessageCircle, Loader2, ArrowLeft, Compass, Trash2, AlertTriangle } from 'lucide-react'
 import { ChatMeta, deleteChat } from '@/lib/chatUtils'
 import { UserAvatar } from '@/components/UserAvatar'
@@ -29,7 +29,8 @@ export const ChatsPage = () => {
   const [loading, setLoading] = useState(true)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-    const [deleteSuccess, setDeleteSuccess] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [deleteSuccess, setDeleteSuccess] = useState(false)
 
   useEffect(() => {
     if (!user?.id) return
@@ -73,25 +74,26 @@ export const ChatsPage = () => {
   }
 
   const handleDeleteChat = async (chatId: string) => {
+    // Fecha modal e dispara animação de saída imediatamente
+    setConfirmDeleteId(null)
+    setRemovingId(chatId)
     setDeletingId(chatId)
-    try {
-          let hasError = false
-      await deleteChat(chatId)
 
-            // Log para debug
-      console.log('[ChatsPage] Chat excluído com sucesso:', chatId)
+    // Aguarda animação terminar (320ms)
+    await new Promise((res) => setTimeout(res, 320))
+
+    // Remove localmente sem esperar o Firestore
+    setChats((prev) => prev.filter((c) => c.id !== chatId))
+    setRemovingId(null)
+
+    try {
+      await deleteChat(chatId)
+      setDeleteSuccess(true)
+      setTimeout(() => setDeleteSuccess(false), 3000)
     } catch (err) {
       console.error('[ChatsPage] Erro ao excluir chat:', err)
-            hasError = true
     } finally {
       setDeletingId(null)
-      setConfirmDeleteId(null)
-
-      // Mostra mensagem de sucesso apenas se não houver erro
-      if (!hasError) {
-        setDeleteSuccess(true)
-        setTimeout(() => setDeleteSuccess(false), 3000)
-      }
     }
   }
 
@@ -99,13 +101,14 @@ export const ChatsPage = () => {
 
   return (
     <>
-          {/* Toast de sucesso ao excluir */}
+      {/* Toast de sucesso */}
       {deleteSuccess && (
         <div className="fixed bottom-4 right-4 z-50 bg-surface border border-green-500/40 text-green-300 px-4 py-3 rounded-xl shadow-lg text-sm flex items-center gap-2 animate-in slide-in-from-bottom">
           <MessageCircle className="w-4 h-4" />
           Conversa excluída com sucesso.
         </div>
       )}
+
       <div className="min-h-screen pt-16 pb-20 bg-background">
         <div className="bg-surface border-b border-border sticky top-16 z-10">
           <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
@@ -151,80 +154,94 @@ export const ChatsPage = () => {
             </div>
           ) : (
             <div className="space-y-2">
-              {chats.map((chat, i) => {
-                const otherId = chat.participants.find((p) => p !== user.id) || ''
-                const otherInfo = chat.participantsInfo?.[otherId]
-                const unread = chat.unreadCount?.[user.id] || 0
+              <AnimatePresence initial={false}>
+                {chats.map((chat, i) => {
+                  const otherId = chat.participants.find((p) => p !== user.id) || ''
+                  const otherInfo = chat.participantsInfo?.[otherId]
+                  const unread = chat.unreadCount?.[user.id] || 0
+                  const isRemoving = removingId === chat.id
 
-                const otherAvatar = resolveAvatarFromDoc({
-                  avatar: otherInfo?.avatar,
-                  googlePhotoURL: (otherInfo as any)?.googlePhotoURL,
-                  providerProfile: otherInfo?.providerAvatar
-                    ? { avatar: otherInfo.providerAvatar }
-                    : undefined,
-                })
-                const otherName = otherInfo?.name || 'Usuário'
+                  const otherAvatar = resolveAvatarFromDoc({
+                    avatar: otherInfo?.avatar,
+                    googlePhotoURL: (otherInfo as any)?.googlePhotoURL,
+                    providerProfile: otherInfo?.providerAvatar
+                      ? { avatar: otherInfo.providerAvatar }
+                      : undefined,
+                  })
+                  const otherName = otherInfo?.name || 'Usuário'
 
-                return (
-                  <motion.div
-                    key={chat.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all ${
-                      unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
-                    }`}
-                  >
-                    {/* ✅ Tag de abertura corrigida — faltava o ">" no original */}
-                    <button
-                      onClick={() => navigate(`/chat/${chat.id}`)}
-                      className="flex-1 flex items-center gap-4 text-left min-w-0"
+                  return (
+                    <motion.div
+                      key={chat.id}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{
+                        opacity: isRemoving ? 0 : 1,
+                        x: isRemoving ? 60 : 0,
+                        scale: isRemoving ? 0.95 : 1,
+                        height: isRemoving ? 0 : 'auto',
+                      }}
+                      exit={{ opacity: 0, x: 60, scale: 0.95, height: 0 }}
+                      transition={{
+                        duration: 0.3,
+                        ease: 'easeInOut',
+                        delay: isRemoving ? 0 : i * 0.04,
+                      }}
+                      style={{ overflow: 'hidden' }}
+                      className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-colors ${
+                        unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
+                      }`}
                     >
-                      <div className="relative shrink-0">
-                        <UserAvatar src={otherAvatar} name={otherName} size={48} />
-                        {unread > 0 && (
-                          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
-                            {unread > 9 ? '9+' : unread}
-                          </span>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => navigate(`/chat/${chat.id}`)}
+                        className="flex-1 flex items-center gap-4 text-left min-w-0"
+                      >
+                        <div className="relative shrink-0">
+                          <UserAvatar src={otherAvatar} name={otherName} size={48} />
+                          {unread > 0 && (
+                            <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
+                              {unread > 9 ? '9+' : unread}
+                            </span>
+                          )}
+                        </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <p className={`text-sm truncate ${unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80'}`}>
-                            {otherName}
-                          </p>
-                          <p className={`text-[11px] shrink-0 ml-2 ${unread > 0 ? 'text-primary font-semibold' : 'text-muted'}`}>
-                            {formatRelative(chat.lastMessageAt)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <p className={`text-sm truncate ${unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80'}`}>
+                              {otherName}
+                            </p>
+                            <p className={`text-[11px] shrink-0 ml-2 ${unread > 0 ? 'text-primary font-semibold' : 'text-muted'}`}>
+                              {formatRelative(chat.lastMessageAt)}
+                            </p>
+                          </div>
+                          <p className={`text-xs truncate ${unread > 0 ? 'text-white/70 font-medium' : 'text-muted'}`}>
+                            {chat.lastMessageBy === user.id ? 'Você: ' : ''}
+                            {chat.lastMessage || 'Sem mensagens ainda'}
                           </p>
                         </div>
-                        <p className={`text-xs truncate ${unread > 0 ? 'text-white/70 font-medium' : 'text-muted'}`}>
-                          {chat.lastMessageBy === user.id ? 'Você: ' : ''}
-                          {chat.lastMessage || 'Sem mensagens ainda'}
-                        </p>
-                      </div>
-                    </button>
+                      </button>
 
-                    {/* Botão de excluir */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setConfirmDeleteId(chat.id)
-                      }}
-                      className="shrink-0 p-2 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                      title="Excluir conversa"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                )
-              })}
+                      {/* Botão de excluir */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setConfirmDeleteId(chat.id)
+                        }}
+                        className="shrink-0 p-2 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                        title="Excluir conversa"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  )
+                })}
+              </AnimatePresence>
             </div>
           )}
         </div>
       </div>
 
-      {/* Modal de confirmação de exclusão */}
+      {/* Modal de confirmação */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
