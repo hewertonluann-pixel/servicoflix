@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { mockProviders, mockCategories, MockProvider } from '@/data/mock'
+import { mockProviders, MockProvider } from '@/data/mock'
 import { ProviderCard } from '@/components/ProviderCard'
 
 const docToProvider = (id: string, data: any): MockProvider => ({
@@ -35,7 +35,7 @@ export const SearchPage = () => {
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoria') || '')
   const [allProviders, setAllProviders] = useState<MockProvider[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)   const [categories, setCategories] = useState<{id: string; name: string; icon: string}[]>([])
 
   useEffect(() => {
     const load = async () => {
@@ -57,7 +57,7 @@ export const SearchPage = () => {
           return countReal < 5
         })
         // Reais primeiro, depois mocks complementares
-        setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])
+        setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])         const catSnap = await getDocs(collection(db, 'categories'))         const cats = catSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter((c: any) => c.active).sort((a: any, b: any) => a.name.localeCompare(b.name))         setCategories(cats)
       } catch (err) {
         console.warn('Fallback para mocks:', err)
         setAllProviders(mockProviders)
@@ -109,7 +109,7 @@ export const SearchPage = () => {
           >
             Todos
           </button>
-          {mockCategories.map(cat => (
+          {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
