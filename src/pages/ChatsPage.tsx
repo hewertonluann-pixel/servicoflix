@@ -85,7 +85,6 @@ export const ChatsPage = () => {
 
   const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount?.[user.id] || 0), 0)
 
-  // ✅ Fragment envolvendo o return inteiro para permitir o modal fora do div principal
   return (
     <>
       <div className="min-h-screen pt-16 pb-20 bg-background">
@@ -120,7 +119,9 @@ export const ChatsPage = () => {
                 <MessageCircle className="w-10 h-10 text-muted" />
               </div>
               <p className="text-white font-semibold text-lg">Nenhuma conversa ainda</p>
-              <p className="text-muted text-sm max-w-xs">Quando você entrar em contato com um prestador, a conversa aparecerá aqui.</p>
+              <p className="text-muted text-sm max-w-xs">
+                Quando você entrar em contato com um prestador, a conversa aparecerá aqui.
+              </p>
               <Link
                 to="/buscar"
                 className="mt-2 flex items-center gap-2 px-6 py-2.5 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors text-sm"
@@ -151,46 +152,51 @@ export const ChatsPage = () => {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04 }}
-                    className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all text-left ${
+                    className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-all ${
                       unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
                     }`}
                   >
-                                  <button
-                onClick={() => navigate(`/chat/${chat.id}`)}
-                className="flex-1 flex items-center gap-4 text-left min-w-0"
-                    <div className="relative shrink-0">
-                      <UserAvatar src={otherAvatar} name={otherName} size={48} />
-                      {unread > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
-                          {unread > 9 ? '9+' : unread}
-                        </span>
-                      )}
-                    </div>
+                    {/* ✅ Tag de abertura corrigida — faltava o ">" no original */}
+                    <button
+                      onClick={() => navigate(`/chat/${chat.id}`)}
+                      className="flex-1 flex items-center gap-4 text-left min-w-0"
+                    >
+                      <div className="relative shrink-0">
+                        <UserAvatar src={otherAvatar} name={otherName} size={48} />
+                        {unread > 0 && (
+                          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
+                            {unread > 9 ? '9+' : unread}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <p className={`text-sm truncate ${unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80'}`}>
-                          {otherName}
-                        </p>
-                        <p className={`text-[11px] shrink-0 ml-2 ${unread > 0 ? 'text-primary font-semibold' : 'text-muted'}`}>
-                          {formatRelative(chat.lastMessageAt)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <p className={`text-sm truncate ${unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80'}`}>
+                            {otherName}
+                          </p>
+                          <p className={`text-[11px] shrink-0 ml-2 ${unread > 0 ? 'text-primary font-semibold' : 'text-muted'}`}>
+                            {formatRelative(chat.lastMessageAt)}
+                          </p>
+                        </div>
+                        <p className={`text-xs truncate ${unread > 0 ? 'text-white/70 font-medium' : 'text-muted'}`}>
+                          {chat.lastMessageBy === user.id ? 'Você: ' : ''}
+                          {chat.lastMessage || 'Sem mensagens ainda'}
                         </p>
                       </div>
-                      <p className={`text-xs truncate ${unread > 0 ? 'text-white/70 font-medium' : 'text-muted'}`}>
-                        {chat.lastMessageBy === user.id ? 'Você: ' : ''}
-                        {chat.lastMessage || 'Sem mensagens ainda'}
-                      </p>
-                    </div>
-                                  </button>
+                    </button>
 
-              {/* Botão de excluir */}
-              <button
-                onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(chat.id) }}
-                className="shrink-0 p-2 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                title="Excluir conversa"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+                    {/* Botão de excluir */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setConfirmDeleteId(chat.id)
+                      }}
+                      className="shrink-0 p-2 rounded-lg text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                      title="Excluir conversa"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </motion.div>
                 )
               })}
@@ -199,7 +205,7 @@ export const ChatsPage = () => {
         </div>
       </div>
 
-      {/* ✅ Modal de confirmação de exclusão — agora dentro do Fragment, fora do div principal */}
+      {/* Modal de confirmação de exclusão */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
