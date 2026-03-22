@@ -35,7 +35,8 @@ export const SearchPage = () => {
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoria') || '')
   const [allProviders, setAllProviders] = useState<MockProvider[]>([])
-  const [loading, setLoading] = useState(true)   const [categories, setCategories] = useState<{id: string; name: string; icon: string}[]>([])
+  const [loading, setLoading] = useState(true) 
+  const [categories, setCategories] = useState<{id: string; name: string; icon: string}[]>([])
 
   useEffect(() => {
     const load = async () => {
