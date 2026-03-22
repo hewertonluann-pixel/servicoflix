@@ -93,9 +93,9 @@ export const AdminPage = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string>('')
   const avatarInputRef = useRef<HTMLInputElement>(null)
-    const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
-      const [coverImagePreview, setCoverImagePreview] = useState<string>('')
-        const coverImageInputRef = useRef<HTMLInputElement>(null)
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
+  const [coverImagePreview, setCoverImagePreview] = useState<string>('')
+  const coverImageInputRef = useRef<HTMLInputElement>(null)
 
   // Cidades
   const { cities: allCities, loading: loadingCities, reload: reloadCities } = useAllCities()
@@ -319,12 +319,12 @@ export const AdminPage = () => {
     setAvatarPreview(URL.createObjectURL(file))
   }
 
-    const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-          const file = e.target.files?.[0]
-              if (!file) return
-                  setCoverImageFile(file)
-                      setCoverImagePreview(URL.createObjectURL(file))
-                        }
+  const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCoverImageFile(file)
+    setCoverImagePreview(URL.createObjectURL(file))
+  }
 
   const saveProvider = async () => {
     if (!providerForm.name.trim() || (!editingProvider && !providerForm.email.trim())) return
@@ -336,12 +336,12 @@ export const AdminPage = () => {
         await uploadBytes(fileRef, avatarFile)
         avatarUrl = await getDownloadURL(fileRef)
       }
-            let coverImageUrl: string | undefined = undefined
-                  if (coverImageFile && editingProvider) {
-                            const coverRef = storageRef(storage, `covers/${editingProvider.id}/cover`)
-                                    await uploadBytes(coverRef, coverImageFile)
-                                            coverImageUrl = await getDownloadURL(coverRef)
-                                                  }
+      let coverImageUrl: string | undefined = undefined
+      if (coverImageFile && editingProvider) {
+        const coverRef = storageRef(storage, `covers/${editingProvider.id}/cover`)
+        await uploadBytes(coverRef, coverImageFile)
+        coverImageUrl = await getDownloadURL(coverRef)
+      }
       if (editingProvider) {
         const providerProfile = {
           ...editingProvider.providerProfile,
@@ -350,10 +350,11 @@ export const AdminPage = () => {
           bio: providerForm.bio,
           priceFrom: providerForm.priceFrom,
           skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
-          whatsapp: providerForm.whatsapp, categories: providerForm.category ? [providerForm.category] : [],
+          whatsapp: providerForm.whatsapp,
+          categories: providerForm.category ? [providerForm.category] : [],
           verified: providerForm.verified,
           ...(avatarUrl ? { avatar: avatarUrl } : {}),
-                      ...(coverImageUrl ? { coverImage: coverImageUrl } : {}),
+          ...(coverImageUrl ? { coverImage: coverImageUrl } : {}),
         }
         await updateDoc(doc(db, 'users', editingProvider.id), { name: providerForm.name, providerProfile })
         setUsers(prev => prev.map(u => u.id === editingProvider.id ? { ...u, name: providerForm.name, providerProfile } : u))
@@ -368,7 +369,9 @@ export const AdminPage = () => {
             specialty: providerForm.specialty, city: providerForm.city,
             bio: providerForm.bio, priceFrom: providerForm.priceFrom,
             skills: providerForm.skills.split(',').map(s => s.trim()).filter(Boolean),
-            whatsapp: providerForm.whatsapp, categories: providerForm.category ? [providerForm.category] : [], verified: providerForm.verified, status: 'approved',
+            whatsapp: providerForm.whatsapp,
+            categories: providerForm.category ? [providerForm.category] : [],
+            verified: providerForm.verified, status: 'approved',
           },
           createdAt: serverTimestamp(),
         }
@@ -381,8 +384,8 @@ export const AdminPage = () => {
       setEditingProvider(null)
       setAvatarFile(null)
       setAvatarPreview('')
-            setCoverImageFile(null)
-                  setCoverImagePreview('')
+      setCoverImageFile(null)
+      setCoverImagePreview('')
     } catch (err: any) {
       showToast(err?.message || 'Erro ao salvar prestador', 'error')
     } finally { setSavingProvider(false) }
@@ -397,13 +400,14 @@ export const AdminPage = () => {
       bio: u.providerProfile?.bio || '',
       priceFrom: u.providerProfile?.priceFrom || '',
       skills: (u.providerProfile?.skills || []).join(', '),
-      whatsapp: u.providerProfile?.whatsapp || '', category: (u.providerProfile?.categories?.[0] || u.providerProfile?.category || ''),
+      whatsapp: u.providerProfile?.whatsapp || '',
+      category: (u.providerProfile?.categories?.[0] || u.providerProfile?.category || ''),
       verified: u.providerProfile?.verified || false,
     })
     setAvatarFile(null)
     setAvatarPreview(u.providerProfile?.avatar || u.avatar || '')
-      setCoverImageFile(null)
-        setCoverImagePreview(u.providerProfile?.coverImage || '')
+    setCoverImageFile(null)
+    setCoverImagePreview(u.providerProfile?.coverImage || '')
     setProviderModal(true)
   }
 
@@ -964,7 +968,7 @@ export const AdminPage = () => {
         {providerModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview(''); setCoverImageFile(null); setCoverImagePreview('')}}>
+            onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview(''); setCoverImageFile(null); setCoverImagePreview(''); }}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()}
               className="bg-surface border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1006,26 +1010,26 @@ export const AdminPage = () => {
                         </button>
                       </div>
                     </div>
-                            <div className="mt-4">
-                                          <label className="block text-xs text-muted mb-2">Foto de capa</label>
-                                                        <div className="relative w-full h-28 rounded-xl overflow-hidden bg-background border border-border flex items-center justify-center">
-                                                                        {coverImagePreview
-                                                                                          ? <img src={coverImagePreview} alt="capa" className="w-full h-full object-cover" />
-                                                                                                            : <span className="text-xs text-muted">Nenhuma capa cadastrada</span>
-                                                                                                                            }
-                                                                                                                                            <button type="button" onClick={() => coverImageInputRef.current?.click()} className="absolute bottom-2 right-2 px-2.5 py-1 bg-primary text-background text-xs font-bold rounded-lg hover:scale-105 transition-transform">
-                                                                                                                                                                Trocar capa
-                                                                                                                                                                                </button>
-                                                                                                                                                                                              </div>
-                                                                                                                                                                                                            {coverImageFile && (
-                                                                                                                                                                                                                              <div className="flex items-center gap-2 mt-1">
-                                                                                                                                                                                                                                                  <span className="text-xs text-green-400 font-semibold truncate">✅ {coverImageFile.name}</span>
-                                                                                                                                                                                                                                                                    <button type="button" onClick={() => { setCoverImageFile(null); setCoverImagePreview(editingProvider?.providerProfile?.coverImage || '') }} className="text-muted hover:text-red-400 transition-colors shrink-0"><X className="w-3.5 h-3.5" /></button>
-                                                                                                                                                                                                                                                                                    </div>
-                                                                                                                                                                                                                                                                                                  )}
-                                                                                                                                                                                                                                                                                                                <input ref={coverImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverImageChange} />
-                                                                                                                                                                                                                                                                                                                            </div>
-                          </div>
+                    <div className="mt-4">
+                      <label className="block text-xs text-muted mb-2">Foto de capa</label>
+                      <div className="relative w-full h-28 rounded-xl overflow-hidden bg-background border border-border flex items-center justify-center">
+                        {coverImagePreview
+                          ? <img src={coverImagePreview} alt="capa" className="w-full h-full object-cover" />
+                          : <span className="text-xs text-muted">Nenhuma capa cadastrada</span>
+                        }
+                        <button type="button" onClick={() => coverImageInputRef.current?.click()} className="absolute bottom-2 right-2 px-2.5 py-1 bg-primary text-background text-xs font-bold rounded-lg hover:scale-105 transition-transform">
+                          Trocar capa
+                        </button>
+                      </div>
+                      {coverImageFile && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-green-400 font-semibold truncate">✅ {coverImageFile.name}</span>
+                          <button type="button" onClick={() => { setCoverImageFile(null); setCoverImagePreview(editingProvider?.providerProfile?.coverImage || '') }} className="text-muted hover:text-red-400 transition-colors shrink-0"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      )}
+                      <input ref={coverImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverImageChange} />
+                    </div>
+                  </div>
                 )}
                 <div>
                   <label className="block text-xs text-muted mb-1.5">Nome *</label>
@@ -1043,7 +1047,8 @@ export const AdminPage = () => {
                     </div>
                   </>
                 )}
-                <div><label className="block text-xs text-muted mb-1.5">Especialidade</label><input value={providerForm.specialty} onChange={e => setProviderForm(p => ({ ...p, specialty: e.target.value }))} placeholder="Ex: Fotógrafo, Eletricista..." className={inputCls} /></div><div><label className="block text-xs text-muted mb-1.5">Categoria</label><select value={providerForm.category} onChange={e => setProviderForm(p => ({ ...p, category: e.target.value }))} className={inputCls}><option value="">-- Selecione uma categoria --</option>{categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>))}</select></div>
+                <div><label className="block text-xs text-muted mb-1.5">Especialidade</label><input value={providerForm.specialty} onChange={e => setProviderForm(p => ({ ...p, specialty: e.target.value }))} placeholder="Ex: Fotógrafo, Eletricista..." className={inputCls} /></div>
+                <div><label className="block text-xs text-muted mb-1.5">Categoria</label><select value={providerForm.category} onChange={e => setProviderForm(p => ({ ...p, category: e.target.value }))} className={inputCls}><option value="">-- Selecione uma categoria --</option>{categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>))}</select></div>
                 <div><label className="block text-xs text-muted mb-1.5">Cidade</label><input value={providerForm.city} onChange={e => setProviderForm(p => ({ ...p, city: e.target.value }))} placeholder="Ex: Diamantina" className={inputCls} /></div>
                 <div><label className="block text-xs text-muted mb-1.5">Bio</label><textarea value={providerForm.bio} onChange={e => setProviderForm(p => ({ ...p, bio: e.target.value }))} placeholder="Descrição do prestador..." rows={3} className={inputCls + ' resize-none'} /></div>
                 <div><label className="block text-xs text-muted mb-1.5">Preço a partir de (R$)</label><input value={providerForm.priceFrom} onChange={e => setProviderForm(p => ({ ...p, priceFrom: e.target.value }))} placeholder="Ex: 80" className={inputCls} /></div>
@@ -1058,7 +1063,8 @@ export const AdminPage = () => {
                 </label>
               </div>
               <div className="flex gap-3 mt-6">
-                <button onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview('') setCoverImageFile(null); setCoverImagePreview('') }}
+                {/* ✅ CORREÇÃO AQUI: ; após setAvatarPreview('') e setCoverImagePreview('') */}
+                <button onClick={() => { setProviderModal(false); setAvatarFile(null); setAvatarPreview(''); setCoverImageFile(null); setCoverImagePreview(''); }}
                   className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors">Cancelar</button>
                 <button onClick={saveProvider} disabled={savingProvider || !providerForm.name.trim()}
                   className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
