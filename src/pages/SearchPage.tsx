@@ -1,205 +1,270 @@
-import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Search, SlidersHorizontal } from 'lucide-react'
-import { collection, getDocs } from 'firebase/firestore'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { mockProviders, MockProvider } from '@/data/mock'
-import { ProviderCard } from '@/components/ProviderCard'
+import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { Save, AlertTriangle } from 'lucide-react'
 
-const docToProvider = (id: string, data: any): MockProvider => ({
-  id,
-  // nome “comercial” se existir, senão o name normal
-  name: data.providerProfile?.professionalName || data.name || 'Sem nome',
-  avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
-  coverImage:
-    data.providerProfile?.coverImage ||
-    'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
-  specialty: data.providerProfile?.specialty || 'Profissional',
-  category:
-    (
-      data.providerProfile?.categories?.[0] ||
-      data.providerProfile?.category ||
-      'outros'
-    ).toLowerCase(),
-  rating: data.providerProfile?.rating || 5.0,
-  reviewCount: data.providerProfile?.reviewCount || 0,
-  priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
-  city: data.providerProfile?.city || '',
-  neighborhood:
-    data.providerProfile?.neighborhood || data.providerProfile?.city || '',
-  isOnline: data.providerProfile?.isOnline === true,
-  isTopRated: data.providerProfile?.verified || false,
-  isFeatured: data.providerProfile?.featured || false,
-  bio: data.providerProfile?.bio || '',
-  skills: data.providerProfile?.skills || [],
-  completedJobs: data.providerProfile?.completedJobs || 0,
-  responseTime: data.providerProfile?.responseTime || '< 24h',
-  whatsapp: data.providerProfile?.whatsapp || '',
-  isMock: false,
-})
+interface ProviderProfile {
+  name: string
+  professionalName: string
+  specialty: string
+  bio: string
+  city: string
+  priceFrom: string
+  whatsapp: string
+  skills: string
+}
 
-export const SearchPage = () => {
-  const [searchParams] = useSearchParams()
-  const [query, setQuery] = useState(searchParams.get('q') || '')
-  const [selectedCategory, setSelectedCategory] = useState(
-    searchParams.get('categoria') || ''
-  )
-  const [allProviders, setAllProviders] = useState<MockProvider[]>([])
-  const [loading, setLoading] = useState(true)
-  const [categories, setCategories] = useState<
-    { id: string; name: string; icon: string }[]
-  >([])
+const EMPTY_PROFILE: ProviderProfile = {
+  name: '',
+  professionalName: '',
+  specialty: '',
+  bio: '',
+  city: '',
+  priceFrom: '',
+  whatsapp: '',
+  skills: '',
+}
+
+export const EditProviderProfilePage = () => {
+  const { user, loading } = useSimpleAuth()
+  const navigate = useNavigate()
+  const [profile, setProfile] = useState<ProviderProfile>(EMPTY_PROFILE)
+  const [saving, setSaving] = useState(false)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const load = async () => {
+    const loadProfile = async () => {
+      if (!user) return
       try {
-        const snap = await getDocs(collection(db, 'users'))
-        const reais: MockProvider[] = []
+        const snap = await getDoc(doc(db, 'users', user.id))
+        if (!snap.exists()) {
+          setProfile({
+            ...EMPTY_PROFILE,
+            name: user.name || '',
+          })
+          return
+        }
 
-        snap.docs.forEach(d => {
-          const data = d.data()
-          if (
-            data.roles?.includes('provider') &&
-            data.providerProfile?.status === 'approved'
-          ) {
-            reais.push(docToProvider(d.id, data))
-          }
+        const data: any = snap.data()
+        const providerProfile = data.providerProfile || {}
+
+        setProfile({
+          name: data.name || user.name || '',
+          professionalName:
+            providerProfile.professionalName ||
+            data.providerProfile?.professionalName ||
+            data.name ||
+            user.name ||
+            '',
+          specialty: providerProfile.specialty || '',
+          bio: providerProfile.bio || '',
+          city: providerProfile.city || '',
+          priceFrom: providerProfile.priceFrom || '',
+          whatsapp: providerProfile.whatsapp || '',
+          skills: (providerProfile.skills || []).join(', '),
         })
-
-        // Mocks como preenchimento: exibe apenas mocks de categorias sem reais suficientes
-        const mocksFiltered = mockProviders.filter(p => {
-          if (!p.isMock) return true // perfil real do dono sempre aparece
-          const countReal = reais.filter(r => r.category === p.category).length
-          return countReal < 5
-        })
-
-        // Reais primeiro, depois mocks complementares
-        setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])
-
-        const catSnap = await getDocs(collection(db, 'categories'))
-        const cats = catSnap.docs
-          .map(d => ({ id: d.id, ...(d.data() as any) }))
-          .filter((c: any) => c.active)
-          .sort((a: any, b: any) => a.name.localeCompare(b.name))
-        setCategories(cats)
-      } catch (err) {
-        console.warn('Fallback para mocks:', err)
-        setAllProviders(mockProviders)
+      } catch (err: any) {
+        console.error(err)
+        setError(err?.message || 'Erro ao carregar perfil')
       } finally {
-        setLoading(false)
+        setLoadingProfile(false)
       }
     }
-    load()
-  }, [])
 
-  const filtered = allProviders.filter(p => {
-    const q = query.toLowerCase()
-    const matchQuery =
-      query === '' ||
-      p.name.toLowerCase().includes(q) ||
-      p.specialty.toLowerCase().includes(q) ||
-      p.skills?.some(s => s.toLowerCase().includes(q))
-    const matchCat = selectedCategory === '' || p.category === selectedCategory
-    return matchQuery && matchCat
-  })
+    if (!loading && user) {
+      loadProfile()
+    }
+  }, [loading, user])
 
-  const realCount = filtered.filter(p => !p.isMock).length
-  const mockCount = filtered.filter(p => p.isMock).length
+  const handleChange =
+    (field: keyof ProviderProfile) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setProfile(prev => ({ ...prev, [field]: e.target.value }))
+    }
+
+  const handleSave = async () => {
+    if (!user) return
+    setSaving(true)
+    setError(null)
+    try {
+      await updateDoc(doc(db, 'users', user.id), {
+        name: profile.name,
+        providerProfile: {
+          professionalName: profile.professionalName,
+          specialty: profile.specialty,
+          bio: profile.bio,
+          city: profile.city,
+          priceFrom: profile.priceFrom,
+          whatsapp: profile.whatsapp,
+          skills: profile.skills
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
+        },
+      })
+      navigate('/perfil')
+    } catch (err: any) {
+      console.error(err)
+      setError(err?.message || 'Erro ao salvar perfil')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading || loadingProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center">
+          <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-black text-white mb-2">
+            Login Necessário
+          </h1>
+          <p className="text-muted mb-6">Você precisa estar logado.</p>
+          <button
+            onClick={() => navigate('/entrar')}
+            className="px-6 py-3 bg-primary text-background font-bold rounded-xl"
+          >
+            Fazer Login
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen pt-20 px-4 sm:px-8 max-w-7xl mx-auto">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <h1 className="text-2xl font-black mb-6">Explorar Profissionais</h1>
+    <div className="min-h-screen pt-20 px-4 sm:px-8 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-black text-white mb-6">
+        Editar Perfil de Prestador
+      </h1>
 
-        <div className="flex gap-3 mb-6">
-          <div className="flex-1 flex items-center gap-2 bg-surface border border-border rounded-xl px-4 py-3">
-            <Search className="w-4 h-4 text-muted" />
-            <input
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Buscar por serviço, habilidade ou profissional..."
-              className="bg-transparent text-white text-sm placeholder:text-muted outline-none w-full"
-            />
-          </div>
-          <button className="flex items-center gap-2 bg-surface border border-border rounded-xl px-4 py-3 text-muted hover:text-white transition-colors text-sm">
-            <SlidersHorizontal className="w-4 h-4" /> Filtros
-          </button>
+      {error && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300">
+          {error}
         </div>
-
-        <div className="flex gap-2 overflow-x-auto scroll-smooth-x pb-2">
-          <button
-            onClick={() => setSelectedCategory('')}
-            className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-              selectedCategory === ''
-                ? 'bg-primary text-background'
-                : 'bg-surface text-muted hover:text-white border border-border'
-            }`}
-          >
-            Todos
-          </button>
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                selectedCategory === cat.id
-                  ? 'bg-primary text-background'
-                  : 'bg-surface text-muted hover:text-white border border-border'
-              }`}
-            >
-              {cat.icon} {cat.name}
-            </button>
-          ))}
-        </div>
-      </motion.div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center gap-3 mb-4">
-            <p className="text-muted text-sm">
-              {realCount > 0 && (
-                <span className="text-white font-semibold">
-                  {realCount} real{realCount > 1 ? 'is' : ''}
-                </span>
-              )}
-              {realCount > 0 && mockCount > 0 && (
-                <span className="text-muted"> + </span>
-              )}
-              {mockCount > 0 && (
-                <span className="text-red-400 text-sm">
-                  {mockCount} exemplo{mockCount > 1 ? 's' : ''}
-                </span>
-              )}
-              {filtered.length === 0 && 'Nenhum profissional encontrado'}
-            </p>
-            {mockCount > 0 && (
-              <span className="text-[10px] bg-red-500/10 border border-red-500/30 text-red-400 px-2 py-0.5 rounded-full font-semibold">
-                Exemplos sumirão conforme chegam reais
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-4">
-            {filtered.map((provider, i) => (
-              <ProviderCard key={provider.id} provider={provider} index={i} />
-            ))}
-            {filtered.length === 0 && (
-              <div className="w-full text-center py-20 text-muted">
-                <p className="text-lg mb-2">Nenhum profissional encontrado</p>
-                <p className="text-sm">Tente buscar com outros termos</p>
-              </div>
-            )}
-          </div>
-        </>
       )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs text-muted mb-1.5">Nome</label>
+          <input
+            value={profile.name}
+            onChange={handleChange('name')}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary"
+            placeholder="Seu nome"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">
+            Nome profissional
+          </label>
+          <input
+            value={profile.professionalName}
+            onChange={handleChange('professionalName')}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary"
+            placeholder="Nome como aparecerá para os clientes"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">
+            Especialidade
+          </label>
+          <input
+            value={profile.specialty}
+            onChange={handleChange('specialty')}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary"
+            placeholder="Ex: Fotógrafo, Eletricista..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">Bio</label>
+          <textarea
+            value={profile.bio}
+            onChange={handleChange('bio')}
+            rows={4}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary resize-none"
+            placeholder="Fale um pouco sobre você e seu trabalho"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">Cidade</label>
+          <input
+            value={profile.city}
+            onChange={handleChange('city')}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary"
+            placeholder="Ex: Diamantina"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">
+            Preço a partir de (R$)
+          </label>
+          <input
+            value={profile.priceFrom}
+            onChange={handleChange('priceFrom')}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary"
+            placeholder="Ex: 80"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">WhatsApp</label>
+          <input
+            value={profile.whatsapp}
+            onChange={handleChange('whatsapp')}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary"
+            placeholder="5538999999999"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-muted mb-1.5">
+            Skills (separadas por vírgula)
+          </label>
+          <input
+            value={profile.skills}
+            onChange={handleChange('skills')}
+            className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary"
+            placeholder="Fotografia, Edição, Casamento..."
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-3 mt-8">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {saving ? (
+            <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          Salvar
+        </button>
+      </div>
     </div>
   )
 }
