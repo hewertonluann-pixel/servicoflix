@@ -1,22 +1,11 @@
 import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
-  Timestamp,
+  collection, doc, addDoc, updateDoc, deleteField,
+  query, where, getDocs, serverTimestamp
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { getChatId } from '@/lib/chatUtils'
-import { Review, ReviewReply } from '@/types'
+import { Review } from '@/types'
 
-// ─── Submeter ou editar avaliação ────────────────────────────────────────────
-
-export interface SubmitReviewData {
+interface SubmitReviewInput {
   providerId: string
   clientId: string
   clientName: string
@@ -24,120 +13,89 @@ export interface SubmitReviewData {
   rating: number
   comment: string
   chatId?: string
+  reviewerRole?: 'client' | 'provider'  // ← qual perfil assina a avaliação
 }
 
-export const submitReview = async (data: SubmitReviewData): Promise<void> => {
-  if (data.clientId === data.providerId) {
-    throw new Error('Você não pode avaliar a si mesmo.')
+// Cria ou atualiza avaliação (1 por cliente/prestador)
+export const submitReview = async (input: SubmitReviewInput): Promise<void> => {
+  const {
+    providerId,
+    clientId,
+    clientName,
+    clientAvatar,
+    rating,
+    comment,
+    chatId,
+    reviewerRole = 'client',
+  } = input
+
+  if (rating < 1 || rating > 5) throw new Error('Nota inválida')
+  if (!providerId || !clientId) throw new Error('IDs inválidos')
+  if (clientId === providerId) throw new Error('Você não pode avaliar a si mesmo')
+
+  const existing = await getUserReviewForProvider(clientId, providerId)
+
+  const payload = {
+    providerId,
+    clientId,
+    clientName,
+    clientAvatar,
+    rating,
+    comment: comment.trim(),
+    verified: !!chatId,
+    chatId: chatId || null,
+    reviewerRole,
+    updatedAt: serverTimestamp(),
   }
 
-  // ID determinístico — 1 review por cliente por prestador
-  const reviewId = `${data.clientId}_${data.providerId}`
-  const reviewRef = doc(db, 'reviews', reviewId)
-  const existing = await getDoc(reviewRef)
-
-  // Badge "Serviço verificado": verifica se existe chat entre os dois
-  const verified = await hasChattedWithProvider(data.clientId, data.providerId)
-
-  if (existing.exists()) {
-    // Edição
-    await updateDoc(reviewRef, {
-      rating: data.rating,
-      comment: data.comment,
-      verified,
-      updatedAt: serverTimestamp(),
-    })
+  if (existing) {
+    await updateDoc(doc(db, 'reviews', existing.id), payload)
   } else {
-    // Nova avaliação
-    await setDoc(reviewRef, {
-      id: reviewId,
-      providerId: data.providerId,
-      clientId: data.clientId,
-      clientName: data.clientName,
-      clientAvatar: data.clientAvatar,
-      rating: data.rating,
-      comment: data.comment,
-      verified,
-      chatId: data.chatId || null,
-      reply: null,
+    await addDoc(collection(db, 'reviews'), {
+      ...payload,
       createdAt: serverTimestamp(),
-      updatedAt: null,
     })
   }
-
-  await recalculateRating(data.providerId)
 }
 
-// ─── Recalcular média e total de avaliações do prestador ─────────────────────
-
-export const recalculateRating = async (providerId: string): Promise<void> => {
-  const q = query(
-    collection(db, 'reviews'),
-    where('providerId', '==', providerId)
-  )
-  const snap = await getDocs(q)
-
-  if (snap.empty) {
-    await updateDoc(doc(db, 'users', providerId), {
-      'providerProfile.rating': 0,
-      'providerProfile.reviewCount': 0,
-    })
-    return
-  }
-
-  const ratings = snap.docs.map(d => d.data().rating as number)
-  const total = ratings.length
-  const average = ratings.reduce((sum, r) => sum + r, 0) / total
-  const rounded = Math.round(average * 10) / 10 // ex: 4.7
-
-  await updateDoc(doc(db, 'users', providerId), {
-    'providerProfile.rating': rounded,
-    'providerProfile.reviewCount': total,
-  })
-}
-
-// ─── Buscar review do usuário para um prestador específico ───────────────────
-
+// Busca avaliação existente de um cliente para um prestador
 export const getUserReviewForProvider = async (
   clientId: string,
   providerId: string
 ): Promise<Review | null> => {
-  const reviewId = `${clientId}_${providerId}`
-  const snap = await getDoc(doc(db, 'reviews', reviewId))
-  if (!snap.exists()) return null
-  return { id: snap.id, ...snap.data() } as Review
+  if (!clientId || !providerId) return null
+
+  const q = query(
+    collection(db, 'reviews'),
+    where('clientId', '==', clientId),
+    where('providerId', '==', providerId)
+  )
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return { id: d.id, ...d.data() } as Review
 }
 
-// ─── Verificar se existe chat entre cliente e prestador ──────────────────────
-
-export const hasChattedWithProvider = async (
-  clientId: string,
-  providerId: string
-): Promise<boolean> => {
-  // chatId é determinístico — não precisa de query
-  const chatId = getChatId(clientId, providerId)
-  const snap = await getDoc(doc(db, 'chats', chatId))
-  return snap.exists()
-}
-
-// ─── Prestador responde uma avaliação ────────────────────────────────────────
-
+// Prestador responde a uma avaliação
 export const replyToReview = async (
   reviewId: string,
-  reply: Omit<ReviewReply, 'createdAt'>
+  reply: { text: string }
 ): Promise<void> => {
+  if (!reviewId || !reply.text.trim()) throw new Error('Resposta inválida')
+
   await updateDoc(doc(db, 'reviews', reviewId), {
     reply: {
-      ...reply,
+      text: reply.text.trim(),
       createdAt: serverTimestamp(),
     },
   })
 }
 
-// ─── Deletar resposta do prestador ───────────────────────────────────────────
-
+// Prestador exclui sua resposta
 export const deleteReply = async (reviewId: string): Promise<void> => {
+  if (!reviewId) throw new Error('ID inválido')
+
   await updateDoc(doc(db, 'reviews', reviewId), {
-    reply: null,
+    reply: deleteField(),
   })
 }
