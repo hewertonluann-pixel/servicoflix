@@ -4,6 +4,9 @@ import { Star, X, Loader2, CheckCircle } from 'lucide-react'
 import { submitReview, getUserReviewForProvider } from '@/lib/reviewUtils'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { Review } from '@/types'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 
 interface Props {
   open: boolean
@@ -24,7 +27,6 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
   const [existing, setExisting] = useState<Review | null>(null)
   const [loadingExisting, setLoadingExisting] = useState(false)
 
-  // Carrega avaliação existente ao abrir
   useEffect(() => {
     if (!open || !user?.id) return
     setLoadingExisting(true)
@@ -48,11 +50,19 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
     setSaving(true)
     setError('')
     try {
+      // ✅ Busca sempre os dados pessoais do Firestore
+      // Garante nome e avatar do perfil de CLIENTE, nunca do prestador
+      const docSnap = await getDoc(doc(db, 'users', user.id))
+      const data = docSnap.exists() ? docSnap.data() : null
+
+      const clientName = data?.name || user.name || 'Usuário'
+      const clientAvatar = resolveAvatarFromDoc(data) || user.avatar || ''
+
       await submitReview({
         providerId,
         clientId: user.id,
-        clientName: user.name,
-        clientAvatar: user.avatar || '',
+        clientName,
+        clientAvatar,
         rating,
         comment,
         chatId,
@@ -163,7 +173,6 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
                   <p className="text-red-400 text-sm mb-4 text-center">{error}</p>
                 )}
 
-                {/* Botão */}
                 <button
                   onClick={handleSubmit}
                   disabled={rating === 0 || saving}
