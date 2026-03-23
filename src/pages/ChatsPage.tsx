@@ -5,7 +5,8 @@ import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageCircle, Loader2, ArrowLeft, Compass, Trash2, AlertTriangle, MoreVertical, Flag, ShieldX } from 'lucide-react'
-import { ChatMeta, deleteChat } from '@/lib/chatUtils'
+import { ChatMeta, deleteChat, blockUser, unblockUser } from '@/lib/chatUtils'
+import { useBlockedUsers } from '@/hooks/useBlockedUsers'
 import { UserAvatar } from '@/components/UserAvatar'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 import { ReportModal } from '@/components/ReportModal'
@@ -35,6 +36,12 @@ export const ChatsPage = () => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [reportChatId, setReportChatId] = useState<string | null>(null)
   const [reportUserId, setReportUserId] = useState<string | null>(null)
+
+  // Bloqueio
+  const [confirmBlockData, setConfirmBlockData] = useState<{ chatId: string; otherId: string; otherName: string } | null>(null)
+  const [blockingId, setBlockingId] = useState<string | null>(null)
+  const { isBlocked } = useBlockedUsers(user?.id)
+
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -112,6 +119,28 @@ export const ChatsPage = () => {
     }
   }
 
+  const handleBlock = async () => {
+    if (!confirmBlockData || !user?.id) return
+    setBlockingId(confirmBlockData.otherId)
+    try {
+      await blockUser(user.id, confirmBlockData.otherId)
+      setConfirmBlockData(null)
+    } catch (err) {
+      console.error('[ChatsPage] Erro ao bloquear:', err)
+    } finally {
+      setBlockingId(null)
+    }
+  }
+
+  const handleUnblock = async (otherId: string) => {
+    if (!user?.id) return
+    try {
+      await unblockUser(user.id, otherId)
+    } catch (err) {
+      console.error('[ChatsPage] Erro ao desbloquear:', err)
+    }
+  }
+
   const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount?.[user.id] || 0), 0)
 
   return (
@@ -176,6 +205,7 @@ export const ChatsPage = () => {
                   const unread = chat.unreadCount?.[user.id] || 0
                   const isRemoving = removingId === chat.id
                   const isMenuOpen = openMenuId === chat.id
+                  const blocked = isBlocked(otherId)
 
                   const otherAvatar = resolveAvatarFromDoc({
                     avatar: otherInfo?.avatar,
@@ -205,7 +235,11 @@ export const ChatsPage = () => {
                       }}
                       style={{ overflow: 'hidden' }}
                       className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-colors ${
-                        unread > 0 ? 'bg-primary/5 border-primary/30' : 'bg-surface border-border'
+                        blocked
+                          ? 'bg-yellow-500/5 border-yellow-500/20 opacity-70'
+                          : unread > 0
+                          ? 'bg-primary/5 border-primary/30'
+                          : 'bg-surface border-border'
                       }`}
                     >
                       {/* Área clicável do chat */}
@@ -215,25 +249,39 @@ export const ChatsPage = () => {
                       >
                         <div className="relative shrink-0">
                           <UserAvatar src={otherAvatar} name={otherName} size={48} />
-                          {unread > 0 && (
+                          {unread > 0 && !blocked && (
                             <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-primary text-background text-[10px] font-black rounded-full flex items-center justify-center px-1">
                               {unread > 9 ? '9+' : unread}
+                            </span>
+                          )}
+                          {blocked && (
+                            <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-yellow-500/20 border border-yellow-500/40 rounded-full flex items-center justify-center text-[10px]">
+                              🚫
                             </span>
                           )}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <p className={`text-sm truncate ${unread > 0 ? 'font-bold text-white' : 'font-semibold text-white/80'}`}>
-                              {otherName}
-                            </p>
-                            <p className={`text-[11px] shrink-0 ml-2 ${unread > 0 ? 'text-primary font-semibold' : 'text-muted'}`}>
+                          <div className="flex items-center justify-between mb-0.5 gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className={`text-sm truncate ${unread > 0 && !blocked ? 'font-bold text-white' : 'font-semibold text-white/80'}`}>
+                                {otherName}
+                              </p>
+                              {blocked && (
+                                <span className="shrink-0 px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-[10px] font-semibold rounded-md">
+                                  Bloqueado
+                                </span>
+                              )}
+                            </div>
+                            <p className={`text-[11px] shrink-0 ${unread > 0 && !blocked ? 'text-primary font-semibold' : 'text-muted'}`}>
                               {formatRelative(chat.lastMessageAt)}
                             </p>
                           </div>
-                          <p className={`text-xs truncate ${unread > 0 ? 'text-white/70 font-medium' : 'text-muted'}`}>
-                            {chat.lastMessageBy === user.id ? 'Você: ' : ''}
-                            {chat.lastMessage || 'Sem mensagens ainda'}
+                          <p className={`text-xs truncate ${unread > 0 && !blocked ? 'text-white/70 font-medium' : 'text-muted'}`}>
+                            {blocked
+                              ? 'Você bloqueou este usuário'
+                              : `${chat.lastMessageBy === user.id ? 'Você: ' : ''}${chat.lastMessage || 'Sem mensagens ainda'}`
+                            }
                           </p>
                         </div>
                       </button>
@@ -275,17 +323,31 @@ export const ChatsPage = () => {
                                 Excluir conversa
                               </button>
 
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setOpenMenuId(null)
-                                  // TODO: bloquear
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
-                              >
-                                <ShieldX className="w-4 h-4" />
-                                Bloquear usuário
-                              </button>
+                              {blocked ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenMenuId(null)
+                                    handleUnblock(otherId)
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-green-400 text-sm"
+                                >
+                                  <ShieldX className="w-4 h-4" />
+                                  Desbloquear usuário
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenMenuId(null)
+                                    setConfirmBlockData({ chatId: chat.id, otherId, otherName })
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-yellow-400 text-sm"
+                                >
+                                  <ShieldX className="w-4 h-4" />
+                                  Bloquear usuário
+                                </button>
+                              )}
 
                               <button
                                 onClick={(e) => {
@@ -312,7 +374,7 @@ export const ChatsPage = () => {
         </div>
       </div>
 
-      {/* Modal de confirmação de exclusão */}
+      {/* Modal: Excluir conversa */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -347,6 +409,46 @@ export const ChatsPage = () => {
                   <Trash2 className="w-4 h-4" />
                 )}
                 {deletingId === confirmDeleteId ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Bloquear usuário */}
+      {confirmBlockData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-yellow-500/15 flex items-center justify-center shrink-0">
+                <ShieldX className="w-5 h-5 text-yellow-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Bloquear usuário</h3>
+                <p className="text-sm text-muted">{confirmBlockData.otherName}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted mb-6">
+              Você não poderá mais enviar ou receber mensagens desta pessoa. Você pode desbloquear a qualquer momento.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmBlockData(null)}
+                disabled={blockingId === confirmBlockData.otherId}
+                className="flex-1 py-2.5 rounded-xl border border-border text-muted font-semibold text-sm hover:text-white transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBlock}
+                disabled={blockingId === confirmBlockData.otherId}
+                className="flex-1 py-2.5 rounded-xl bg-yellow-500 text-background font-bold text-sm hover:bg-yellow-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {blockingId === confirmBlockData.otherId
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <ShieldX className="w-4 h-4" />
+                }
+                {blockingId === confirmBlockData.otherId ? 'Bloqueando...' : 'Bloquear'}
               </button>
             </div>
           </div>
