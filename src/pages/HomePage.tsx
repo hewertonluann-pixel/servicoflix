@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useCityFilter } from '@/components/CitySelectorNav'
@@ -25,7 +25,6 @@ interface MockSettings {
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
   name: data.providerProfile?.professionalName || data.name || 'Sem nome',
-  // ✅ Prioridade: foto personalizada do prestador → foto do Google → vazio
   avatar: data.providerProfile?.avatar || data.avatar || '',
   coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
   specialty: data.providerProfile?.specialty || 'Profissional',
@@ -35,7 +34,6 @@ const docToProvider = (id: string, data: any): MockProvider => ({
   priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
   city: data.providerProfile?.city || '',
   neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
-  // ✅ Status real de disponibilidade lido do Firestore (providerProfile.isOnline)
   isOnline: data.providerProfile?.isOnline === true,
   isTopRated: data.providerProfile?.verified || false,
   isFeatured: data.providerProfile?.featured || id === OWNER_UID,
@@ -62,6 +60,24 @@ export const HomePage = () => {
     minRating: 0,
   })
 
+  // ✅ onSnapshot em tempo real — todos os usuários (logados ou não) recebem
+  // imediatamente qualquer mudança feita pelo admin em settings/mockups
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'mockups'), (snap) => {
+      if (snap.exists()) {
+        setMockSettings(snap.data().categories || {})
+      } else {
+        const defaultSettings: MockSettings = {}
+        Object.keys(mocksByCategory).forEach(cat => {
+          defaultSettings[cat] = true
+        })
+        setMockSettings(defaultSettings)
+      }
+    })
+    return () => unsub()
+  }, [])
+
+  // Carrega prestadores reais e categorias
   useEffect(() => {
     const load = async () => {
       try {
@@ -70,12 +86,12 @@ export const HomePage = () => {
 
         usersSnap.docs.forEach(d => {
           const data = d.data()
-          
+
           if (!data.providerProfile) return
 
           const isOwner = d.id === OWNER_UID
-          const isApproved = 
-            data.roles?.includes('provider') && 
+          const isApproved =
+            data.roles?.includes('provider') &&
             data.providerProfile?.status === 'approved'
 
           if (isOwner || isApproved) {
@@ -103,17 +119,6 @@ export const HomePage = () => {
           .sort((a, b) => a.name.localeCompare(b.name))
 
         setCategories(cats)
-
-        const mockSettingsDoc = await getDoc(doc(db, 'settings', 'mockups'))
-        if (mockSettingsDoc.exists()) {
-          setMockSettings(mockSettingsDoc.data().categories || {})
-        } else {
-          const defaultSettings: MockSettings = {}
-          Object.keys(mocksByCategory).forEach(cat => {
-            defaultSettings[cat] = true
-          })
-          setMockSettings(defaultSettings)
-        }
       } catch (err) {
         console.warn('Erro ao carregar dados:', err)
       } finally {
@@ -138,7 +143,7 @@ export const HomePage = () => {
   const applyFilters = (providers: MockProvider[]): MockProvider[] => {
     return providers.filter(p => {
       if (!showAllCities && cityFilter && p.city) {
-        const normalizeCity = (city: string) => 
+        const normalizeCity = (city: string) =>
           city.toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
@@ -171,13 +176,13 @@ export const HomePage = () => {
 
   const getMerged = (categoryId: string) => {
     const reais = realProviders.filter(p => p.category === categoryId)
-    
+
     const mocksEnabled = mockSettings[categoryId] !== false
-    
+
     if (!mocksEnabled) {
       return applyFilters(reais)
     }
-    
+
     const mocks = mocksByCategory[categoryId] || []
     const mocksNeeded = reais.length < 5 ? mocks.slice(0, 5 - reais.length) : []
     const merged = [...reais, ...mocksNeeded]
