@@ -8,8 +8,6 @@ import { Hero } from '@/components/Hero'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { FilterBar, Filters } from '@/components/FilterBar'
 import { ProviderGrid } from '@/components/ProviderGrid'
-// ✅ REMOVE MOCK IMPORTS
-// import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
 import { useProviders } from '@/hooks/useProviders'
 import { useCategories } from '@/hooks/useCategories'
 
@@ -29,7 +27,6 @@ export const HomePage = () => {
   const { categories, loading: categoriesLoading } = useCategories()
 
   const filteredProviders = providers.filter(provider => {
-    // Filtros reais (sem mock)
     if (activeFilters.category && provider.specialty !== activeFilters.category) return false
     if (activeFilters.city && provider.city !== activeFilters.city) return false
     if (activeFilters.online && !provider.isOnline) return false
