@@ -1,3 +1,5 @@
+import { Timestamp } from 'firebase/firestore'
+
 export interface Provider {
   id: string
   name: string
@@ -28,14 +30,32 @@ export interface Category {
   providerCount: number
 }
 
+// ===== AVALIAÇÕES =====
+
+export interface ReviewReply {
+  text: string
+  createdAt: Timestamp
+  providerName: string
+  providerAvatar: string
+}
+
 export interface Review {
   id: string
   providerId: string
-  userName: string
-  userAvatar: string
+  clientId: string
+  clientName: string
+  clientAvatar: string
   rating: number
   comment: string
-  date: string
+  verified: boolean       // true = teve conversa com o prestador (badge "Serviço verificado")
+  chatId?: string         // referência ao chat que originou a avaliação
+  reply?: ReviewReply     // resposta do prestador
+  createdAt: Timestamp
+  updatedAt?: Timestamp
+  // legado — mantidos para compatibilidade com mocks existentes
+  userName?: string
+  userAvatar?: string
+  date?: string
   images?: string[]
 }
 
@@ -157,7 +177,7 @@ export interface User {
   avatar?: string
   roles: UserRole[]
   createdAt: string
-  
+
   // Perfis opcionais
   clientProfile?: ClientProfile
   providerProfile?: ProviderProfile
