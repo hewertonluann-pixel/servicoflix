@@ -1,160 +1,311 @@
-// src/pages/HomePage.tsx - VERSÃO SEM MOCK (completa)
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Search, Filter, Star, MapPin, Phone, Clock, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
-
-import { Hero } from '@/components/Hero'
+import { useEffect, useState } from 'react'
+import { collection, getDocs, doc, onSnapshot } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { useCityFilter } from '@/components/CitySelectorNav'
+import { HeroBillboard } from '@/components/HeroBillboard'
+import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { FilterBar, Filters } from '@/components/FilterBar'
-import { ProviderGrid } from '@/components/ProviderGrid'
-import { useProviders } from '@/hooks/useProviders'
-import { useCategories } from '@/hooks/useCategories'
+import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
 
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
 
+interface Category {
+  id: string
+  name: string
+  icon: string
+  active: boolean
+}
+
+interface MockSettings {
+  [categoryId: string]: boolean
+}
+
+const docToProvider = (id: string, data: any): MockProvider => ({
+  id,
+  name: data.providerProfile?.professionalName || data.name || 'Sem nome',
+  avatar: data.providerProfile?.avatar || data.avatar || '',
+  coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
+  specialty: data.providerProfile?.specialty || 'Profissional',
+  category: (data.providerProfile?.categories?.[0] || data.providerProfile?.category || 'outros').toLowerCase(),
+  rating: data.providerProfile?.rating || 5.0,
+  reviewCount: data.providerProfile?.reviewCount || 0,
+  priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
+  city: data.providerProfile?.city || '',
+  neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
+  isOnline: data.providerProfile?.isOnline === true,
+  isTopRated: data.providerProfile?.verified || false,
+  isFeatured: data.providerProfile?.featured || id === OWNER_UID,
+  bio: data.providerProfile?.bio || '',
+  skills: data.providerProfile?.skills || [],
+  completedJobs: data.providerProfile?.completedJobs || 0,
+  responseTime: data.providerProfile?.responseTime || '< 24h',
+  whatsapp: data.providerProfile?.whatsapp || '',
+  isMock: false,
+})
+
 export const HomePage = () => {
-  const [activeFilters, setActiveFilters] = useState<Filters>({
-    category: '',
-    city: '',
-    online: false,
-    rating: '',
-    price: ''
+  const { user } = useSimpleAuth()
+  const { cityFilter, showAllCities } = useCityFilter()
+  const [realProviders, setRealProviders] = useState<MockProvider[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [mockSettings, setMockSettings] = useState<MockSettings>({})
+  const [filters, setFilters] = useState<Filters>({
+    categories: [],
+    priceRange: { min: 0, max: 1000 },
+    searchRadius: 50,
+    onlyVerified: false,
+    minRating: 0,
   })
 
-  // ✅ DADOS REAIS FIRESTORE
-  const { providers, loading } = useProviders()
-  const { categories, loading: categoriesLoading } = useCategories()
+  // ✅ onSnapshot em tempo real — todos os usuários (logados ou não) recebem
+  // imediatamente qualquer mudança feita pelo admin em settings/mockups
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'mockups'), (snap) => {
+      if (snap.exists()) {
+        setMockSettings(snap.data().categories || {})
+      } else {
+        const defaultSettings: MockSettings = {}
+        Object.keys(mocksByCategory).forEach(cat => {
+          defaultSettings[cat] = true
+        })
+        setMockSettings(defaultSettings)
+      }
+    })
+    return () => unsub()
+  }, [])
 
-  const filteredProviders = providers.filter(provider => {
-    if (activeFilters.category && provider.specialty !== activeFilters.category) return false
-    if (activeFilters.city && provider.city !== activeFilters.city) return false
-    if (activeFilters.online && !provider.isOnline) return false
-    if (activeFilters.rating === '4.5+' && provider.rating < 4.5) return false
-    return true
-  })
+  // Carrega prestadores reais e categorias
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'))
+        const providers: MockProvider[] = []
 
-  const topProviders = filteredProviders.slice(0, 8)
-  const onlineProviders = filteredProviders.filter(p => p.isOnline).slice(0, 4)
+        usersSnap.docs.forEach(d => {
+          const data = d.data()
+
+          if (!data.providerProfile) return
+
+          const isOwner = d.id === OWNER_UID
+          const isApproved =
+            data.roles?.includes('provider') &&
+            data.providerProfile?.status === 'approved'
+
+          if (isOwner || isApproved) {
+            const provider = docToProvider(d.id, data)
+            providers.push(provider)
+            console.log(
+              isOwner ? '👑 Owner:' : '✅ Prestador:',
+              provider.name,
+              '- Cidade:', provider.city,
+              '- Featured:', provider.isFeatured,
+              '- Online:', provider.isOnline
+            )
+          }
+        })
+
+        console.log(`📊 Total de prestadores: ${providers.length}`)
+        console.log(`⭐ Featured: ${providers.filter(p => p.isFeatured).length}`)
+        console.log(`🟢 Online agora: ${providers.filter(p => p.isOnline).length}`)
+        setRealProviders(providers)
+
+        const catSnap = await getDocs(collection(db, 'categories'))
+        const cats: Category[] = catSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Category))
+          .filter(c => c.active)
+          .sort((a, b) => a.name.localeCompare(b.name))
+
+        setCategories(cats)
+      } catch (err) {
+        console.warn('Erro ao carregar dados:', err)
+      } finally {
+        setLoaded(true)
+      }
+    }
+    load()
+  }, [])
+
+  useEffect(() => {
+    if (user?.settings?.preferences) {
+      setFilters({
+        categories: user.settings.preferences.favoriteCategories || [],
+        priceRange: user.settings.preferences.priceRange || { min: 0, max: 1000 },
+        searchRadius: user.settings.preferences.searchRadius || 50,
+        onlyVerified: user.settings.preferences.onlyVerified || false,
+        minRating: user.settings.preferences.minRating || 0,
+      })
+    }
+  }, [user])
+
+  const applyFilters = (providers: MockProvider[]): MockProvider[] => {
+    return providers.filter(p => {
+      if (!showAllCities && cityFilter && p.city) {
+        const normalizeCity = (city: string) =>
+          city.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim()
+
+        if (normalizeCity(p.city) !== normalizeCity(cityFilter)) {
+          return false
+        }
+      }
+
+      if (filters.categories.length > 0 && !filters.categories.includes(p.category)) {
+        return false
+      }
+
+      if (p.priceFrom < filters.priceRange.min || p.priceFrom > filters.priceRange.max) {
+        return false
+      }
+
+      if (filters.onlyVerified && !p.isTopRated) {
+        return false
+      }
+
+      if (p.rating < filters.minRating) {
+        return false
+      }
+
+      return true
+    })
+  }
+
+  const getMerged = (categoryId: string) => {
+    const reais = realProviders.filter(p => p.category === categoryId)
+
+    const mocksEnabled = mockSettings[categoryId] !== false
+
+    if (!mocksEnabled) {
+      return applyFilters(reais)
+    }
+
+    const mocks = mocksByCategory[categoryId] || []
+    const mocksNeeded = reais.length < 5 ? mocks.slice(0, 5 - reais.length) : []
+    const merged = [...reais, ...mocksNeeded]
+    return applyFilters(merged)
+  }
+
+  const getActiveMocks = () => {
+    return mockProviders.filter(p => {
+      if (!p.isMock) return true
+      return mockSettings[p.category] !== false
+    })
+  }
+
+  const allProviders = applyFilters([
+    ...realProviders,
+    ...getActiveMocks().filter(p => p.isMock),
+  ])
+
+  const onlineProviders = allProviders.filter(p => p.isOnline).slice(0, 10)
+
+  const featuredProviders = allProviders
+    .filter(p => p.isFeatured)
+    .sort((a, b) => {
+      if (a.id === OWNER_UID) return -1
+      if (b.id === OWNER_UID) return 1
+      return b.rating - a.rating
+    })
+
+  console.log('⭐ Prestadores em destaque (após filtros):', featuredProviders.length)
+  console.log('Cidades:', featuredProviders.map(p => `${p.name} (${p.city})`))
+
+  const allForHero = [
+    ...realProviders,
+    ...getActiveMocks().filter(p => p.isMock)
+  ]
+
+  const categoriesToShow = filters.categories.length > 0
+    ? categories.filter(c => filters.categories.includes(c.id))
+    : categories
 
   return (
-    <div className="min-h-screen">
-      {/* Hero */}
-      <Hero />
+    <main>
+      <HeroBillboard providers={allForHero} />
 
-      {/* Filtros */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        
-        {/* Barra de busca */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-surface border border-border rounded-2xl p-6 shadow-xl"
-        >
-          <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
-            <div className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
-              <input
-                type="text"
-                placeholder="Busque por especialidade, nome ou cidade..."
-                className="w-full pl-12 pr-4 py-4 bg-background border border-border rounded-xl text-lg focus:border-primary focus:outline-none transition-colors"
-              />
+      <div className="relative z-10 -mt-8">
+        <FilterBar
+          onFilterChange={setFilters}
+          categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
+          initialFilters={filters}
+        />
+
+        {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
+          <div className="px-4 sm:px-8 mb-4">
+            <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 flex items-center gap-2">
+              <span className="text-primary text-sm font-semibold">
+                🎯 Filtros ativos: {allProviders.length} prestadores encontrados
+              </span>
             </div>
-            <FilterBar filters={activeFilters} onFiltersChange={setActiveFilters} />
           </div>
-        </motion.div>
-
-        {/* Categorias */}
-        {!categoriesLoading && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <h2 className="text-2xl font-black text-white mb-8 flex items-center gap-3">
-              <Users className="w-8 h-8" />
-              Escolha sua especialidade
-            </h2>
-            <CategoryGrid categories={categories} />
-          </motion.div>
         )}
 
-        {/* Melhores Profissionais */}
-        {topProviders.length > 0 && (
-          <motion.section 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black text-white flex items-center gap-3">
-                <Star className="w-8 h-8 text-yellow-400 fill-current" />
-                Melhores Profissionais
-              </h2>
-              <Link 
-                to="/profissionais?sort=top"
-                className="text-primary font-bold text-lg hover:text-primary-dark transition-colors"
-              >
-                Ver todos →
-              </Link>
-            </div>
-            <ProviderGrid providers={topProviders} loading={loading} />
-          </motion.section>
+        {featuredProviders.length > 0 && (
+          <CategoryRow title="⭐ Em Destaque" providers={featuredProviders} badge="top" />
         )}
 
-        {/* Online Agora */}
         {onlineProviders.length > 0 && (
-          <motion.section 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black text-white flex items-center gap-3">
-                <Clock className="w-8 h-8 text-green-400" />
-                Online Agora
-              </h2>
-              <Link 
-                to="/profissionais?online=true"
-                className="text-green-400 font-bold text-lg hover:text-green-500 transition-colors"
-              >
-                Ver todos →
-              </Link>
-            </div>
-            <ProviderGrid providers={onlineProviders} loading={loading} variant="compact" />
-          </motion.section>
+          <CategoryRow title="🟢 Disponíveis Agora" providers={onlineProviders} badge="ao vivo" />
         )}
 
-        {/* Stats */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="grid md:grid-cols-3 gap-6 text-center py-16"
-        >
-          <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl p-8 hover:bg-surface/75 transition-all duration-300">
-            <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-primary" />
+        <CategoryGrid categories={categoriesToShow.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
+
+        {categoriesToShow.map(cat => {
+          const providers = getMerged(cat.id)
+          if (providers.length === 0) return null
+          return (
+            <CategoryRow
+              key={cat.id}
+              title={`${cat.icon} ${cat.name}`}
+              providers={providers}
+            />
+          )
+        })}
+
+        {allProviders.length === 0 && (
+          <div className="px-4 sm:px-8 py-16 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl">🔍</span>
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">Nenhum prestador encontrado</h3>
+              <p className="text-muted text-sm mb-6">
+                {cityFilter && !showAllCities
+                  ? `Não encontramos prestadores em ${cityFilter}.`
+                  : 'Não encontramos prestadores que atendam aos filtros selecionados.'
+                }
+              </p>
+              <button
+                onClick={() => setFilters({
+                  categories: [],
+                  priceRange: { min: 0, max: 1000 },
+                  searchRadius: 50,
+                  onlyVerified: false,
+                  minRating: 0,
+                })}
+                className="px-6 py-3 bg-surface border border-border text-muted font-bold rounded-xl hover:text-white transition-colors"
+              >
+                Limpar Filtros
+              </button>
             </div>
-            <h3 className="text-3xl font-black text-white mb-2">{providers.length}+</h3>
-            <p className="text-muted text-lg">Profissionais</p>
           </div>
-          <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl p-8 hover:bg-surface/75 transition-all duration-300">
-            <div className="w-16 h-16 bg-green-400/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Clock className="w-8 h-8 text-green-400" />
-            </div>
-            <h3 className="text-3xl font-black text-white mb-2">24/7</h3>
-            <p className="text-muted text-lg">Atendimento</p>
-          </div>
-          <div className="bg-surface/50 backdrop-blur-sm border border-border/50 rounded-2xl p-8 hover:bg-surface/75 transition-all duration-300">
-            <div className="w-16 h-16 bg-yellow-400/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Star className="w-8 h-8 text-yellow-400 fill-current" />
-            </div>
-            <h3 className="text-3xl font-black text-white mb-2">4.9⭐</h3>
-            <p className="text-muted text-lg">Avaliação Média</p>
-          </div>
-        </motion.div>
+        )}
+
+        {categories.length === 0 && (
+          <>
+            <CategoryRow title="🎵 Música" providers={getMerged('musica')} />
+            <CategoryRow title="🧹 Limpeza e Organização" providers={getMerged('limpeza')} />
+            <CategoryRow title="🏠 Reformas e Reparos" providers={getMerged('reformas')} />
+            <CategoryRow title="📚 Educação" providers={getMerged('educacao')} />
+            <CategoryRow title="💊 Saúde e Bem-Estar" providers={getMerged('saude')} />
+            <CategoryRow title="🌿 Casa e Lar" providers={getMerged('casa')} />
+          </>
+        )}
       </div>
-    </div>
+    </main>
   )
 }
