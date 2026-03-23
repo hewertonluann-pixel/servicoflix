@@ -1,4 +1,6 @@
-// src/data/mock.ts - VERSÃO FINAL (12 linhas)
+// src/data/mock.ts
+// VERSÃO MINIMALISTA - só interface para ProviderCard (12 linhas)
+
 export interface MockProvider {
   id: string;
   name: string;
@@ -7,9 +9,13 @@ export interface MockProvider {
   reviews: number;
   price: string;
   image: string;
-  isOnline: boolean;     // ← só isso
-  isTopRated: boolean;   // ← ProviderCard precisa
-  isFeatured: boolean;   // ← ProviderCard precisa
+  isOnline: boolean;      // ProviderCard filtra
+  isTopRated: boolean;    // ProviderCard usa  
+  isFeatured: boolean;    // ProviderCard usa
   category: string;
-  isMock: boolean;
+  isMock: boolean;        // ProviderCard filtra
 }
+
+// Sem categorias (Home/Search usam Firestore)
+// Sem providers (não usados em lugar nenhum)
+export const mockProviders: MockProvider[] = [];
