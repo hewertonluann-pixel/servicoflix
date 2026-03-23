@@ -43,7 +43,6 @@ export const ClientProfilePage = () => {
     avatar: '',
   })
 
-  // Avaliações feitas pelo cliente
   const [reviews, setReviews] = useState<(Review & { providerName?: string; providerAvatar?: string })[]>([])
   const [loadingReviews, setLoadingReviews] = useState(false)
 
@@ -86,7 +85,6 @@ export const ClientProfilePage = () => {
     const unsub = onSnapshot(q, async (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Review))
 
-      // Enriquece com nome/avatar do prestador
       const enriched = await Promise.all(
         data.map(async (rev) => {
           try {
@@ -111,14 +109,13 @@ export const ClientProfilePage = () => {
     return () => unsub()
   }, [user?.id])
 
-  // Upload de avatar
+  // Upload de avatar do CLIENTE (salva na raiz `avatar`)
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user?.id) return
 
-    const MAX_MB = 5
-    if (file.size > MAX_MB * 1024 * 1024) {
-      setUploadError(`Imagem muito grande. Máximo ${MAX_MB}MB.`)
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Imagem muito grande. Máximo 5MB.')
       return
     }
     if (!file.type.startsWith('image/')) {
@@ -137,7 +134,7 @@ export const ClientProfilePage = () => {
       })
       const url = await getDownloadURL(fileRef)
       setForm(prev => ({ ...prev, avatar: url }))
-      // Salva imediatamente no Firestore
+      // Salva APENAS o avatar pessoal — não toca em providerProfile
       await updateDoc(doc(db, 'users', user.id), { avatar: url })
     } catch {
       setUploadError('Erro ao fazer upload. Tente novamente.')
@@ -150,12 +147,26 @@ export const ClientProfilePage = () => {
     if (!user?.id) return
     setSaving(true)
     try {
-      await updateDoc(doc(db, 'users', user.id), {
+      // Busca o doc atual para verificar se professionalName já foi definido
+      const snap = await getDoc(doc(db, 'users', user.id))
+      const currentData = snap.data()
+      const currentProfName = currentData?.providerProfile?.professionalName
+
+      const updates: Record<string, any> = {
         name: form.name.trim(),
         'clientProfile.phone': form.phone.trim(),
         'clientProfile.city': form.city,
         'clientProfile.neighborhood': form.neighborhood.trim(),
-      })
+      }
+
+      // Se o usuário é prestador e ainda NÃO tem professionalName explícito no Firestore,
+      // congela o nome profissional com o nome pessoal ATUAL (antes de mudar)
+      // para evitar que o fallback `data.name` mude junto com o nome do cliente
+      if (isProvider && !currentProfName?.trim()) {
+        updates['providerProfile.professionalName'] = currentData?.name || user.name
+      }
+
+      await updateDoc(doc(db, 'users', user.id), updates)
       setSaved(true)
       setEditing(false)
       setTimeout(() => setSaved(false), 3000)
@@ -199,7 +210,6 @@ export const ClientProfilePage = () => {
             <p className="text-muted text-sm mt-1">Dados pessoais e histórico de avaliações</p>
           </div>
 
-          {/* Badge perfil duplo */}
           {isProvider && (
             <button
               onClick={() => navigate('/meu-perfil')}
@@ -212,6 +222,28 @@ export const ClientProfilePage = () => {
           )}
         </motion.div>
 
+        {/* Aviso de perfis independentes (só para prestadores) */}
+        {isProvider && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-start gap-3 bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 mb-6 text-sm"
+          >
+            <AlertCircle className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-muted leading-relaxed">
+              Você está editando seu <span className="text-white font-semibold">perfil pessoal (cliente)</span>.
+              Nome e foto aqui são independentes do seu perfil profissional.
+              Para alterar nome e foto do prestador, acesse{' '}
+              <button
+                onClick={() => navigate('/meu-perfil/editar')}
+                className="text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                Editar Perfil Profissional
+              </button>.
+            </p>
+          </motion.div>
+        )}
+
         {/* Tabs */}
         <div className="bg-surface border border-border rounded-xl p-1.5 mb-6 flex gap-1.5">
           {(['perfil', 'avaliacoes'] as const).map(tab => (
@@ -223,7 +255,7 @@ export const ClientProfilePage = () => {
               }`}
             >
               {tab === 'perfil'
-                ? <><User className="w-4 h-4" /> Perfil</>
+                ? <><User className="w-4 h-4" /> Perfil Pessoal</>
                 : <><Star className="w-4 h-4" /> Avaliações ({reviews.length})</>
               }
             </button>
@@ -287,7 +319,7 @@ export const ClientProfilePage = () => {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <label className="block text-xs text-muted mb-1.5 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5" /> Nome
+                      <User className="w-3.5 h-3.5" /> Nome pessoal
                     </label>
                     <input
                       type="text"
@@ -296,6 +328,11 @@ export const ClientProfilePage = () => {
                       disabled={!editing}
                       className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     />
+                    {isProvider && editing && (
+                      <p className="text-xs text-muted mt-1.5">
+                        ⚠️ Isso não altera seu nome profissional no perfil de prestador.
+                      </p>
+                    )}
                   </div>
 
                   <div className="sm:col-span-2">
@@ -383,7 +420,6 @@ export const ClientProfilePage = () => {
                   )}
                 </div>
 
-                {/* Feedback salvo */}
                 {saved && (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
@@ -391,7 +427,7 @@ export const ClientProfilePage = () => {
                     className="flex items-center gap-2 text-green-400 text-sm"
                   >
                     <CheckCircle className="w-4 h-4" />
-                    Perfil atualizado com sucesso!
+                    Perfil pessoal atualizado com sucesso!
                   </motion.div>
                 )}
               </div>
@@ -406,7 +442,6 @@ export const ClientProfilePage = () => {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            {/* Resumo */}
             {reviews.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
                 <div className="bg-surface border border-border rounded-xl p-4 text-center">
@@ -448,7 +483,6 @@ export const ClientProfilePage = () => {
                     transition={{ delay: i * 0.05 }}
                     className="bg-surface border border-border rounded-2xl p-5"
                   >
-                    {/* Header: prestador avaliado */}
                     <div
                       className="flex items-center gap-3 mb-4 cursor-pointer group"
                       onClick={() => navigate(`/profissional/${rev.providerId}`)}
@@ -471,7 +505,6 @@ export const ClientProfilePage = () => {
                       <ChevronRight className="w-4 h-4 text-muted group-hover:text-primary transition-colors shrink-0" />
                     </div>
 
-                    {/* Estrelas + badges */}
                     <div className="flex items-center gap-2 flex-wrap mb-3">
                       <div className="flex items-center gap-0.5">
                         {[1, 2, 3, 4, 5].map(s => (
@@ -496,12 +529,10 @@ export const ClientProfilePage = () => {
                       )}
                     </div>
 
-                    {/* Comentário */}
                     {rev.comment && (
                       <p className="text-sm text-white/90 mb-3 leading-relaxed">"{rev.comment}"</p>
                     )}
 
-                    {/* Resposta do prestador */}
                     {rev.reply && (
                       <div className="bg-background border border-border rounded-xl p-3 mt-3">
                         <p className="text-xs text-primary font-semibold mb-1">Resposta do prestador</p>
@@ -509,7 +540,6 @@ export const ClientProfilePage = () => {
                       </div>
                     )}
 
-                    {/* Data */}
                     <p className="text-[11px] text-muted mt-3">
                       {formatDate(rev.createdAt)}
                     </p>
