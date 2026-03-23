@@ -18,6 +18,10 @@ import { mockProviders } from '@/data/mock'
 import { SocialLinks } from '@/types'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 import { useUserPresence, formatLastSeen } from '@/hooks/usePresence'
+import { useReviews } from '@/hooks/useReviews'
+import { ReviewModal } from '@/components/ReviewModal'
+import { ReviewCard } from '@/components/ReviewCard'
+import { RatingDistribution } from '@/components/RatingDistribution'
 
 interface ProviderData {
   id: string
@@ -105,13 +109,17 @@ export const ProviderProfilePage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [reviewModalOpen, setReviewModalOpen] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [hdPhotoLoaded, setHdPhotoLoaded] = useState<Record<number, boolean>>({})
 
-  // ✅ Hook sempre chamado antes de qualquer return condicional (regra dos hooks do React)
   const { isOnline, lastSeen } = useUserPresence(
     loading || !provider || provider.isMock ? null : provider.id
+  )
+
+  const { reviews, loading: loadingReviews, averageRating, reviewCount, distribution } = useReviews(
+    provider?.isMock ? undefined : id
   )
 
   useEffect(() => {
@@ -170,8 +178,6 @@ export const ProviderProfilePage = () => {
             return
           }
           const professionalName = data.providerProfile.professionalName || data.name || 'Sem nome'
-          // Usa resolveAvatarFromDoc para pegar a melhor foto disponível
-          // (Storage manual > Google photo salvo > URL antiga)
           const resolvedAvatar = resolveAvatarFromDoc(data)
           setProvider({
             id: docSnap.id,
@@ -305,9 +311,10 @@ export const ProviderProfilePage = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 sm:-mt-24 lg:-mt-32 relative z-10">
         <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
+
+            {/* Card principal */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
-                {/* Avatar grande — usa UserAvatar com fallback ⚡ */}
                 <UserAvatar
                   src={provider.providerAvatar}
                   name={displayName}
@@ -321,15 +328,15 @@ export const ProviderProfilePage = () => {
                         <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{displayName}</h1>
                         <p className="text-primary text-base sm:text-lg font-semibold">{provider.providerProfile.specialty}</p>
                       </div>
-                                  {isOnline && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/20 border border-green-500/40 rounded-full mb-1">
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-xs font-semibold text-green-400">Online agora</span>
-              </div>
-            )}
-            {!isOnline && lastSeen && (
-              <p className="text-xs text-muted mb-1">{formatLastSeen(lastSeen)}</p>
-            )}
+                      {isOnline && (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/20 border border-green-500/40 rounded-full mb-1">
+                          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                          <span className="text-xs font-semibold text-green-400">Online agora</span>
+                        </div>
+                      )}
+                      {!isOnline && lastSeen && (
+                        <p className="text-xs text-muted mb-1">{formatLastSeen(lastSeen)}</p>
+                      )}
                       {provider.providerProfile.verified && (
                         <div className="hidden sm:flex items-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold shrink-0"><CheckCircle className="w-3.5 h-3.5" />Verificado</div>
                       )}
@@ -339,7 +346,16 @@ export const ProviderProfilePage = () => {
                     )}
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted mb-4">
-                    <div className="flex items-center justify-center sm:justify-start gap-1"><Star className="w-4 h-4 text-yellow-400" fill="currentColor" /><span className="text-white font-semibold">{provider.providerProfile.rating}</span><span>({provider.providerProfile.reviewCount} avaliações)</span></div>
+                    {/* ✅ Nota real via useReviews, fallback para o dado estático */}
+                    <div className="flex items-center justify-center sm:justify-start gap-1">
+                      <Star className="w-4 h-4 text-yellow-400" fill="currentColor" />
+                      <span className="text-white font-semibold">
+                        {reviewCount > 0 ? averageRating.toFixed(1) : provider.providerProfile.rating}
+                      </span>
+                      <span>
+                        ({reviewCount > 0 ? reviewCount : provider.providerProfile.reviewCount} avaliações)
+                      </span>
+                    </div>
                     <div className="flex items-center justify-center sm:justify-start gap-1"><MapPin className="w-4 h-4" />{provider.providerProfile.city}, {provider.providerProfile.neighborhood}</div>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
@@ -349,11 +365,13 @@ export const ProviderProfilePage = () => {
               </div>
             </motion.div>
 
+            {/* Sobre */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white mb-3 sm:mb-4">Sobre</h2>
               <p className="text-muted text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{provider.providerProfile.bio}</p>
             </motion.div>
 
+            {/* Redes Sociais */}
             {hasSocialLinks && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center gap-2 mb-3 sm:mb-4"><Globe className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Redes Sociais</h2></div>
@@ -369,6 +387,7 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
+            {/* Galeria de fotos */}
             {photos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -381,6 +400,7 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
+            {/* Vídeos */}
             {videos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -397,6 +417,7 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
+            {/* Áudios */}
             {audios.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -413,6 +434,69 @@ export const ProviderProfilePage = () => {
                 </div>
               </motion.div>
             )}
+
+            {/* ===== SEÇÃO DE AVALIAÇÕES ===== */}
+            {!provider.isMock && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
+              >
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-4 h-4 sm:w-5 sm:h-5 text-primary" fill="currentColor" />
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Avaliações</h2>
+                  </div>
+                  {user && !isOwnProfile && (
+                    <button
+                      onClick={() => setReviewModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"
+                    >
+                      <Star className="w-3.5 h-3.5" fill="currentColor" />
+                      {reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar'}
+                    </button>
+                  )}
+                </div>
+
+                {reviewCount > 0 && (
+                  <div className="mb-6 pb-6 border-b border-border">
+                    <RatingDistribution
+                      average={averageRating}
+                      total={reviewCount}
+                      distribution={distribution}
+                    />
+                  </div>
+                )}
+
+                {loadingReviews ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Star className="w-10 h-10 text-muted mx-auto mb-3" />
+                    <p className="text-white font-semibold text-sm">Nenhuma avaliação ainda</p>
+                    <p className="text-muted text-xs mt-1">Seja o primeiro a avaliar este prestador</p>
+                    {user && !isOwnProfile && (
+                      <button
+                        onClick={() => setReviewModalOpen(true)}
+                        className="mt-4 px-5 py-2.5 bg-primary text-background text-sm font-bold rounded-xl hover:bg-primary-dark transition-colors"
+                      >
+                        Avaliar agora
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {reviews.map(review => (
+                      <ReviewCard key={review.id} review={review} isProviderOwner={false} />
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
           </div>
 
           {/* Sidebar desktop */}
@@ -435,6 +519,16 @@ export const ProviderProfilePage = () => {
                   <button onClick={handleOpenChat} className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target">
                     <MessageCircle className="w-5 h-5 inline mr-2" />
                     {user ? 'Enviar Mensagem' : 'Entrar para Mensagem'}
+                  </button>
+                )}
+                {/* Botão avaliar na sidebar */}
+                {user && !isOwnProfile && !provider.isMock && (
+                  <button
+                    onClick={() => setReviewModalOpen(true)}
+                    className="w-full bg-surface border border-border text-muted font-bold py-3.5 rounded-xl hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Star className="w-4 h-4" fill="none" />
+                    {reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar prestador'}
                   </button>
                 )}
               </div>
@@ -473,6 +567,7 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
+      {/* Lightbox */}
       <AnimatePresence>
         {lightboxOpen && photos.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center" onClick={() => setLightboxOpen(false)}>
@@ -500,6 +595,7 @@ export const ProviderProfilePage = () => {
         )}
       </AnimatePresence>
 
+      {/* Modal solicitar serviço */}
       {!provider.isMock && (
         <RequestServiceModal
           isOpen={modalOpen}
@@ -511,6 +607,16 @@ export const ProviderProfilePage = () => {
             specialty: provider.providerProfile.specialty,
             priceFrom: provider.providerProfile.priceFrom,
           }}
+        />
+      )}
+
+      {/* Modal de avaliação */}
+      {!provider.isMock && user && !isOwnProfile && (
+        <ReviewModal
+          open={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          providerId={provider.id}
+          providerName={displayName}
         />
       )}
     </div>
