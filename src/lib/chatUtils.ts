@@ -10,6 +10,8 @@ import {
   collection,
   increment,
   writeBatch,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
@@ -21,7 +23,7 @@ export interface ChatParticipantInfo {
   name: string
   avatar: string
   providerAvatar?: string
-  googlePhotoURL?: string  // foto Google — fallback confiável mesmo após URL de Storage expirar
+  googlePhotoURL?: string
 }
 
 export interface ChatMeta {
@@ -90,6 +92,7 @@ export const createOrGetChat = async (
 
 /**
  * Envia uma mensagem e atualiza os metadados do chat.
+ * Verifica silenciosamente se o remetente bloqueou o destinatário.
  */
 export const sendMessage = async (
   chatId: string,
@@ -100,6 +103,11 @@ export const sendMessage = async (
 ): Promise<void> => {
   const trimmed = text.trim()
   if (!trimmed) return
+
+  // Verifica se o remetente bloqueou o destinatário
+  const senderSnap = await getDoc(doc(db, 'users', senderId))
+  const blockedUsers: string[] = senderSnap.data()?.blockedUsers || []
+  if (blockedUsers.includes(receiverId)) return // bloqueado — falha silenciosa
 
   const messagesRef = collection(db, 'chats', chatId, 'messages')
   await addDoc(messagesRef, {
@@ -136,7 +144,6 @@ export const deleteChat = async (chatId: string): Promise<void> => {
   const messagesRef = collection(db, 'chats', chatId, 'messages')
   const messagesSnap = await getDocs(messagesRef)
 
-  // Deleta mensagens em lotes de até 500
   const batchSize = 500
   const docs = messagesSnap.docs
   for (let i = 0; i < docs.length; i += batchSize) {
@@ -145,6 +152,23 @@ export const deleteChat = async (chatId: string): Promise<void> => {
     await batch.commit()
   }
 
-  // Deleta o documento do chat
   await deleteDoc(doc(db, 'chats', chatId))
+}
+
+/**
+ * Bloqueia um usuário — adiciona blockedId no array blockedUsers do blocker.
+ */
+export const blockUser = async (blockerId: string, blockedId: string): Promise<void> => {
+  await updateDoc(doc(db, 'users', blockerId), {
+    blockedUsers: arrayUnion(blockedId),
+  })
+}
+
+/**
+ * Desbloqueia um usuário — remove blockedId do array blockedUsers do blocker.
+ */
+export const unblockUser = async (blockerId: string, blockedId: string): Promise<void> => {
+  await updateDoc(doc(db, 'users', blockerId), {
+    blockedUsers: arrayRemove(blockedId),
+  })
 }
