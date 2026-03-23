@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Star, X, Loader2, CheckCircle } from 'lucide-react'
+import { Star, X, Loader2, CheckCircle, User, Briefcase } from 'lucide-react'
 import { submitReview, getUserReviewForProvider } from '@/lib/reviewUtils'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { Review } from '@/types'
@@ -16,8 +16,15 @@ interface Props {
   chatId?: string
 }
 
+type ReviewIdentity = 'client' | 'provider'
+
 export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }: Props) => {
   const { user } = useSimpleAuth()
+
+  // Etapa: 'identity' (só se for prestador tb) | 'review'
+  const [step, setStep] = useState<'identity' | 'review'>('review')
+  const [identity, setIdentity] = useState<ReviewIdentity>('client')
+
   const [rating, setRating] = useState(0)
   const [hovered, setHovered] = useState(0)
   const [comment, setComment] = useState('')
@@ -27,22 +34,62 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
   const [existing, setExisting] = useState<Review | null>(null)
   const [loadingExisting, setLoadingExisting] = useState(false)
 
+  // Dados pessoais e profissionais do avaliador
+  const [clientData, setClientData] = useState<{ name: string; avatar: string } | null>(null)
+  const [providerData, setProviderData] = useState<{ name: string; avatar: string } | null>(null)
+  const [isAlsoProvider, setIsAlsoProvider] = useState(false)
+
+  // Carrega dados do Firestore ao abrir
   useEffect(() => {
     if (!open || !user?.id) return
-    setLoadingExisting(true)
     setDone(false)
     setError('')
-    getUserReviewForProvider(user.id, providerId).then((rev) => {
-      if (rev) {
-        setExisting(rev)
-        setRating(rev.rating)
-        setComment(rev.comment || '')
-      } else {
-        setExisting(null)
-        setRating(0)
-        setComment('')
+    setRating(0)
+    setComment('')
+    setIdentity('client')
+
+    const load = async () => {
+      setLoadingExisting(true)
+      try {
+        const docSnap = await getDoc(doc(db, 'users', user.id))
+        const data = docSnap.exists() ? docSnap.data() : null
+
+        // Dados pessoais (cliente)
+        const personalName = data?.name || user.name || 'Usuário'
+        const personalAvatar = resolveAvatarFromDoc(data) || user.avatar || ''
+        setClientData({ name: personalName, avatar: personalAvatar })
+
+        // Verifica se também é prestador
+        const roles: string[] = data?.roles || []
+        const alsoProvider = roles.includes('provider') && !!data?.providerProfile
+        setIsAlsoProvider(alsoProvider)
+
+        if (alsoProvider) {
+          const profName = data?.providerProfile?.professionalName || personalName
+          const profAvatar = data?.providerProfile?.coverImage
+            ? personalAvatar  // usa mesmo avatar pessoal, capa não é avatar
+            : personalAvatar
+          setProviderData({ name: profName, avatar: personalAvatar })
+          // Se tem perfil duplo, começa no seletor
+          setStep('identity')
+        } else {
+          setStep('review')
+        }
+
+        // Carrega avaliação existente
+        const rev = await getUserReviewForProvider(user.id, providerId)
+        if (rev) {
+          setExisting(rev)
+          setRating(rev.rating)
+          setComment(rev.comment || '')
+        } else {
+          setExisting(null)
+        }
+      } finally {
+        setLoadingExisting(false)
       }
-    }).finally(() => setLoadingExisting(false))
+    }
+    load()
   }, [open, user?.id, providerId])
 
   const handleSubmit = async () => {
@@ -50,13 +97,9 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
     setSaving(true)
     setError('')
     try {
-      // ✅ Busca sempre os dados pessoais do Firestore
-      // Garante nome e avatar do perfil de CLIENTE, nunca do prestador
-      const docSnap = await getDoc(doc(db, 'users', user.id))
-      const data = docSnap.exists() ? docSnap.data() : null
-
-      const clientName = data?.name || user.name || 'Usuário'
-      const clientAvatar = resolveAvatarFromDoc(data) || user.avatar || ''
+      const chosen = identity === 'provider' ? providerData : clientData
+      const clientName = chosen?.name || user.name || 'Usuário'
+      const clientAvatar = chosen?.avatar || user.avatar || ''
 
       await submitReview({
         providerId,
@@ -66,6 +109,7 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
         rating,
         comment,
         chatId,
+        reviewerRole: identity,   // ← salva qual papel usou
       })
       setDone(true)
       setTimeout(() => { onClose(); setDone(false) }, 1800)
@@ -113,10 +157,12 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
               </button>
             </div>
 
+            {/* Conteúdo */}
             {loadingExisting ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-6 h-6 text-primary animate-spin" />
               </div>
+
             ) : done ? (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -129,8 +175,147 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
                 <p className="text-white font-bold text-lg">Avaliação enviada!</p>
                 <p className="text-muted text-sm text-center">Obrigado pelo seu feedback.</p>
               </motion.div>
+
+            ) : step === 'identity' ? (
+              /* ===== ETAPA 1: Seletor de identidade ===== */
+              <motion.div
+                key="identity"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <p className="text-sm text-muted mb-4 text-center">
+                  Como você quer assinar esta avaliação?
+                </p>
+
+                <div className="space-y-3 mb-6">
+                  {/* Opção: cliente */}
+                  <button
+                    onClick={() => setIdentity('client')}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                      identity === 'client'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border bg-background hover:border-border/80'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                      identity === 'client' ? 'bg-primary/20' : 'bg-surface'
+                    }`}>
+                      {clientData?.avatar ? (
+                        <img
+                          src={clientData.avatar}
+                          alt={clientData.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-5 h-5 text-muted" />
+                      )}
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="text-white font-semibold text-sm truncate">
+                        {clientData?.name}
+                      </p>
+                      <p className="text-xs text-muted">Perfil de cliente</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                      identity === 'client' ? 'border-primary bg-primary' : 'border-border'
+                    }`}>
+                      {identity === 'client' && (
+                        <div className="w-2 h-2 rounded-full bg-background" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Opção: prestador */}
+                  <button
+                    onClick={() => setIdentity('provider')}
+                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                      identity === 'provider'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border bg-background hover:border-border/80'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                      identity === 'provider' ? 'bg-primary/20' : 'bg-surface'
+                    }`}>
+                      {providerData?.avatar ? (
+                        <img
+                          src={providerData.avatar}
+                          alt={providerData.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <Briefcase className="w-5 h-5 text-muted" />
+                      )}
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="text-white font-semibold text-sm truncate">
+                        {providerData?.name}
+                      </p>
+                      <p className="text-xs text-muted">Perfil de prestador</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                      identity === 'provider' ? 'border-primary bg-primary' : 'border-border'
+                    }`}>
+                      {identity === 'provider' && (
+                        <div className="w-2 h-2 rounded-full bg-background" />
+                      )}
+                    </div>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setStep('review')}
+                  className="w-full py-3.5 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors"
+                >
+                  Continuar
+                </button>
+              </motion.div>
+
             ) : (
-              <>
+              /* ===== ETAPA 2: Avaliação ===== */
+              <motion.div
+                key="review"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                {/* Identidade selecionada (só mostra se tem perfil duplo) */}
+                {isAlsoProvider && (
+                  <div className="flex items-center justify-between mb-5 px-3 py-2.5 bg-background rounded-xl border border-border">
+                    <div className="flex items-center gap-2.5">
+                      {(identity === 'client' ? clientData : providerData)?.avatar ? (
+                        <img
+                          src={(identity === 'client' ? clientData : providerData)!.avatar}
+                          className="w-8 h-8 rounded-full object-cover"
+                          alt=""
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center">
+                          {identity === 'client'
+                            ? <User className="w-4 h-4 text-muted" />
+                            : <Briefcase className="w-4 h-4 text-muted" />
+                          }
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-white text-xs font-semibold">
+                          {(identity === 'client' ? clientData : providerData)?.name}
+                        </p>
+                        <p className="text-muted text-[10px]">
+                          {identity === 'client' ? 'Perfil de cliente' : 'Perfil de prestador'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setStep('identity')}
+                      className="text-xs text-primary font-semibold hover:underline"
+                    >
+                      Trocar
+                    </button>
+                  </div>
+                )}
+
                 {/* Estrelas */}
                 <div className="flex flex-col items-center gap-3 mb-6">
                   <div className="flex items-center gap-2">
@@ -153,7 +338,9 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
                       </motion.button>
                     ))}
                   </div>
-                  <p className={`text-sm font-semibold h-5 transition-colors ${activeRating > 0 ? 'text-yellow-400' : 'text-muted'}`}>
+                  <p className={`text-sm font-semibold h-5 transition-colors ${
+                    activeRating > 0 ? 'text-yellow-400' : 'text-muted'
+                  }`}>
                     {starLabels[activeRating]}
                   </p>
                 </div>
@@ -181,7 +368,7 @@ export const ReviewModal = ({ open, onClose, providerId, providerName, chatId }:
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   {saving ? 'Enviando...' : existing ? 'Salvar alterações' : 'Publicar avaliação'}
                 </button>
-              </>
+              </motion.div>
             )}
           </motion.div>
         </motion.div>
