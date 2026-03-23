@@ -35,14 +35,14 @@ export const ProviderDashboardPage = () => {
   const coverInputRef = useRef<HTMLInputElement>(null)
 
   const [profile, setProfile] = useState({
-    name: '',
+    professionalName: '',   // nome profissional — exibido no painel e perfil público
     specialty: '',
     bio: '',
     city: '',
     neighborhood: '',
     priceFrom: 100,
     skills: [] as string[],
-    avatar: '',
+    avatar: '',             // foto do PRESTADOR (providerProfile.avatar)
     coverImage: '',
     phone: '',
     email: '',
@@ -72,14 +72,17 @@ export const ProviderDashboardPage = () => {
           const data = docSnap.data()
           const providerProfile = data.providerProfile || {}
           setProfile({
-            name: data.name || user.name || 'Seu Nome',
+            // ✅ FIX 1: usa professionalName como nome exibido no painel do prestador
+            // Nunca usa data.name (nome pessoal) para editar aqui
+            professionalName: providerProfile.professionalName || data.name || user.name || 'Seu Nome',
             specialty: providerProfile.specialty || 'Sua Especialidade',
             bio: providerProfile.bio || 'Conte um pouco sobre você e sua experiência profissional...',
             city: providerProfile.city || '',
             neighborhood: providerProfile.neighborhood || 'Centro',
             priceFrom: providerProfile.priceFrom || 100,
             skills: providerProfile.skills || ['Habilidade 1', 'Habilidade 2'],
-            avatar: data.avatar || user.avatar || `https://i.pravatar.cc/150?u=${user.id}`,
+            // ✅ FIX 1: prioriza providerProfile.avatar — NÃO usa data.avatar (foto pessoal) como padrão de edição
+            avatar: providerProfile.avatar || data.avatar || user.avatar || `https://i.pravatar.cc/150?u=${user.id}`,
             coverImage: providerProfile.coverImage || 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&q=80',
             phone: providerProfile.phone || '',
             email: data.email || user.email || '',
@@ -96,7 +99,7 @@ export const ProviderDashboardPage = () => {
         } else {
           setProfile(prev => ({
             ...prev,
-            name: user.name || 'Seu Nome',
+            professionalName: user.name || 'Seu Nome',
             avatar: user.avatar || `https://i.pravatar.cc/150?u=${user.id}`,
             email: user.email || '',
           }))
@@ -134,6 +137,8 @@ export const ProviderDashboardPage = () => {
     })
   }
 
+  // ✅ FIX 2: upload da foto do PRESTADOR vai para providerProfile.avatar
+  // NÃO toca no campo raiz `avatar` (foto pessoal do cliente)
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user?.id) return
@@ -141,9 +146,14 @@ export const ProviderDashboardPage = () => {
     setUploadError('')
     setUploadingAvatar(true)
     try {
-      const url = await uploadImage(file, `avatars/${user.id}/${Date.now()}_${file.name}`, p => setUploadProgress(p))
+      const url = await uploadImage(
+        file,
+        `provider-avatars/${user.id}/${Date.now()}_${file.name}`,
+        p => setUploadProgress(p)
+      )
       setProfile(prev => ({ ...prev, avatar: url }))
-      await setDoc(doc(db, 'users', user.id), { avatar: url }, { merge: true })
+      // ✅ Salva em providerProfile.avatar — foto pessoal (raiz) permanece intocada
+      await setDoc(doc(db, 'users', user.id), { providerProfile: { avatar: url } }, { merge: true })
     } catch (err: any) {
       setUploadError('Erro ao enviar foto. Tente novamente.')
     } finally {
@@ -160,7 +170,11 @@ export const ProviderDashboardPage = () => {
     setUploadError('')
     setUploadingCover(true)
     try {
-      const url = await uploadImage(file, `covers/${user.id}/${Date.now()}_${file.name}`, p => setUploadProgress(p))
+      const url = await uploadImage(
+        file,
+        `covers/${user.id}/${Date.now()}_${file.name}`,
+        p => setUploadProgress(p)
+      )
       setProfile(prev => ({ ...prev, coverImage: url }))
       await setDoc(doc(db, 'users', user.id), { providerProfile: { coverImage: url } }, { merge: true })
     } catch (err: any) {
@@ -172,6 +186,8 @@ export const ProviderDashboardPage = () => {
     }
   }
 
+  // ✅ FIX 3: handleSave NÃO toca em `name` nem `avatar` raiz
+  // Tudo do prestador fica dentro de providerProfile
   const handleSave = async () => {
     if (!user?.id) return
     setSaving(true)
@@ -179,9 +195,10 @@ export const ProviderDashboardPage = () => {
       await setDoc(
         doc(db, 'users', user.id),
         {
-          name: profile.name,
-          avatar: profile.avatar,
+          // ✅ name raiz (pessoal) NÃO é alterado aqui — só editável na ClientProfilePage
+          // ✅ avatar raiz (pessoal) NÃO é alterado aqui — só editável na ClientProfilePage
           providerProfile: {
+            professionalName: profile.professionalName,
             specialty: profile.specialty,
             bio: profile.bio,
             city: profile.city,
@@ -189,6 +206,7 @@ export const ProviderDashboardPage = () => {
             priceFrom: profile.priceFrom,
             skills: profile.skills,
             phone: profile.phone,
+            avatar: profile.avatar,        // ✅ foto do prestador fica em providerProfile
             coverImage: profile.coverImage,
             responseTime: profile.responseTime,
             completedJobs: profile.completedJobs,
@@ -243,7 +261,6 @@ export const ProviderDashboardPage = () => {
 
   return (
     <div className="min-h-screen pt-16 pb-20">
-      {/* Inputs ocultos para upload */}
       <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
       <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
 
@@ -264,7 +281,6 @@ export const ProviderDashboardPage = () => {
         </button>
       </div>
 
-      {/* Erro de upload */}
       {uploadError && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2 text-red-400 text-sm">
@@ -275,7 +291,6 @@ export const ProviderDashboardPage = () => {
         </div>
       )}
 
-      {/* Conteúdo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 sm:-mt-24 lg:-mt-32 relative z-10">
 
         {/* Banner Portfólio Multimídia */}
@@ -301,14 +316,12 @@ export const ProviderDashboardPage = () => {
           </motion.div>
         </div>
 
-        {/* ✅ Seletor de abas */}
+        {/* Tabs */}
         <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mb-4 sm:mb-6">
           <button
             onClick={() => setActiveTab('perfil')}
             className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-colors ${
-              activeTab === 'perfil'
-                ? 'bg-primary text-background'
-                : 'text-muted hover:text-white'
+              activeTab === 'perfil' ? 'bg-primary text-background' : 'text-muted hover:text-white'
             }`}
           >
             Meu Perfil
@@ -316,9 +329,7 @@ export const ProviderDashboardPage = () => {
           <button
             onClick={() => setActiveTab('avaliacoes')}
             className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
-              activeTab === 'avaliacoes'
-                ? 'bg-primary text-background'
-                : 'text-muted hover:text-white'
+              activeTab === 'avaliacoes' ? 'bg-primary text-background' : 'text-muted hover:text-white'
             }`}
           >
             <Star className="w-4 h-4" fill={activeTab === 'avaliacoes' ? 'currentColor' : 'none'} />
@@ -373,7 +384,6 @@ export const ProviderDashboardPage = () => {
               )}
             </div>
 
-            {/* Layout grid */}
             <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
               {/* Coluna principal */}
               <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
@@ -384,14 +394,14 @@ export const ProviderDashboardPage = () => {
                     <div className="relative">
                       <img
                         src={profile.avatar}
-                        alt={profile.name}
+                        alt={profile.professionalName}
                         className={`w-24 h-24 sm:w-28 sm:h-28 lg:w-32 lg:h-32 rounded-xl sm:rounded-2xl object-cover border-4 border-background shrink-0 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
                       />
                       <button
                         onClick={() => avatarInputRef.current?.click()}
                         disabled={uploadingAvatar}
                         className="absolute bottom-0 right-0 w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-full flex items-center justify-center hover:bg-primary-dark transition-colors touch-target disabled:opacity-60"
-                        title="Trocar foto de perfil"
+                        title="Trocar foto do perfil profissional"
                       >
                         {uploadingAvatar ? (
                           <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-background animate-spin" />
@@ -404,13 +414,18 @@ export const ProviderDashboardPage = () => {
                     <div className="flex-1 w-full">
                       {editing ? (
                         <div className="space-y-3">
-                          <input
-                            type="text"
-                            value={profile.name}
-                            onChange={e => setProfile({ ...profile, name: e.target.value })}
-                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-lg font-bold outline-none focus:border-primary transition-colors"
-                            placeholder="Seu nome"
-                          />
+                          {/* ✅ Edita professionalName — NÃO o name pessoal */}
+                          <div>
+                            <label className="block text-xs text-muted mb-1">Nome profissional</label>
+                            <input
+                              type="text"
+                              value={profile.professionalName}
+                              onChange={e => setProfile({ ...profile, professionalName: e.target.value })}
+                              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-lg font-bold outline-none focus:border-primary transition-colors"
+                              placeholder="Nome profissional"
+                            />
+                            <p className="text-[10px] text-muted mt-1">⚠️ Não altera seu nome pessoal de cliente</p>
+                          </div>
                           <input
                             type="text"
                             value={profile.specialty}
@@ -423,7 +438,7 @@ export const ProviderDashboardPage = () => {
                         <div className="flex flex-col gap-3 mb-3">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 text-center sm:text-left">
-                              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{profile.name}</h1>
+                              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{profile.professionalName}</h1>
                               <p className="text-primary text-base sm:text-lg font-semibold">{profile.specialty}</p>
                             </div>
                             {profile.verified && (
@@ -443,7 +458,6 @@ export const ProviderDashboardPage = () => {
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted mb-4">
                         <div className="flex items-center justify-center sm:justify-start gap-1">
                           <Star className="w-4 h-4 text-yellow-400" fill="currentColor" />
-                          {/* ✅ Nota real via useReviews, fallback para o dado estático */}
                           <span className="text-white font-semibold">
                             {reviewCount > 0 ? averageRating.toFixed(1) : profile.rating}
                           </span>
@@ -744,8 +758,6 @@ export const ProviderDashboardPage = () => {
         {/* ===== ABA: AVALIAÇÕES ===== */}
         {activeTab === 'avaliacoes' && (
           <div className="space-y-4 sm:space-y-6">
-
-            {/* Card: Resumo */}
             {reviewCount > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -764,7 +776,6 @@ export const ProviderDashboardPage = () => {
               </motion.div>
             )}
 
-            {/* Card: Lista */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
