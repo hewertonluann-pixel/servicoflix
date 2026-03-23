@@ -1,71 +1,143 @@
-import { useEffect, useState } from 'react'
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+  Timestamp,
+} from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { Review } from '@/types'
+import { getChatId } from '@/lib/chatUtils'
+import { Review, ReviewReply } from '@/types'
 
-export interface RatingDistribution {
-  5: number
-  4: number
-  3: number
-  2: number
-  1: number
+// ─── Submeter ou editar avaliação ────────────────────────────────────────────
+
+export interface SubmitReviewData {
+  providerId: string
+  clientId: string
+  clientName: string
+  clientAvatar: string
+  rating: number
+  comment: string
+  chatId?: string
 }
 
-interface UseReviewsResult {
-  reviews: Review[]
-  loading: boolean
-  averageRating: number
-  reviewCount: number
-  distribution: RatingDistribution
-}
+export const submitReview = async (data: SubmitReviewData): Promise<void> => {
+  if (data.clientId === data.providerId) {
+    throw new Error('Você não pode avaliar a si mesmo.')
+  }
 
-export const useReviews = (providerId: string | undefined): UseReviewsResult => {
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [loading, setLoading] = useState(true)
+  // ID determinístico — 1 review por cliente por prestador
+  const reviewId = `${data.clientId}_${data.providerId}`
+  const reviewRef = doc(db, 'reviews', reviewId)
+  const existing = await getDoc(reviewRef)
 
-  useEffect(() => {
-    if (!providerId) {
-      setLoading(false)
-      return
-    }
+  // Badge "Serviço verificado": verifica se existe chat entre os dois
+  const verified = await hasChattedWithProvider(data.clientId, data.providerId)
 
-    const q = query(
-      collection(db, 'reviews'),
-      where('providerId', '==', providerId),
-      orderBy('createdAt', 'desc')
-    )
-
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Review))
-      setReviews(data)
-      setLoading(false)
-    }, (err) => {
-      console.error('[useReviews] Erro:', err)
-      setLoading(false)
+  if (existing.exists()) {
+    // Edição
+    await updateDoc(reviewRef, {
+      rating: data.rating,
+      comment: data.comment,
+      verified,
+      updatedAt: serverTimestamp(),
     })
-
-    return () => unsub()
-  }, [providerId])
-
-  // Calcula média
-  const averageRating = reviews.length > 0
-    ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
-    : 0
-
-  // Calcula distribuição percentual por estrela
-  const distribution: RatingDistribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
-  if (reviews.length > 0) {
-    ;[5, 4, 3, 2, 1].forEach((star) => {
-      const count = reviews.filter(r => r.rating === star).length
-      distribution[star as keyof RatingDistribution] = Math.round((count / reviews.length) * 100)
+  } else {
+    // Nova avaliação
+    await setDoc(reviewRef, {
+      id: reviewId,
+      providerId: data.providerId,
+      clientId: data.clientId,
+      clientName: data.clientName,
+      clientAvatar: data.clientAvatar,
+      rating: data.rating,
+      comment: data.comment,
+      verified,
+      chatId: data.chatId || null,
+      reply: null,
+      createdAt: serverTimestamp(),
+      updatedAt: null,
     })
   }
 
-  return {
-    reviews,
-    loading,
-    averageRating,
-    reviewCount: reviews.length,
-    distribution,
+  await recalculateRating(data.providerId)
+}
+
+// ─── Recalcular média e total de avaliações do prestador ─────────────────────
+
+export const recalculateRating = async (providerId: string): Promise<void> => {
+  const q = query(
+    collection(db, 'reviews'),
+    where('providerId', '==', providerId)
+  )
+  const snap = await getDocs(q)
+
+  if (snap.empty) {
+    await updateDoc(doc(db, 'users', providerId), {
+      'providerProfile.rating': 0,
+      'providerProfile.reviewCount': 0,
+    })
+    return
   }
+
+  const ratings = snap.docs.map(d => d.data().rating as number)
+  const total = ratings.length
+  const average = ratings.reduce((sum, r) => sum + r, 0) / total
+  const rounded = Math.round(average * 10) / 10 // ex: 4.7
+
+  await updateDoc(doc(db, 'users', providerId), {
+    'providerProfile.rating': rounded,
+    'providerProfile.reviewCount': total,
+  })
+}
+
+// ─── Buscar review do usuário para um prestador específico ───────────────────
+
+export const getUserReviewForProvider = async (
+  clientId: string,
+  providerId: string
+): Promise<Review | null> => {
+  const reviewId = `${clientId}_${providerId}`
+  const snap = await getDoc(doc(db, 'reviews', reviewId))
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() } as Review
+}
+
+// ─── Verificar se existe chat entre cliente e prestador ──────────────────────
+
+export const hasChattedWithProvider = async (
+  clientId: string,
+  providerId: string
+): Promise<boolean> => {
+  // chatId é determinístico — não precisa de query
+  const chatId = getChatId(clientId, providerId)
+  const snap = await getDoc(doc(db, 'chats', chatId))
+  return snap.exists()
+}
+
+// ─── Prestador responde uma avaliação ────────────────────────────────────────
+
+export const replyToReview = async (
+  reviewId: string,
+  reply: Omit<ReviewReply, 'createdAt'>
+): Promise<void> => {
+  await updateDoc(doc(db, 'reviews', reviewId), {
+    reply: {
+      ...reply,
+      createdAt: serverTimestamp(),
+    },
+  })
+}
+
+// ─── Deletar resposta do prestador ───────────────────────────────────────────
+
+export const deleteReply = async (reviewId: string): Promise<void> => {
+  await updateDoc(doc(db, 'reviews', reviewId), {
+    reply: null,
+  })
 }
