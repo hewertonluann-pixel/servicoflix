@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Send, Loader2, MessageCircle, AlertCircle, ExternalLink, MoreVertical, Trash2, ShieldX, Flag } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, MessageCircle, AlertCircle, ExternalLink, MoreVertical, Trash2, ShieldX, Flag, Star } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
@@ -12,6 +12,7 @@ import { useBlockedUsers } from '@/hooks/useBlockedUsers'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ReportModal } from '@/components/ReportModal'
+import { ReviewModal } from '@/components/ReviewModal'
 
 const formatTime = (timestamp: any): string => {
   if (!timestamp) return ''
@@ -41,6 +42,7 @@ export const ChatPage = () => {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deletingChat, setDeletingChat] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
+  const [reviewModalOpen, setReviewModalOpen] = useState(false)
 
   // Bloqueio
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
@@ -195,9 +197,13 @@ export const ChatPage = () => {
   const presenceLabel = isOnline ? null : formatLastSeen(lastSeen)
   const blocked = otherUser ? isBlocked(otherUser.id) : false
 
+  // Condição do banner: outro usuário é prestador + há mensagens + não é o próprio prestador
+  const showReviewBanner = otherUser?.isProvider && messages.length >= 1 && user.id !== otherUser.id
+
   return (
     <>
       <div className="flex flex-col h-screen pt-16 bg-background">
+
         {/* Header */}
         <div className="bg-surface border-b border-border px-4 py-3 flex items-center gap-3 shrink-0">
           <button onClick={() => navigate('/chats')} className="p-2 hover:bg-background rounded-lg transition-colors shrink-0">
@@ -262,6 +268,17 @@ export const ChatPage = () => {
                   transition={{ duration: 0.15 }}
                   className="absolute right-0 mt-2 w-48 bg-surface border border-border rounded-xl shadow-xl py-1 z-50"
                 >
+                  {/* Opção avaliar no menu — só para prestadores */}
+                  {otherUser?.isProvider && user.id !== otherUser.id && (
+                    <button
+                      onClick={() => { setMenuOpen(false); setReviewModalOpen(true) }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-yellow-400 text-sm"
+                    >
+                      <Star className="w-4 h-4" />
+                      Avaliar prestador
+                    </button>
+                  )}
+
                   <button
                     onClick={() => { setMenuOpen(false); setConfirmDeleteOpen(true) }}
                     className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-red-400 text-sm"
@@ -300,6 +317,25 @@ export const ChatPage = () => {
             </AnimatePresence>
           </div>
         </div>
+
+        {/* ✅ Banner de avaliação */}
+        {showReviewBanner && !blocked && (
+          <div className="bg-primary/10 border-b border-primary/20 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-400 shrink-0" fill="currentColor" />
+              <p className="text-xs text-white">
+                Como foi o atendimento de{' '}
+                <span className="font-semibold">{otherDisplayName}</span>?
+              </p>
+            </div>
+            <button
+              onClick={() => setReviewModalOpen(true)}
+              className="text-xs text-primary font-bold hover:underline shrink-0"
+            >
+              Avaliar →
+            </button>
+          </div>
+        )}
 
         {/* Mensagens */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -462,6 +498,17 @@ export const ChatPage = () => {
           reportedUserId={otherUser.id}
           chatId={chatId}
           reportedByUserId={user.id}
+        />
+      )}
+
+      {/* ReviewModal */}
+      {otherUser?.isProvider && chatId && (
+        <ReviewModal
+          open={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          providerId={otherUser.id}
+          providerName={otherDisplayName}
+          chatId={chatId}
         />
       )}
     </>
