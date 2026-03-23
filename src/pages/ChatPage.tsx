@@ -7,10 +7,11 @@ import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useMessages } from '@/hooks/useMessages'
 import { usePresence, useUserPresence, formatLastSeen } from '@/hooks/usePresence'
-import { createOrGetChat, sendMessage, markChatAsRead, ChatParticipantInfo, deleteChat } from '@/lib/chatUtils'
+import { createOrGetChat, sendMessage, markChatAsRead, ChatParticipantInfo, deleteChat, blockUser, unblockUser } from '@/lib/chatUtils'
+import { useBlockedUsers } from '@/hooks/useBlockedUsers'
 import { resolveAvatarFromDoc } from '@/lib/avatarUtils'
 import { UserAvatar } from '@/components/UserAvatar'
-import { ReportModal } from '@/components/ReportModal' // ✅ 1. Import novo
+import { ReportModal } from '@/components/ReportModal'
 
 const formatTime = (timestamp: any): string => {
   if (!timestamp) return ''
@@ -39,9 +40,14 @@ export const ChatPage = () => {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deletingChat, setDeletingChat] = useState(false)
-  const [reportOpen, setReportOpen] = useState(false) // ✅ 2. State novo
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [reportOpen, setReportOpen] = useState(false)
 
+  // Bloqueio
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
+  const [blockingUser, setBlockingUser] = useState(false)
+  const { isBlocked } = useBlockedUsers(user?.id)
+
+  const menuRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -123,6 +129,7 @@ export const ChatPage = () => {
 
   const handleSend = async () => {
     if (!text.trim() || !chatId || !user?.id || !otherUser) return
+    if (isBlocked(otherUser.id)) return
     setSending(true)
     try {
       await sendMessage(chatId, user.id, otherUser.id, text)
@@ -153,6 +160,28 @@ export const ChatPage = () => {
     }
   }
 
+  const handleBlock = async () => {
+    if (!user?.id || !otherUser) return
+    setBlockingUser(true)
+    try {
+      await blockUser(user.id, otherUser.id)
+      setConfirmBlockOpen(false)
+    } catch (err) {
+      console.error('[ChatPage] Erro ao bloquear:', err)
+    } finally {
+      setBlockingUser(false)
+    }
+  }
+
+  const handleUnblock = async () => {
+    if (!user?.id || !otherUser) return
+    try {
+      await unblockUser(user.id, otherUser.id)
+    } catch (err) {
+      console.error('[ChatPage] Erro ao desbloquear:', err)
+    }
+  }
+
   if (!user) return <div className="min-h-screen pt-16 flex items-center justify-center"><p className="text-muted">Faça login para acessar o chat.</p></div>
   if (loading) return <div className="min-h-screen pt-16 flex items-center justify-center"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
   if (error) return (
@@ -164,6 +193,7 @@ export const ChatPage = () => {
   const otherDisplayName = otherUser?.name || 'Conversa'
   const otherAvatar = otherUser?.avatar || ''
   const presenceLabel = isOnline ? null : formatLastSeen(lastSeen)
+  const blocked = otherUser ? isBlocked(otherUser.id) : false
 
   return (
     <>
@@ -178,29 +208,37 @@ export const ChatPage = () => {
             <Link to={`/prestador/${otherUser.id}`} className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity">
               <div className="relative shrink-0">
                 <UserAvatar src={otherAvatar} name={otherDisplayName} size={40} />
-                {isOnline && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />}
+                {isOnline && !blocked && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="text-white font-semibold text-sm truncate">{otherDisplayName}</p>
-                  <ExternalLink className="w-3 h-3 text-muted shrink-0" />
+                  {blocked && <span className="px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-[10px] font-semibold rounded-md">🚫 Bloqueado</span>}
+                  {!blocked && <ExternalLink className="w-3 h-3 text-muted shrink-0" />}
                 </div>
-                <p className={`text-xs ${isOnline ? 'text-green-400 font-medium' : 'text-muted'}`}>
-                  {isOnline ? 'Online agora' : presenceLabel}
-                </p>
+                {!blocked && (
+                  <p className={`text-xs ${isOnline ? 'text-green-400 font-medium' : 'text-muted'}`}>
+                    {isOnline ? 'Online agora' : presenceLabel}
+                  </p>
+                )}
               </div>
             </Link>
           ) : (
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="relative shrink-0">
                 <UserAvatar src={otherAvatar} name={otherDisplayName} size={40} />
-                {isOnline && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />}
+                {isOnline && !blocked && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-surface rounded-full" />}
               </div>
               <div className="min-w-0">
-                <p className="text-white font-semibold text-sm truncate">{otherDisplayName}</p>
-                <p className={`text-xs ${isOnline ? 'text-green-400 font-medium' : 'text-muted'}`}>
-                  {isOnline ? 'Online agora' : presenceLabel}
-                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-white font-semibold text-sm truncate">{otherDisplayName}</p>
+                  {blocked && <span className="px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-[10px] font-semibold rounded-md">🚫 Bloqueado</span>}
+                </div>
+                {!blocked && (
+                  <p className={`text-xs ${isOnline ? 'text-green-400 font-medium' : 'text-muted'}`}>
+                    {isOnline ? 'Online agora' : presenceLabel}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -232,15 +270,24 @@ export const ChatPage = () => {
                     Excluir conversa
                   </button>
 
-                  <button
-                    onClick={() => { setMenuOpen(false) }}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
-                  >
-                    <ShieldX className="w-4 h-4" />
-                    Bloquear usuário
-                  </button>
+                  {blocked ? (
+                    <button
+                      onClick={() => { setMenuOpen(false); handleUnblock() }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-green-400 text-sm"
+                    >
+                      <ShieldX className="w-4 h-4" />
+                      Desbloquear usuário
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setMenuOpen(false); setConfirmBlockOpen(true) }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-yellow-400 text-sm"
+                    >
+                      <ShieldX className="w-4 h-4" />
+                      Bloquear usuário
+                    </button>
+                  )}
 
-                  {/* ✅ 3. Botão Denunciar conectado ao ReportModal */}
                   <button
                     onClick={() => { setMenuOpen(false); setReportOpen(true) }}
                     className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background text-left text-muted text-sm"
@@ -291,15 +338,41 @@ export const ChatPage = () => {
           <div ref={bottomRef} />
         </div>
 
+        {/* Banner de bloqueio */}
+        {blocked && (
+          <div className="bg-yellow-500/10 border-t border-yellow-500/30 px-4 py-3 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <ShieldX className="w-4 h-4 text-yellow-400 shrink-0" />
+              <p className="text-xs text-yellow-300">
+                Você bloqueou este usuário. Ele não pode te enviar mensagens.
+              </p>
+            </div>
+            <button
+              onClick={handleUnblock}
+              className="text-xs text-yellow-400 font-semibold hover:underline shrink-0"
+            >
+              Desbloquear
+            </button>
+          </div>
+        )}
+
         {/* Input */}
         <div className="bg-surface border-t border-border px-4 py-3 flex items-end gap-3 shrink-0">
-          <textarea ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder="Escreva uma mensagem..." rows={1}
-            className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors resize-none max-h-32"
+          <textarea
+            ref={inputRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={blocked ? 'Você bloqueou este usuário' : 'Escreva uma mensagem...'}
+            rows={1}
+            disabled={blocked}
+            className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-white text-sm focus:border-primary outline-none transition-colors resize-none max-h-32 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ height: 'auto' }}
             onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 128) + 'px' }}
           />
-          <button onClick={handleSend} disabled={!text.trim() || sending}
+          <button
+            onClick={handleSend}
+            disabled={!text.trim() || sending || blocked}
             className="w-11 h-11 bg-primary text-background rounded-xl flex items-center justify-center hover:bg-primary-dark transition-colors disabled:opacity-40 shrink-0"
           >
             {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
@@ -307,7 +380,7 @@ export const ChatPage = () => {
         </div>
       </div>
 
-      {/* Modal exclusão */}
+      {/* Modal: Excluir conversa */}
       {confirmDeleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
@@ -344,7 +417,44 @@ export const ChatPage = () => {
         </div>
       )}
 
-      {/* ✅ 3. ReportModal conectado */}
+      {/* Modal: Bloquear usuário */}
+      {confirmBlockOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="bg-surface border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-yellow-500/15 flex items-center justify-center shrink-0">
+                <ShieldX className="w-5 h-5 text-yellow-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Bloquear usuário</h3>
+                <p className="text-sm text-muted">{otherDisplayName}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted mb-6">
+              Você não poderá mais enviar ou receber mensagens desta pessoa. Você pode desbloquear a qualquer momento.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmBlockOpen(false)}
+                disabled={blockingUser}
+                className="flex-1 py-2.5 rounded-xl border border-border text-muted font-semibold text-sm hover:text-white transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBlock}
+                disabled={blockingUser}
+                className="flex-1 py-2.5 rounded-xl bg-yellow-500 text-background font-bold text-sm hover:bg-yellow-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {blockingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldX className="w-4 h-4" />}
+                {blockingUser ? 'Bloqueando...' : 'Bloquear'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ReportModal */}
       {otherUser && chatId && (
         <ReportModal
           open={reportOpen}
