@@ -233,7 +233,8 @@ export const ChatsPage = () => {
                         ease: 'easeInOut',
                         delay: isRemoving ? 0 : i * 0.04,
                       }}
-                      style={{ overflow: 'hidden' }}
+                      // ✅ overflow hidden só durante animação de remoção
+                      style={{ overflow: isRemoving ? 'hidden' : 'visible' }}
                       className={`w-full border rounded-xl p-4 flex items-center gap-4 hover:border-primary/50 transition-colors ${
                         blocked
                           ? 'bg-yellow-500/5 border-yellow-500/20 opacity-70'
