@@ -1,5 +1,11 @@
 import { Timestamp } from 'firebase/firestore'
 
+// ===== ROLES =====
+
+export type UserRole = 'client' | 'provider'
+
+// ===== PROVIDER =====
+
 export interface Provider {
   id: string
   name: string
@@ -22,6 +28,84 @@ export interface Provider {
   socialLinks?: SocialLinks
 }
 
+export interface ProviderProfile {
+  professionalName?: string       // nome profissional (pode diferir do name pessoal)
+  specialty: string
+  bio: string
+  city: string
+  neighborhood: string
+  priceFrom: number
+  skills: string[]
+  categories: string[]
+  availability?: string[]
+  responseTime?: string
+  completedJobs?: number
+  verified?: boolean
+  coverImage?: string
+  phone?: string
+  media?: ProviderMedia
+  socialLinks?: SocialLinks
+  videos?: {
+    presentation?: string
+    portfolio?: string[]
+  }
+}
+
+// ===== CLIENT =====
+
+export interface ClientProfile {
+  phone?: string
+  address?: string
+  city?: string
+  neighborhood?: string
+  preferences?: string[]
+}
+
+// ===== USER =====
+
+export interface User {
+  id: string
+  email: string
+  name: string              // nome PESSOAL — sempre presente, nunca substituir por professionalName
+  avatar?: string           // foto PESSOAL — usada em chats, avaliações, comentários
+  roles: UserRole[]         // ['client'] por padrão; ['client','provider'] se for prestador
+  createdAt: string
+
+  clientProfile?: ClientProfile
+  providerProfile?: ProviderProfile
+}
+
+// ===== AVALIAÇÕES =====
+
+export interface ReviewReply {
+  text: string
+  createdAt: Timestamp
+}
+
+export interface Review {
+  id: string
+  providerId: string
+  clientId: string
+  clientName: string        // nome do perfil escolhido (pessoal ou profissional)
+  clientAvatar: string      // avatar do perfil escolhido
+  rating: number
+  comment: string
+  verified: boolean         // true = teve conversa no chat (badge "Serviço verificado")
+  chatId?: string | null    // referência ao chat que originou a avaliação
+  reviewerRole?: 'client' | 'provider'  // qual perfil assinou a avaliação
+  reply?: ReviewReply       // resposta do prestador
+  createdAt: Timestamp
+  updatedAt?: Timestamp
+
+  // ← legado: mantidos para compatibilidade com mocks existentes
+  userName?: string
+  userAvatar?: string
+  date?: string
+  images?: string[]
+}
+
+// ===== CATEGORIAS =====
+
 export interface Category {
   id: string
   name: string
@@ -30,34 +114,7 @@ export interface Category {
   providerCount: number
 }
 
-// ===== AVALIAÇÕES =====
-
-export interface ReviewReply {
-  text: string
-  createdAt: Timestamp
-  providerName: string
-  providerAvatar: string
-}
-
-export interface Review {
-  id: string
-  providerId: string
-  clientId: string
-  clientName: string
-  clientAvatar: string
-  rating: number
-  comment: string
-  verified: boolean       // true = teve conversa com o prestador (badge "Serviço verificado")
-  chatId?: string         // referência ao chat que originou a avaliação
-  reply?: ReviewReply     // resposta do prestador
-  createdAt: Timestamp
-  updatedAt?: Timestamp
-  // legado — mantidos para compatibilidade com mocks existentes
-  userName?: string
-  userAvatar?: string
-  date?: string
-  images?: string[]
-}
+// ===== SERVIÇOS =====
 
 export type ServiceStatus = 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -88,30 +145,19 @@ export interface ServiceHistory {
   duration: string
 }
 
-// Sistema de perfil duplo
-export type UserRole = 'client' | 'provider'
-
-export interface ClientProfile {
-  phone?: string
-  address?: string
-  city?: string
-  neighborhood?: string
-  preferences?: string[]
-}
-
 // ===== REDES SOCIAIS =====
 
 export interface SocialLinks {
   instagram?: string
   facebook?: string
   youtube?: string
-  whatsapp?: string // Apenas número com DDD
+  whatsapp?: string   // apenas número com DDD, ex: "38999999999"
   tiktok?: string
   linkedin?: string
   website?: string
 }
 
-// ===== NOVO SISTEMA DE MÍDIA =====
+// ===== MÍDIA =====
 
 export type MediaType = 'photo' | 'video' | 'audio'
 
@@ -119,30 +165,30 @@ export interface MediaItem {
   id: string
   type: MediaType
   url: string
-  thumbnailUrl?: string // Para vídeos
+  thumbnailUrl?: string   // para vídeos
   title?: string
   description?: string
-  duration?: number // Em segundos (para vídeos e áudios)
-  size?: number // Em bytes
+  duration?: number       // em segundos (vídeos e áudios)
+  size?: number           // em bytes
   uploadedAt: string
-  order?: number // Para ordenar itens
+  order?: number          // para ordenação manual
 }
 
 export interface ProviderMedia {
-  presentation?: MediaItem // Vídeo ou áudio de apresentação
-  portfolio: MediaItem[] // Mix de fotos, vídeos e áudios
+  presentation?: MediaItem    // vídeo ou áudio de apresentação
+  portfolio: MediaItem[]      // mix de fotos, vídeos e áudios
 }
 
 export interface MediaUploadLimits {
   photos: {
-    maxSize: number // em MB
+    maxSize: number           // em MB
     maxCount: number
     allowedFormats: string[]
   }
   videos: {
     maxSize: number
     maxCount: number
-    maxDuration: number // em segundos
+    maxDuration: number       // em segundos
     allowedFormats: string[]
   }
   audios: {
@@ -151,34 +197,4 @@ export interface MediaUploadLimits {
     maxDuration: number
     allowedFormats: string[]
   }
-}
-
-export interface ProviderProfile {
-  specialty: string
-  bio: string
-  city: string
-  neighborhood: string
-  priceFrom: number
-  skills: string[]
-  categories: string[]
-  availability?: string[]
-  responseTime?: string
-  completedJobs?: number
-  verified?: boolean
-  coverImage?: string
-  media?: ProviderMedia
-  socialLinks?: SocialLinks
-}
-
-export interface User {
-  id: string
-  email: string
-  name: string
-  avatar?: string
-  roles: UserRole[]
-  createdAt: string
-
-  // Perfis opcionais
-  clientProfile?: ClientProfile
-  providerProfile?: ProviderProfile
 }
