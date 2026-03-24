@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Star, MapPin, Clock, CheckCircle, Briefcase, Calendar, MessageCircle, 
   Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle, Sparkles,
-  X, ChevronLeft, ChevronRight, Instagram, Facebook, Youtube, Globe, Linkedin
+  X, ChevronLeft, ChevronRight, Instagram, Facebook, Youtube, Globe, Linkedin,
+  MessageSquare
 } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -22,6 +23,8 @@ import { useReviews } from '@/hooks/useReviews'
 import { ReviewModal } from '@/components/ReviewModal'
 import { ReviewCard } from '@/components/ReviewCard'
 import { RatingDistribution } from '@/components/RatingDistribution'
+import { MediaCommentModal } from '@/components/MediaCommentModal'
+import type { MediaItem } from '@/types'
 
 interface ProviderData {
   id: string
@@ -101,6 +104,15 @@ const SocialButton = ({ icon: Icon, label, url }: { icon: any, label: string, ur
   </a>
 )
 
+/** Converte uma URL de string simples em um MediaItem compatível com MediaCommentModal */
+const toMediaItem = (url: string, type: 'photo' | 'video' | 'audio', index: number): MediaItem => ({
+  id: `${type}-${index}`,
+  type,
+  url,
+  title: `${type === 'photo' ? 'Foto' : type === 'video' ? 'Vídeo' : 'Áudio'} ${index + 1}`,
+  order: index,
+})
+
 export const ProviderProfilePage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -113,6 +125,16 @@ export const ProviderProfilePage = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [hdPhotoLoaded, setHdPhotoLoaded] = useState<Record<number, boolean>>({})
+
+  // ── Estado do modal de comentários ──────────────────────────────────────
+  const [commentItem, setCommentItem] = useState<MediaItem | null>(null)
+  const openComments = (item: MediaItem) => setCommentItem(item)
+  const closeComments = () => setCommentItem(null)
+
+  // Usuário formatado para o CommentSection
+  const commentUser = user
+    ? { uid: user.id, displayName: user.name ?? null, photoURL: user.avatar ?? null }
+    : null
 
   const { isOnline, lastSeen } = useUserPresence(
     loading || !provider || provider.isMock ? null : provider.id
@@ -290,6 +312,8 @@ export const ProviderProfilePage = () => {
   const hasSocialLinks = socialLinks && Object.values(socialLinks).some(value => value && value.trim() !== '')
   const isOwnProfile = user?.id === provider.id
   const showMessageBtn = !provider.isMock && !isOwnProfile
+  // Comentários desabilitados para perfis mock (sem providerId real)
+  const canComment = !provider.isMock
 
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
@@ -346,7 +370,6 @@ export const ProviderProfilePage = () => {
                     )}
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted mb-4">
-                    {/* ✅ Nota real via useReviews, fallback para o dado estático */}
                     <div className="flex items-center justify-center sm:justify-start gap-1">
                       <Star className="w-4 h-4 text-yellow-400" fill="currentColor" />
                       <span className="text-white font-semibold">
@@ -387,7 +410,7 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* Galeria de fotos */}
+            {/* ── Galeria de Fotos ─────────────────────────────────────────────────── */}
             {photos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -395,12 +418,31 @@ export const ProviderProfilePage = () => {
                   <span className="text-[10px] sm:text-xs text-muted">{photos.length} foto{photos.length > 1 ? 's' : ''}</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                  {photos.map((url, i) => (<ProgressiveImage key={i} src={url} alt={`Foto ${i + 1}`} onClick={() => openLightbox(i)} className="aspect-square rounded-lg group cursor-pointer" />))}
+                  {photos.map((url, i) => (
+                    <div key={i} className="relative group">
+                      <ProgressiveImage
+                        src={url}
+                        alt={`Foto ${i + 1}`}
+                        onClick={() => openLightbox(i)}
+                        className="aspect-square rounded-lg cursor-pointer"
+                      />
+                      {/* Botão comentários */}
+                      {canComment && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openComments(toMediaItem(url, 'photo', i)) }}
+                          className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/70 backdrop-blur-sm rounded-full text-white text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>Comentar</span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             )}
 
-            {/* Vídeos */}
+            {/* ── Vídeos ───────────────────────────────────────────────────────────── */}
             {videos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -409,8 +451,21 @@ export const ProviderProfilePage = () => {
                 </div>
                 <VideoCarousel>
                   {videos.map((url, i) => (
-                    <div key={i} className="flex-none w-[240px] sm:w-[280px] lg:w-[320px] snap-start">
-                      {isValidYouTubeUrl(url) ? (<YouTubeEmbed videoUrl={url} title={`Vídeo ${i + 1}`} showThumbnail />) : (<div className="aspect-video rounded-lg overflow-hidden bg-background"><video src={url} controls className="w-full h-full object-cover" /></div>)}
+                    <div key={i} className="flex-none w-[240px] sm:w-[280px] lg:w-[320px] snap-start relative group">
+                      {isValidYouTubeUrl(url)
+                        ? (<YouTubeEmbed videoUrl={url} title={`Vídeo ${i + 1}`} showThumbnail />)
+                        : (<div className="aspect-video rounded-lg overflow-hidden bg-background"><video src={url} controls className="w-full h-full object-cover" /></div>)
+                      }
+                      {/* Botão comentários no vídeo */}
+                      {canComment && (
+                        <button
+                          onClick={() => openComments(toMediaItem(url, 'video', i))}
+                          className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/70 backdrop-blur-sm rounded-full text-white text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>Comentar</span>
+                        </button>
+                      )}
                     </div>
                   ))}
                 </VideoCarousel>
@@ -426,9 +481,19 @@ export const ProviderProfilePage = () => {
                 </div>
                 <div className="space-y-3">
                   {audios.map((url, i) => (
-                    <div key={i} className="bg-background border border-border rounded-lg p-4 flex items-center gap-4">
+                    <div key={i} className="bg-background border border-border rounded-lg p-4 flex items-center gap-4 relative group">
                       <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0"><Music className="w-5 h-5 text-primary" /></div>
                       <div className="flex-1 min-w-0"><audio src={url} controls className="w-full" /></div>
+                      {/* Botão comentários no áudio */}
+                      {canComment && (
+                        <button
+                          onClick={() => openComments(toMediaItem(url, 'audio', i))}
+                          className="flex items-center gap-1 px-2 py-1 bg-surface border border-border rounded-full text-muted text-[10px] font-semibold hover:border-primary hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>Comentar</span>
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -521,7 +586,6 @@ export const ProviderProfilePage = () => {
                     {user ? 'Enviar Mensagem' : 'Entrar para Mensagem'}
                   </button>
                 )}
-                {/* Botão avaliar na sidebar */}
                 {user && !isOwnProfile && !provider.isMock && (
                   <button
                     onClick={() => setReviewModalOpen(true)}
@@ -617,6 +681,17 @@ export const ProviderProfilePage = () => {
           onClose={() => setReviewModalOpen(false)}
           providerId={provider.id}
           providerName={displayName}
+        />
+      )}
+
+      {/* ── Modal de Comentários de Mídia ───────────────────────────────────── */}
+      {canComment && (
+        <MediaCommentModal
+          isOpen={!!commentItem}
+          onClose={closeComments}
+          item={commentItem}
+          providerId={provider.id}
+          currentUser={commentUser}
         />
       )}
     </div>
