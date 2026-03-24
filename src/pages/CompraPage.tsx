@@ -6,8 +6,8 @@ import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
 const STRIPE_LINKS = {
-  assinatura: 'https://buy.stripe.com/14AdR96KJ4m3fmA6XrbfO00', // ← substitua pelo link do produto assinatura
-  creditos:   'https://buy.stripe.com/5kQ7sL7ON7yf3DS5TnbfO01', // ← substitua pelo link do produto 30 dias
+  assinatura: 'https://buy.stripe.com/00w4gzglj7yfa2g3LfbfO02', // ← substitua pelo link do produto assinatura
+  creditos:   'https://buy.stripe.com/9B66oHedbf0H1vKchLbfO03', // ← substitua pelo link do produto 30 dias
 }
 
 export function CompraPage() {
