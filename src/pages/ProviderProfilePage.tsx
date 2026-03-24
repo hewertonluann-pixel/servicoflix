@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -24,6 +24,7 @@ import { ReviewModal } from '@/components/ReviewModal'
 import { ReviewCard } from '@/components/ReviewCard'
 import { RatingDistribution } from '@/components/RatingDistribution'
 import { MediaCommentModal } from '@/components/MediaCommentModal'
+import { useMediaCommentCounts } from '@/hooks/useMediaCommentCounts'
 import type { MediaItem } from '@/types'
 
 interface ProviderData {
@@ -104,7 +105,6 @@ const SocialButton = ({ icon: Icon, label, url }: { icon: any, label: string, ur
   </a>
 )
 
-/** Converte uma URL de string simples em um MediaItem compatível com MediaCommentModal */
 const toMediaItem = (url: string, type: 'photo' | 'video' | 'audio', index: number): MediaItem => ({
   id: `${type}-${index}`,
   type,
@@ -112,6 +112,17 @@ const toMediaItem = (url: string, type: 'photo' | 'video' | 'audio', index: numb
   title: `${type === 'photo' ? 'Foto' : type === 'video' ? 'Vídeo' : 'Áudio'} ${index + 1}`,
   order: index,
 })
+
+/** Badge inline de contagem de comentários */
+const CommentBadge = ({ count }: { count: number }) => {
+  if (count === 0) return null
+  return (
+    <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm rounded-full text-white text-[10px] font-bold pointer-events-none">
+      <MessageSquare className="w-2.5 h-2.5" />
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
 
 export const ProviderProfilePage = () => {
   const { id } = useParams()
@@ -131,7 +142,6 @@ export const ProviderProfilePage = () => {
   const openComments = (item: MediaItem) => setCommentItem(item)
   const closeComments = () => setCommentItem(null)
 
-  // Usuário formatado para o CommentSection
   const commentUser = user
     ? { uid: user.id, displayName: user.name ?? null, photoURL: user.avatar ?? null }
     : null
@@ -142,6 +152,23 @@ export const ProviderProfilePage = () => {
 
   const { reviews, loading: loadingReviews, averageRating, reviewCount, distribution } = useReviews(
     provider?.isMock ? undefined : id
+  )
+
+  // ── Calcula todos os mediaIds após carregar o provider ────────────────────────
+  const allMediaIds = useMemo(() => {
+    if (!provider || provider.isMock) return []
+    const p = provider.providerProfile.media
+    if (!p) return []
+    const photoIds = (p.photos || []).map((_, i) => `photo-${i}`)
+    const videoIds = (p.videos || []).map((_, i) => `video-${i}`)
+    const audioIds = (p.audios || []).map((_, i) => `audio-${i}`)
+    return [...photoIds, ...videoIds, ...audioIds]
+  }, [provider])
+
+  // ── Hook que escuta contagens em tempo real ──────────────────────────────
+  const commentCounts = useMediaCommentCounts(
+    provider?.isMock ? undefined : provider?.id,
+    allMediaIds
   )
 
   useEffect(() => {
@@ -312,7 +339,6 @@ export const ProviderProfilePage = () => {
   const hasSocialLinks = socialLinks && Object.values(socialLinks).some(value => value && value.trim() !== '')
   const isOwnProfile = user?.id === provider.id
   const showMessageBtn = !provider.isMock && !isOwnProfile
-  // Comentários desabilitados para perfis mock (sem providerId real)
   const canComment = !provider.isMock
 
   return (
@@ -339,12 +365,7 @@ export const ProviderProfilePage = () => {
             {/* Card principal */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
-                <UserAvatar
-                  src={provider.providerAvatar}
-                  name={displayName}
-                  size={112}
-                  className="border-4 border-background rounded-xl sm:rounded-2xl shrink-0"
-                />
+                <UserAvatar src={provider.providerAvatar} name={displayName} size={112} className="border-4 border-background rounded-xl sm:rounded-2xl shrink-0" />
                 <div className="flex-1 w-full">
                   <div className="flex flex-col gap-3 mb-3">
                     <div className="flex items-center justify-between gap-2">
@@ -352,33 +373,14 @@ export const ProviderProfilePage = () => {
                         <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mb-1">{displayName}</h1>
                         <p className="text-primary text-base sm:text-lg font-semibold">{provider.providerProfile.specialty}</p>
                       </div>
-                      {isOnline && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/20 border border-green-500/40 rounded-full mb-1">
-                          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                          <span className="text-xs font-semibold text-green-400">Online agora</span>
-                        </div>
-                      )}
-                      {!isOnline && lastSeen && (
-                        <p className="text-xs text-muted mb-1">{formatLastSeen(lastSeen)}</p>
-                      )}
-                      {provider.providerProfile.verified && (
-                        <div className="hidden sm:flex items-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold shrink-0"><CheckCircle className="w-3.5 h-3.5" />Verificado</div>
-                      )}
+                      {isOnline && (<div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/20 border border-green-500/40 rounded-full mb-1"><span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" /><span className="text-xs font-semibold text-green-400">Online agora</span></div>)}
+                      {!isOnline && lastSeen && (<p className="text-xs text-muted mb-1">{formatLastSeen(lastSeen)}</p>)}
+                      {provider.providerProfile.verified && (<div className="hidden sm:flex items-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold shrink-0"><CheckCircle className="w-3.5 h-3.5" />Verificado</div>)}
                     </div>
-                    {provider.providerProfile.verified && (
-                      <div className="sm:hidden flex items-center justify-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold"><CheckCircle className="w-3.5 h-3.5" />Verificado</div>
-                    )}
+                    {provider.providerProfile.verified && (<div className="sm:hidden flex items-center justify-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold"><CheckCircle className="w-3.5 h-3.5" />Verificado</div>)}
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted mb-4">
-                    <div className="flex items-center justify-center sm:justify-start gap-1">
-                      <Star className="w-4 h-4 text-yellow-400" fill="currentColor" />
-                      <span className="text-white font-semibold">
-                        {reviewCount > 0 ? averageRating.toFixed(1) : provider.providerProfile.rating}
-                      </span>
-                      <span>
-                        ({reviewCount > 0 ? reviewCount : provider.providerProfile.reviewCount} avaliações)
-                      </span>
-                    </div>
+                    <div className="flex items-center justify-center sm:justify-start gap-1"><Star className="w-4 h-4 text-yellow-400" fill="currentColor" /><span className="text-white font-semibold">{reviewCount > 0 ? averageRating.toFixed(1) : provider.providerProfile.rating}</span><span>({reviewCount > 0 ? reviewCount : provider.providerProfile.reviewCount} avaliações)</span></div>
                     <div className="flex items-center justify-center sm:justify-start gap-1"><MapPin className="w-4 h-4" />{provider.providerProfile.city}, {provider.providerProfile.neighborhood}</div>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
@@ -410,7 +412,7 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* ── Galeria de Fotos ─────────────────────────────────────────────────── */}
+            {/* ── Galeria de Fotos ── */}
             {photos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -418,31 +420,37 @@ export const ProviderProfilePage = () => {
                   <span className="text-[10px] sm:text-xs text-muted">{photos.length} foto{photos.length > 1 ? 's' : ''}</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                  {photos.map((url, i) => (
-                    <div key={i} className="relative group">
-                      <ProgressiveImage
-                        src={url}
-                        alt={`Foto ${i + 1}`}
-                        onClick={() => openLightbox(i)}
-                        className="aspect-square rounded-lg cursor-pointer"
-                      />
-                      {/* Botão comentários */}
-                      {canComment && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); openComments(toMediaItem(url, 'photo', i)) }}
-                          className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/70 backdrop-blur-sm rounded-full text-white text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary"
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>Comentar</span>
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {photos.map((url, i) => {
+                    const mediaItem = toMediaItem(url, 'photo', i)
+                    const count = commentCounts[mediaItem.id] ?? 0
+                    return (
+                      <div key={i} className="relative group">
+                        <ProgressiveImage
+                          src={url}
+                          alt={`Foto ${i + 1}`}
+                          onClick={() => openLightbox(i)}
+                          className="aspect-square rounded-lg cursor-pointer"
+                        />
+                        {/* Badge de contagem — sempre visível quando > 0 */}
+                        <CommentBadge count={count} />
+                        {/* Botão comentar — aparece no hover */}
+                        {canComment && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openComments(mediaItem) }}
+                            className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/70 backdrop-blur-sm rounded-full text-white text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            <span>{count > 0 ? `${count > 99 ? '99+' : count}` : 'Comentar'}</span>
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </motion.div>
             )}
 
-            {/* ── Vídeos ───────────────────────────────────────────────────────────── */}
+            {/* ── Vídeos ── */}
             {videos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -450,24 +458,30 @@ export const ProviderProfilePage = () => {
                   <span className="text-[10px] sm:text-xs text-muted">{videos.length} vídeo{videos.length > 1 ? 's' : ''}</span>
                 </div>
                 <VideoCarousel>
-                  {videos.map((url, i) => (
-                    <div key={i} className="flex-none w-[240px] sm:w-[280px] lg:w-[320px] snap-start relative group">
-                      {isValidYouTubeUrl(url)
-                        ? (<YouTubeEmbed videoUrl={url} title={`Vídeo ${i + 1}`} showThumbnail />)
-                        : (<div className="aspect-video rounded-lg overflow-hidden bg-background"><video src={url} controls className="w-full h-full object-cover" /></div>)
-                      }
-                      {/* Botão comentários no vídeo */}
-                      {canComment && (
-                        <button
-                          onClick={() => openComments(toMediaItem(url, 'video', i))}
-                          className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/70 backdrop-blur-sm rounded-full text-white text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary"
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>Comentar</span>
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {videos.map((url, i) => {
+                    const mediaItem = toMediaItem(url, 'video', i)
+                    const count = commentCounts[mediaItem.id] ?? 0
+                    return (
+                      <div key={i} className="flex-none w-[240px] sm:w-[280px] lg:w-[320px] snap-start relative group">
+                        {isValidYouTubeUrl(url)
+                          ? (<YouTubeEmbed videoUrl={url} title={`Vídeo ${i + 1}`} showThumbnail />)
+                          : (<div className="aspect-video rounded-lg overflow-hidden bg-background"><video src={url} controls className="w-full h-full object-cover" /></div>)
+                        }
+                        {/* Badge contagem */}
+                        <CommentBadge count={count} />
+                        {/* Botão comentar */}
+                        {canComment && (
+                          <button
+                            onClick={() => openComments(mediaItem)}
+                            className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 bg-black/70 backdrop-blur-sm rounded-full text-white text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            <span>{count > 0 ? `${count > 99 ? '99+' : count}` : 'Comentar'}</span>
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </VideoCarousel>
               </motion.div>
             )}
@@ -480,84 +494,49 @@ export const ProviderProfilePage = () => {
                   <span className="text-[10px] sm:text-xs text-muted">{audios.length} áudio{audios.length > 1 ? 's' : ''}</span>
                 </div>
                 <div className="space-y-3">
-                  {audios.map((url, i) => (
-                    <div key={i} className="bg-background border border-border rounded-lg p-4 flex items-center gap-4 relative group">
-                      <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0"><Music className="w-5 h-5 text-primary" /></div>
-                      <div className="flex-1 min-w-0"><audio src={url} controls className="w-full" /></div>
-                      {/* Botão comentários no áudio */}
-                      {canComment && (
-                        <button
-                          onClick={() => openComments(toMediaItem(url, 'audio', i))}
-                          className="flex items-center gap-1 px-2 py-1 bg-surface border border-border rounded-full text-muted text-[10px] font-semibold hover:border-primary hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>Comentar</span>
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {audios.map((url, i) => {
+                    const mediaItem = toMediaItem(url, 'audio', i)
+                    const count = commentCounts[mediaItem.id] ?? 0
+                    return (
+                      <div key={i} className="bg-background border border-border rounded-lg p-4 flex items-center gap-4 relative group">
+                        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0"><Music className="w-5 h-5 text-primary" /></div>
+                        <div className="flex-1 min-w-0"><audio src={url} controls className="w-full" /></div>
+                        {/* Botão comentar com contagem inline */}
+                        {canComment && (
+                          <button
+                            onClick={() => openComments(mediaItem)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-surface border border-border rounded-full text-muted text-[10px] font-semibold hover:border-primary hover:text-primary transition-colors shrink-0"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            <span>{count > 0 ? (count > 99 ? '99+' : count) : 'Comentar'}</span>
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </motion.div>
             )}
 
-            {/* ===== SEÇÃO DE AVALIAÇÕES ===== */}
+            {/* ===== AVALIAÇÕES ===== */}
             {!provider.isMock && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
-              >
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
-                  <div className="flex items-center gap-2">
-                    <Star className="w-4 h-4 sm:w-5 sm:h-5 text-primary" fill="currentColor" />
-                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Avaliações</h2>
-                  </div>
-                  {user && !isOwnProfile && (
-                    <button
-                      onClick={() => setReviewModalOpen(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"
-                    >
-                      <Star className="w-3.5 h-3.5" fill="currentColor" />
-                      {reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar'}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2"><Star className="w-4 h-4 sm:w-5 sm:h-5 text-primary" fill="currentColor" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Avaliações</h2></div>
+                  {user && !isOwnProfile && (<button onClick={() => setReviewModalOpen(true)} className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"><Star className="w-3.5 h-3.5" fill="currentColor" />{reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar'}</button>)}
                 </div>
-
-                {reviewCount > 0 && (
-                  <div className="mb-6 pb-6 border-b border-border">
-                    <RatingDistribution
-                      average={averageRating}
-                      total={reviewCount}
-                      distribution={distribution}
-                    />
-                  </div>
-                )}
-
+                {reviewCount > 0 && (<div className="mb-6 pb-6 border-b border-border"><RatingDistribution average={averageRating} total={reviewCount} distribution={distribution} /></div>)}
                 {loadingReviews ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
-                  </div>
+                  <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
                 ) : reviews.length === 0 ? (
                   <div className="text-center py-8">
                     <Star className="w-10 h-10 text-muted mx-auto mb-3" />
                     <p className="text-white font-semibold text-sm">Nenhuma avaliação ainda</p>
                     <p className="text-muted text-xs mt-1">Seja o primeiro a avaliar este prestador</p>
-                    {user && !isOwnProfile && (
-                      <button
-                        onClick={() => setReviewModalOpen(true)}
-                        className="mt-4 px-5 py-2.5 bg-primary text-background text-sm font-bold rounded-xl hover:bg-primary-dark transition-colors"
-                      >
-                        Avaliar agora
-                      </button>
-                    )}
+                    {user && !isOwnProfile && (<button onClick={() => setReviewModalOpen(true)} className="mt-4 px-5 py-2.5 bg-primary text-background text-sm font-bold rounded-xl hover:bg-primary-dark transition-colors">Avaliar agora</button>)}
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {reviews.map(review => (
-                      <ReviewCard key={review.id} review={review} isProviderOwner={false} />
-                    ))}
-                  </div>
+                  <div className="space-y-3">{reviews.map(review => (<ReviewCard key={review.id} review={review} isProviderOwner={false} />))}</div>
                 )}
               </motion.div>
             )}
@@ -572,29 +551,12 @@ export const ProviderProfilePage = () => {
                 <p className="text-3xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-lg text-muted font-normal">/serviço</span></p>
               </div>
               <div className="space-y-3 mb-6">
-                <button
-                  onClick={() => !provider.isMock && setModalOpen(true)}
-                  disabled={provider.isMock || isOwnProfile}
-                  className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button onClick={() => !provider.isMock && setModalOpen(true)} disabled={provider.isMock || isOwnProfile} className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed">
                   <Calendar className="w-5 h-5 inline mr-2" />
                   {provider.isMock ? 'Perfil de Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar Serviço'}
                 </button>
-                {showMessageBtn && (
-                  <button onClick={handleOpenChat} className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target">
-                    <MessageCircle className="w-5 h-5 inline mr-2" />
-                    {user ? 'Enviar Mensagem' : 'Entrar para Mensagem'}
-                  </button>
-                )}
-                {user && !isOwnProfile && !provider.isMock && (
-                  <button
-                    onClick={() => setReviewModalOpen(true)}
-                    className="w-full bg-surface border border-border text-muted font-bold py-3.5 rounded-xl hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Star className="w-4 h-4" fill="none" />
-                    {reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar prestador'}
-                  </button>
-                )}
+                {showMessageBtn && (<button onClick={handleOpenChat} className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target"><MessageCircle className="w-5 h-5 inline mr-2" />{user ? 'Enviar Mensagem' : 'Entrar para Mensagem'}</button>)}
+                {user && !isOwnProfile && !provider.isMock && (<button onClick={() => setReviewModalOpen(true)} className="w-full bg-surface border border-border text-muted font-bold py-3.5 rounded-xl hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"><Star className="w-4 h-4" fill="none" />{reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar prestador'}</button>)}
               </div>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center gap-3 text-muted"><Clock className="w-5 h-5 text-primary shrink-0" /><div><p className="text-white font-semibold">Tempo de resposta</p><p>{provider.providerProfile.responseTime}</p></div></div>
@@ -613,20 +575,10 @@ export const ProviderProfilePage = () => {
             <p className="text-xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-sm text-muted font-normal">/serviço</span></p>
           </div>
           <div className={`flex gap-2 sm:gap-3 ${!showMessageBtn ? 'justify-center' : ''}`}>
-            <button
-              onClick={() => !provider.isMock && !isOwnProfile && setModalOpen(true)}
-              disabled={provider.isMock || isOwnProfile}
-              className={`${showMessageBtn ? 'flex-1' : 'w-48'} bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target disabled:opacity-50`}
-            >
-              <Calendar className="w-4 h-4 inline mr-1.5" />
-              {provider.isMock ? 'Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar'}
+            <button onClick={() => !provider.isMock && !isOwnProfile && setModalOpen(true)} disabled={provider.isMock || isOwnProfile} className={`${showMessageBtn ? 'flex-1' : 'w-48'} bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target disabled:opacity-50`}>
+              <Calendar className="w-4 h-4 inline mr-1.5" />{provider.isMock ? 'Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar'}
             </button>
-            {showMessageBtn && (
-              <button onClick={handleOpenChat} className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target">
-                <MessageCircle className="w-4 h-4 inline mr-1.5" />
-                {user ? 'Mensagem' : 'Entrar'}
-              </button>
-            )}
+            {showMessageBtn && (<button onClick={handleOpenChat} className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target"><MessageCircle className="w-4 h-4 inline mr-1.5" />{user ? 'Mensagem' : 'Entrar'}</button>)}
           </div>
         </div>
       </div>
@@ -637,12 +589,7 @@ export const ProviderProfilePage = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center" onClick={() => setLightboxOpen(false)}>
             <button onClick={(e) => { e.stopPropagation(); setLightboxOpen(false) }} className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><X className="w-6 h-6" /></button>
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full text-white text-sm font-semibold">{currentPhotoIndex + 1} / {photos.length}</div>
-            {photos.length > 1 && (
-              <>
-                <button onClick={(e) => { e.stopPropagation(); goToPrevPhoto() }} className="absolute left-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><ChevronLeft className="w-7 h-7" /></button>
-                <button onClick={(e) => { e.stopPropagation(); goToNextPhoto() }} className="absolute right-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><ChevronRight className="w-7 h-7" /></button>
-              </>
-            )}
+            {photos.length > 1 && (<><button onClick={(e) => { e.stopPropagation(); goToPrevPhoto() }} className="absolute left-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><ChevronLeft className="w-7 h-7" /></button><button onClick={(e) => { e.stopPropagation(); goToNextPhoto() }} className="absolute right-4 z-10 w-12 h-12 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"><ChevronRight className="w-7 h-7" /></button></>)}
             <motion.div key={currentPhotoIndex} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.2 }} className="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
               {hdPhotoLoaded[currentPhotoIndex] ? (<img src={photos[currentPhotoIndex]} alt={`Foto ${currentPhotoIndex + 1}`} className="max-w-full max-h-[90vh] object-contain rounded-lg" />) : (<div className="w-full h-full flex items-center justify-center"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>)}
             </motion.div>
@@ -659,32 +606,10 @@ export const ProviderProfilePage = () => {
         )}
       </AnimatePresence>
 
-      {/* Modal solicitar serviço */}
-      {!provider.isMock && (
-        <RequestServiceModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          provider={{
-            id: provider.id,
-            name: displayName,
-            avatar: provider.providerAvatar,
-            specialty: provider.providerProfile.specialty,
-            priceFrom: provider.providerProfile.priceFrom,
-          }}
-        />
-      )}
+      {!provider.isMock && (<RequestServiceModal isOpen={modalOpen} onClose={() => setModalOpen(false)} provider={{ id: provider.id, name: displayName, avatar: provider.providerAvatar, specialty: provider.providerProfile.specialty, priceFrom: provider.providerProfile.priceFrom }} />)}
+      {!provider.isMock && user && !isOwnProfile && (<ReviewModal open={reviewModalOpen} onClose={() => setReviewModalOpen(false)} providerId={provider.id} providerName={displayName} />)}
 
-      {/* Modal de avaliação */}
-      {!provider.isMock && user && !isOwnProfile && (
-        <ReviewModal
-          open={reviewModalOpen}
-          onClose={() => setReviewModalOpen(false)}
-          providerId={provider.id}
-          providerName={displayName}
-        />
-      )}
-
-      {/* ── Modal de Comentários de Mídia ───────────────────────────────────── */}
+      {/* ── Modal de Comentários ── */}
       {canComment && (
         <MediaCommentModal
           isOpen={!!commentItem}
