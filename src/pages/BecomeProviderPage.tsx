@@ -1,3 +1,5 @@
+import { Zap } from 'lucide-react' // já existe na Navbar, adicionar aqui também
+import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -90,22 +92,49 @@ export const BecomeProviderPage = () => {
   }
 
   if (isProvider) {
-    return (
-      <div className="min-h-screen pt-16 flex items-center justify-center px-4">
-        <div className="text-center">
-          <Check className="w-16 h-16 text-primary mx-auto mb-4" />
-          <h1 className="text-2xl font-black text-white mb-2">Você já é um prestador!</h1>
-          <p className="text-muted mb-6">Seu perfil de prestador já está ativo.</p>
-          <button
-            onClick={() => navigate('/meu-perfil')}
-            className="px-6 py-3 bg-primary text-background font-bold rounded-xl"
-          >
-            Ir para Meu Perfil
-          </button>
-        </div>
+  // Importar usePrestadorStatus no topo do arquivo:
+  // import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
+  const { estaAtivo, diasScore, temAssinatura } = usePrestadorStatus()
+  const semAcesso = !temAssinatura && diasScore === 0
+
+  return (
+    <div className="min-h-screen pt-16 flex items-center justify-center px-4">
+      <div className="text-center max-w-sm">
+        {semAcesso ? (
+          <>
+            <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Zap className="w-10 h-10 text-primary" fill="currentColor" />
+            </div>
+            <h1 className="text-2xl font-black text-white mb-2">Perfil aprovado! 🎉</h1>
+            <p className="text-muted mb-6">
+              Agora escolha um plano para ativar seu perfil e aparecer na plataforma.
+            </p>
+            <button
+              onClick={() => navigate('/comprar')}
+              className="w-full px-6 py-3 bg-primary text-background font-bold rounded-xl flex items-center justify-center gap-2"
+            >
+              <Zap className="w-5 h-5" fill="currentColor" />
+              Ativar meu perfil
+            </button>
+          </>
+        ) : (
+          <>
+            <Check className="w-16 h-16 text-primary mx-auto mb-4" />
+            <h1 className="text-2xl font-black text-white mb-2">Você já é um prestador!</h1>
+            <p className="text-muted mb-6">Seu perfil está ativo com ⚡ {diasScore} dias.</p>
+            <button
+              onClick={() => navigate('/meu-perfil')}
+              className="px-6 py-3 bg-primary text-background font-bold rounded-xl"
+            >
+              Ir para Meu Perfil
+            </button>
+          </>
+        )}
       </div>
-    )
-  }
+    </div>
+  )
+}
+
 
   if (submitted || (user?.providerProfile as any)?.status === 'pending') {
     return (
