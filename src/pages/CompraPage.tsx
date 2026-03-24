@@ -75,7 +75,7 @@ export function CompraPage() {
                 <RefreshCw className="w-5 h-5 text-primary" />
                 <span className="text-sm font-bold text-primary uppercase tracking-wider">Assinatura</span>
               </div>
-              <div className="text-5xl font-black text-white mb-1">R$ 20</div>
+              <div className="text-5xl font-black text-white mb-1">R$ 19,90</div>
               <div className="text-muted text-sm">cobrado todo mês automaticamente</div>
             </div>
 
@@ -116,7 +116,7 @@ export function CompraPage() {
                 <Zap className="w-5 h-5 text-yellow-400" fill="currentColor" />
                 <span className="text-sm font-bold text-yellow-400 uppercase tracking-wider">Créditos</span>
               </div>
-              <div className="text-5xl font-black text-white mb-1">R$ 20</div>
+              <div className="text-5xl font-black text-white mb-1">R$ 29,90</div>
               <div className="text-muted text-sm">pagamento único • 30 dias de acesso</div>
             </div>
 
