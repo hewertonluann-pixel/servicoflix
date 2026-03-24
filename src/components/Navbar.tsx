@@ -280,9 +280,6 @@ export const Navbar = () => {
                             <a href="https://prontto.onrender.com/admin" target="_blank" rel="noopener noreferrer" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
                               <Shield className="w-4 h-4" /><span className="font-semibold">Prontto Admin</span><ExternalLink className="w-3 h-3 ml-auto opacity-60" />
                             </a>
-                            <Link to="/admin" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
-                              <Shield className="w-4 h-4" /><span>Painel Admin</span>
-                            </Link>
                             <div className="border-t border-border my-2" />
                           </>
                         )}
