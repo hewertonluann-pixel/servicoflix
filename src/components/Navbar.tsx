@@ -1,3 +1,4 @@
+import { CreditoBadge } from './CreditoBadge'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -159,9 +160,12 @@ export const Navbar = () => {
             </AnimatePresence>
           </div>
 
-          {/* 🔔 Sino — apenas prestadores */}
-          {user && isProvider && (
-            <div className="relative" ref={notificationsRef}>
+         {/* ⚡ Badge de Crédito — apenas prestadores */}
+         {user && isProvider && <CreditoBadge />}
+
+{/* 🔔 Sino — apenas prestadores */}
+{user && isProvider && (
+  <div className="relative" ref={notificationsRef}>
               <motion.button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 className="p-2 text-muted hover:text-white relative"
