@@ -44,6 +44,37 @@ service cloud.firestore {
       allow create: if isOwner(providerId) || isAdmin();
       allow update: if isOwner(providerId) || isAdmin();
       allow delete: if isAdmin();
+
+      // ── /providers/{providerId}/portfolio/{mediaId}/comments/{commentId} ──
+      match /portfolio/{mediaId}/comments/{commentId} {
+        // Qualquer um pode ler comentários (galeria é pública)
+        allow read: if true;
+
+        // Apenas usuários autenticados podem comentar
+        // O userId do comentário deve ser o do usuário logado
+        allow create: if isAuth() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() >= 1 &&
+          request.resource.data.text.size() <= 500;
+
+        // Apenas o dono do comentário pode editar o texto
+        // Likes/likedBy podem ser atualizados por qualquer autenticado
+        allow update: if isAuth() && (
+          // Dono pode editar texto
+          (resource.data.userId == request.auth.uid) ||
+          // Qualquer autenticado pode curtir (apenas campos likes e likedBy)
+          (
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['likes', 'likedBy'])
+          )
+        );
+
+        // Dono do comentário ou admin ou dono do portfólio pode deletar
+        allow delete: if isAdmin() ||
+          resource.data.userId == request.auth.uid ||
+          isOwner(providerId);
+      }
     }
 
     // ────────────────────────────────────────
