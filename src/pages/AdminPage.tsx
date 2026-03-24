@@ -291,53 +291,31 @@ export const AdminPage = () => {
     }
   }, [authLoading, isAdmin])
 
-  // ── CORRIGIDO: substitui o prazo, não soma ──
-const saveDiasManual = async () => {
-  if (!diasModal) return
-  const dias = parseInt(diasModal.dias)
-  if (isNaN(dias) || dias < 1) {
-    showToast('Informe um número válido de dias (mínimo 1)', 'error')
-    return
-  }
-  setDiasModal(m => m ? { ...m, saving: true } : null)
-  try {
-    const u = diasModal.user
+  // ── NOVO: salvar dias manualmente ──
+  const saveDiasManual = async () => {
+    if (!diasModal) return
+    const dias = parseInt(diasModal.dias)
+    if (isNaN(dias) || dias < 1) {
+      showToast('Informe um número válido de dias (mínimo 1)', 'error')
+      return
+    }
+    setDiasModal(m => m ? { ...m, saving: true } : null)
+    try {
+      const u = diasModal.user
+      const p = u.providerProfile || {}
+      const currentExpiry: any = p.scoreExpiresAt || null
+      const baseDate =
+        currentExpiry && (currentExpiry?.toMillis?.() ?? (currentExpiry?.seconds ?? 0) * 1000) > Date.now()
+          ? (currentExpiry?.toDate ? currentExpiry.toDate() : new Date((currentExpiry.seconds ?? 0) * 1000))
+          : new Date()
+      baseDate.setDate(baseDate.getDate() + dias)
+      const newExpiry = Timestamp.fromDate(baseDate)
 
-    // ✅ SEMPRE parte de hoje — não acumula em cima do prazo anterior
-    const baseDate = new Date()
-    baseDate.setDate(baseDate.getDate() + dias)
-    const newExpiry = Timestamp.fromDate(baseDate)
-
-    await updateDoc(doc(db, 'users', u.id), {
-      'providerProfile.scoreExpiresAt': newExpiry,
-      'providerProfile.diasScore': dias,
-      'providerProfile.active': true,
-    })
-
-    await addDoc(collection(db, 'historico_creditos'), {
-      providerId: u.id,
-      tipo: 'manual',
-      dias,
-      valor: 0,
-      observacao: diasModal.observacao.trim() || 'Definido manualmente pelo admin',
-      stripePaymentId: null,
-      createdAt: serverTimestamp(),
-    })
-
-    setUsers(prev => prev.map(usr =>
-      usr.id === u.id
-        ? { ...usr, providerProfile: { ...usr.providerProfile, scoreExpiresAt: newExpiry, diasScore: dias, active: true } }
-        : usr
-    ))
-
-    showToast(`✅ Score definido: ${dias} dias a partir de hoje para ${u.providerProfile?.professionalName || u.name}`)
-    setDiasModal(null)
-  } catch (err: any) {
-    showToast('Erro ao salvar: ' + (err?.message || ''), 'error')
-    setDiasModal(m => m ? { ...m, saving: false } : null)
-  }
-}
-
+      await updateDoc(doc(db, 'users', u.id), {
+        'providerProfile.scoreExpiresAt': newExpiry,
+        'providerProfile.diasScore': dias,
+        'providerProfile.active': true,
+      })
 
       // grava no histórico de créditos
       await addDoc(collection(db, 'historico_creditos'), {
