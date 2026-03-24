@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Camera, Save, MapPin, Briefcase, Star, Edit2, Video, Trash2, Plus,
-  AlertCircle, Loader2, CheckCircle, Clock, Sparkles, MessageSquare
+  AlertCircle, Loader2, CheckCircle, Clock, Sparkles, MessageSquare,
+  Zap, RefreshCw
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
 import { useCities } from '@/hooks/useCities'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { VideoCarousel } from '@/components/VideoCarousel'
@@ -18,6 +20,7 @@ import { RatingDistribution } from '@/components/RatingDistribution'
 
 export const ProviderDashboardPage = () => {
   const { user } = useSimpleAuth()
+  const { diasScore, estaAtivo, estaExpirando, estaCritico, estaExpirado, temAssinatura } = usePrestadorStatus()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'perfil' | 'avaliacoes'>('perfil')
   const [editing, setEditing] = useState(false)
@@ -35,14 +38,14 @@ export const ProviderDashboardPage = () => {
   const coverInputRef = useRef<HTMLInputElement>(null)
 
   const [profile, setProfile] = useState({
-    professionalName: '',   // nome profissional — exibido no painel e perfil público
+    professionalName: '',
     specialty: '',
     bio: '',
     city: '',
     neighborhood: '',
     priceFrom: 100,
     skills: [] as string[],
-    avatar: '',             // foto do PRESTADOR (providerProfile.avatar)
+    avatar: '',
     coverImage: '',
     phone: '',
     email: '',
@@ -72,8 +75,6 @@ export const ProviderDashboardPage = () => {
           const data = docSnap.data()
           const providerProfile = data.providerProfile || {}
           setProfile({
-            // ✅ FIX 1: usa professionalName como nome exibido no painel do prestador
-            // Nunca usa data.name (nome pessoal) para editar aqui
             professionalName: providerProfile.professionalName || data.name || user.name || 'Seu Nome',
             specialty: providerProfile.specialty || 'Sua Especialidade',
             bio: providerProfile.bio || 'Conte um pouco sobre você e sua experiência profissional...',
@@ -81,7 +82,6 @@ export const ProviderDashboardPage = () => {
             neighborhood: providerProfile.neighborhood || 'Centro',
             priceFrom: providerProfile.priceFrom || 100,
             skills: providerProfile.skills || ['Habilidade 1', 'Habilidade 2'],
-            // ✅ FIX 1: prioriza providerProfile.avatar — NÃO usa data.avatar (foto pessoal) como padrão de edição
             avatar: providerProfile.avatar || data.avatar || user.avatar || `https://i.pravatar.cc/150?u=${user.id}`,
             coverImage: providerProfile.coverImage || 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&q=80',
             phone: providerProfile.phone || '',
@@ -137,8 +137,6 @@ export const ProviderDashboardPage = () => {
     })
   }
 
-  // ✅ FIX 2: upload da foto do PRESTADOR vai para providerProfile.avatar
-  // NÃO toca no campo raiz `avatar` (foto pessoal do cliente)
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user?.id) return
@@ -152,7 +150,6 @@ export const ProviderDashboardPage = () => {
         p => setUploadProgress(p)
       )
       setProfile(prev => ({ ...prev, avatar: url }))
-      // ✅ Salva em providerProfile.avatar — foto pessoal (raiz) permanece intocada
       await setDoc(doc(db, 'users', user.id), { providerProfile: { avatar: url } }, { merge: true })
     } catch (err: any) {
       setUploadError('Erro ao enviar foto. Tente novamente.')
@@ -186,8 +183,6 @@ export const ProviderDashboardPage = () => {
     }
   }
 
-  // ✅ FIX 3: handleSave NÃO toca em `name` nem `avatar` raiz
-  // Tudo do prestador fica dentro de providerProfile
   const handleSave = async () => {
     if (!user?.id) return
     setSaving(true)
@@ -195,8 +190,6 @@ export const ProviderDashboardPage = () => {
       await setDoc(
         doc(db, 'users', user.id),
         {
-          // ✅ name raiz (pessoal) NÃO é alterado aqui — só editável na ClientProfilePage
-          // ✅ avatar raiz (pessoal) NÃO é alterado aqui — só editável na ClientProfilePage
           providerProfile: {
             professionalName: profile.professionalName,
             specialty: profile.specialty,
@@ -206,7 +199,7 @@ export const ProviderDashboardPage = () => {
             priceFrom: profile.priceFrom,
             skills: profile.skills,
             phone: profile.phone,
-            avatar: profile.avatar,        // ✅ foto do prestador fica em providerProfile
+            avatar: profile.avatar,
             coverImage: profile.coverImage,
             responseTime: profile.responseTime,
             completedJobs: profile.completedJobs,
@@ -280,6 +273,52 @@ export const ProviderDashboardPage = () => {
           )}
         </button>
       </div>
+
+      {/* ⚡ Banner de status de crédito */}
+      {(estaExpirando || estaExpirado) && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-xl border ${
+              estaExpirado || estaCritico
+                ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                : 'bg-orange-500/10 border-orange-500/30 text-orange-400'
+            }`}
+          >
+            <Zap className="w-5 h-5 shrink-0" fill="currentColor" />
+            <div className="flex-1">
+              <p className="font-bold text-sm">
+                {estaExpirado
+                  ? '⛔ Seu acesso expirou — seu perfil está oculto na plataforma'
+                  : estaCritico
+                  ? `🔴 Crítico: apenas ${diasScore} dia${diasScore > 1 ? 's' : ''} restante${diasScore > 1 ? 's' : ''}`
+                  : `⚠️ Expirando em breve: ${diasScore} dias restantes`
+                }
+              </p>
+              <p className="text-xs opacity-80 mt-0.5">
+                {estaExpirado
+                  ? 'Reative agora para voltar a receber solicitações.'
+                  : 'Renove agora para não perder visibilidade.'}
+              </p>
+            </div>
+            <Link to="/comprar">
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap ${
+                  estaExpirado || estaCritico
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                } transition-colors`}
+              >
+                <RefreshCw className="w-4 h-4" />
+                {estaExpirado ? 'Reativar agora' : 'Renovar agora'}
+              </motion.button>
+            </Link>
+          </motion.div>
+        </div>
+      )}
 
       {uploadError && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
@@ -414,7 +453,6 @@ export const ProviderDashboardPage = () => {
                     <div className="flex-1 w-full">
                       {editing ? (
                         <div className="space-y-3">
-                          {/* ✅ Edita professionalName — NÃO o name pessoal */}
                           <div>
                             <label className="block text-xs text-muted mb-1">Nome profissional</label>
                             <input
@@ -607,6 +645,45 @@ export const ProviderDashboardPage = () => {
               {/* Sidebar desktop */}
               <div className="hidden lg:block w-full space-y-6">
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-surface border border-border rounded-2xl p-6 sticky top-20">
+
+                  {/* ⚡ Card de crédito */}
+                  <div className={`flex items-center justify-between p-3 rounded-xl border mb-4 ${
+                    estaExpirado || estaCritico
+                      ? 'bg-red-500/10 border-red-500/30'
+                      : estaExpirando
+                      ? 'bg-orange-500/10 border-orange-500/30'
+                      : temAssinatura
+                      ? 'bg-green-500/10 border-green-500/30'
+                      : 'bg-primary/10 border-primary/30'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <Zap className={`w-4 h-4 ${
+                        estaExpirado || estaCritico ? 'text-red-400' :
+                        estaExpirando ? 'text-orange-400' :
+                        temAssinatura ? 'text-green-400' : 'text-primary'
+                      }`} fill="currentColor" />
+                      <div>
+                        <p className="text-xs text-muted">Status</p>
+                        <p className={`text-sm font-bold ${
+                          estaExpirado || estaCritico ? 'text-red-400' :
+                          estaExpirando ? 'text-orange-400' :
+                          temAssinatura ? 'text-green-400' : 'text-primary'
+                        }`}>
+                          {temAssinatura ? 'Assinatura ativa' :
+                           estaExpirado ? 'Expirado' :
+                           `⚡ ${diasScore} dias`}
+                        </p>
+                      </div>
+                    </div>
+                    {!temAssinatura && (
+                      <Link to="/comprar">
+                        <button className="text-xs font-bold text-primary hover:underline">
+                          {estaExpirado ? 'Reativar' : '+ Dias'}
+                        </button>
+                      </Link>
+                    )}
+                  </div>
+
                   <div className="text-center mb-6">
                     <p className="text-muted text-sm mb-1">A partir de</p>
                     {editing ? (
