@@ -4,6 +4,12 @@ import { Timestamp } from 'firebase/firestore'
 
 export type UserRole = 'client' | 'provider'
 
+// ===== PROVIDER STATUS (NOVO) =====
+
+export type ProviderStatus = 'pendente' | 'ativo' | 'expirado' | 'bloqueado'
+
+export type CreditoTipo = 'assinatura' | 'credito' | 'manual' | 'bonus'
+
 // ===== PROVIDER =====
 
 export interface Provider {
@@ -26,10 +32,16 @@ export interface Provider {
   completedJobs: number
   media?: ProviderMedia
   socialLinks?: SocialLinks
+
+  // ===== NOVOS CAMPOS =====
+  diasScore: number                        // dias de acesso restantes
+  status: ProviderStatus                   // estado atual do prestador
+  stripeCustomerId?: string | null         // ID do cliente na Stripe
+  stripeSubscriptionId?: string | null     // ID da assinatura mensal ativa
 }
 
 export interface ProviderProfile {
-  professionalName?: string       // nome profissional (pode diferir do name pessoal)
+  professionalName?: string
   specialty: string
   bio: string
   city: string
@@ -49,6 +61,25 @@ export interface ProviderProfile {
     presentation?: string
     portfolio?: string[]
   }
+
+  // ===== NOVOS CAMPOS =====
+  diasScore?: number
+  status?: ProviderStatus
+  stripeCustomerId?: string | null
+  stripeSubscriptionId?: string | null
+}
+
+// ===== HISTÓRICO DE CRÉDITOS (NOVO) =====
+
+export interface HistoricoCredito {
+  id: string
+  providerId: string
+  tipo: CreditoTipo
+  dias: number                             // quantos dias foram adicionados
+  valor: number                            // valor pago em reais
+  stripePaymentId?: string | null          // referência do pagamento na Stripe
+  observacao?: string | null               // ex: "Renovado pelo admin"
+  createdAt: Timestamp
 }
 
 // ===== CLIENT =====
@@ -66,9 +97,9 @@ export interface ClientProfile {
 export interface User {
   id: string
   email: string
-  name: string              // nome PESSOAL — sempre presente, nunca substituir por professionalName
-  avatar?: string           // foto PESSOAL — usada em chats, avaliações, comentários
-  roles: UserRole[]         // ['client'] por padrão; ['client','provider'] se for prestador
+  name: string
+  avatar?: string
+  roles: UserRole[]
   createdAt: string
 
   clientProfile?: ClientProfile
@@ -86,18 +117,18 @@ export interface Review {
   id: string
   providerId: string
   clientId: string
-  clientName: string        // nome do perfil escolhido (pessoal ou profissional)
-  clientAvatar: string      // avatar do perfil escolhido
+  clientName: string
+  clientAvatar: string
   rating: number
   comment: string
-  verified: boolean         // true = teve conversa no chat (badge "Serviço verificado")
-  chatId?: string | null    // referência ao chat que originou a avaliação
-  reviewerRole?: 'client' | 'provider'  // qual perfil assinou a avaliação
-  reply?: ReviewReply       // resposta do prestador
+  verified: boolean
+  chatId?: string | null
+  reviewerRole?: 'client' | 'provider'
+  reply?: ReviewReply
   createdAt: Timestamp
   updatedAt?: Timestamp
 
-  // ← legado: mantidos para compatibilidade com mocks existentes
+  // ← legado
   userName?: string
   userAvatar?: string
   date?: string
@@ -151,7 +182,7 @@ export interface SocialLinks {
   instagram?: string
   facebook?: string
   youtube?: string
-  whatsapp?: string   // apenas número com DDD, ex: "38999999999"
+  whatsapp?: string
   tiktok?: string
   linkedin?: string
   website?: string
@@ -165,30 +196,30 @@ export interface MediaItem {
   id: string
   type: MediaType
   url: string
-  thumbnailUrl?: string   // para vídeos
+  thumbnailUrl?: string
   title?: string
   description?: string
-  duration?: number       // em segundos (vídeos e áudios)
-  size?: number           // em bytes
+  duration?: number
+  size?: number
   uploadedAt: string
-  order?: number          // para ordenação manual
+  order?: number
 }
 
 export interface ProviderMedia {
-  presentation?: MediaItem    // vídeo ou áudio de apresentação
-  portfolio: MediaItem[]      // mix de fotos, vídeos e áudios
+  presentation?: MediaItem
+  portfolio: MediaItem[]
 }
 
 export interface MediaUploadLimits {
   photos: {
-    maxSize: number           // em MB
+    maxSize: number
     maxCount: number
     allowedFormats: string[]
   }
   videos: {
     maxSize: number
     maxCount: number
-    maxDuration: number       // em segundos
+    maxDuration: number
     allowedFormats: string[]
   }
   audios: {
