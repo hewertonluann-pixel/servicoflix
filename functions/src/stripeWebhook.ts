@@ -7,9 +7,9 @@ const db = admin.firestore()
 // Mapeamento de Price IDs para dias de score
 // ⚠️ Substitua pelos seus Price IDs reais do Stripe Dashboard
 const PRICE_TO_DIAS: Record<string, number> = {
-  'price_30dias': 30,   // R$ 29,90 — 30 dias
-  'price_60dias': 60,   // R$ 49,90 — 60 dias
-  'price_90dias': 90,   // R$ 69,90 — 90 dias
+  'price_1TELvUEW46ts4yeZGUhuQvqJ': 30,   // R$ 29,90 — 30 dias
+  'price_1TELx3EW46ts4yeZzW1RUOGM': 60,   // R$ 49,90 — 60 dias
+  'price_1TELxtEW46ts4yeZQyVS9zHa': 90,   // R$ 69,90 — 90 dias
 }
 
 // Price IDs de assinatura mensal
