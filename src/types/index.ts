@@ -203,6 +203,7 @@ export interface MediaItem {
   size?: number
   uploadedAt: string
   order?: number
+  commentsCount?: number                   // contador de comentários da mídia
 }
 
 export interface ProviderMedia {
@@ -228,4 +229,21 @@ export interface MediaUploadLimits {
     maxDuration: number
     allowedFormats: string[]
   }
+}
+
+// ===== COMENTÁRIOS DE MÍDIA =====
+
+export interface MediaComment {
+  id: string
+  userId: string
+  userName: string
+  userAvatar: string
+  text: string
+  createdAt: Timestamp
+  likes: number
+  likedBy: string[]                        // array de userIds que curtiram
+}
+
+export interface MediaCommentInput {
+  text: string
 }
