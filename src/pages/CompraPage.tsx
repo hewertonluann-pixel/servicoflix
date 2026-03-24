@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Zap, RefreshCw, CheckCircle, ArrowLeft, ShoppingCart } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Zap, RefreshCw, CheckCircle, ArrowLeft, ShoppingCart, Info, Eye, TrendingUp, Clock } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
@@ -15,6 +15,7 @@ export function CompraPage() {
   const { user, isProvider } = useSimpleAuth()
   const navigate = useNavigate()
   const [hoveredPlan, setHoveredPlan] = useState<'assinatura' | 'creditos' | null>(null)
+  const [showExplainer, setShowExplainer] = useState(false)
 
   if (!user || !isProvider) {
     return (
@@ -24,7 +25,6 @@ export function CompraPage() {
     )
   }
 
-  // Título e subtítulo dinâmicos conforme o estado do prestador
   const titulo = estaExpirado ? 'Reativar Acesso' : 'Adquirir Créditos'
   const subtitulo = estaExpirado
     ? 'Seu acesso expirou — escolha um plano para reativar'
@@ -37,7 +37,7 @@ export function CompraPage() {
       <div className="max-w-3xl mx-auto">
 
         {/* Header */}
-        <div className="mb-10 text-center">
+        <div className="mb-8 text-center">
           <button
             onClick={() => navigate(-1)}
             className="flex items-center gap-2 text-muted hover:text-white transition-colors text-sm mb-6 mx-auto"
@@ -53,7 +53,6 @@ export function CompraPage() {
             <h1 className="text-3xl font-black text-white">{titulo}</h1>
           </div>
 
-          {/* Status atual — expirado: badge vermelho | ativo: badge verde */}
           {estaExpirado ? (
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-full text-red-400 text-sm font-semibold">
               <Zap className="w-4 h-4" />
@@ -66,6 +65,75 @@ export function CompraPage() {
             </div>
           ) : (
             <p className="text-muted text-sm">{subtitulo}</p>
+          )}
+        </div>
+
+        {/* ── Como funcionam os créditos ── */}
+        <div className="mb-8 bg-surface border border-border rounded-2xl overflow-hidden">
+          <button
+            onClick={() => setShowExplainer(!showExplainer)}
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-background/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-white">Como funcionam os créditos? <span className="text-primary">⚡</span></span>
+            </div>
+            <span className="text-muted text-xs">{showExplainer ? 'Fechar ▲' : 'Ver mais ▼'}</span>
+          </button>
+
+          {showExplainer && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="px-5 pb-5 border-t border-border"
+            >
+              {/* Conceito do raio */}
+              <div className="mt-4 flex items-start gap-4 p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center shrink-0">
+                  <Zap className="w-5 h-5 text-primary" fill="currentColor" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white mb-1">1 raio (⚡) = 1 dia de exposição</p>
+                  <p className="text-sm text-muted">Cada crédito representa um dia em que seu perfil fica ativo e visível para clientes na plataforma. Quando seus créditos acabam, seu perfil sai da listagem automaticamente.</p>
+                </div>
+              </div>
+
+              {/* Como funciona na prática */}
+              <div className="mt-4 grid sm:grid-cols-3 gap-3">
+                <div className="flex flex-col items-center text-center p-4 bg-background rounded-xl border border-border">
+                  <Eye className="w-6 h-6 text-blue-400 mb-2" />
+                  <p className="text-xs font-bold text-white mb-1">Visibilidade</p>
+                  <p className="text-xs text-muted">Seu perfil aparece na busca e na home enquanto tiver créditos ativos</p>
+                </div>
+                <div className="flex flex-col items-center text-center p-4 bg-background rounded-xl border border-border">
+                  <TrendingUp className="w-6 h-6 text-green-400 mb-2" />
+                  <p className="text-xs font-bold text-white mb-1">Acumulável</p>
+                  <p className="text-xs text-muted">Comprou 30 dias com 15 restantes? Seu score vai para 45 dias automaticamente</p>
+                </div>
+                <div className="flex flex-col items-center text-center p-4 bg-background rounded-xl border border-border">
+                  <Clock className="w-6 h-6 text-yellow-400 mb-2" />
+                  <p className="text-xs font-bold text-white mb-1">Desconto diário</p>
+                  <p className="text-xs text-muted">1 crédito é descontado por dia. Você sempre sabe quantos dias faltam</p>
+                </div>
+              </div>
+
+              {/* Assinatura vs créditos */}
+              <div className="mt-4 p-4 bg-background rounded-xl border border-border">
+                <p className="text-xs font-bold text-white mb-3">Assinatura vs Créditos avulsos</p>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 text-xs text-muted">
+                    <RefreshCw className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+                    <span><span className="text-white font-semibold">Assinatura mensal:</span> R$ 19,90/mês. Seu perfil fica sempre ativo sem precisar renovar. Ideal para quem quer visibilidade constante.</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-xs text-muted">
+                    <Zap className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" fill="currentColor" />
+                    <span><span className="text-white font-semibold">Créditos avulsos:</span> R$ 29,90 por 30 dias. Pague só quando quiser. Perfeito para quem trabalha em períodos específicos.</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           )}
         </div>
 
