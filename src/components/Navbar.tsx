@@ -2,7 +2,7 @@ import { CreditoBadge } from './CreditoBadge'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList, Download } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList, Download } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
@@ -36,7 +36,6 @@ export const Navbar = () => {
   }, [])
 
   useEffect(() => {
-    // Detecta se o PWA já está instalado
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsAppInstalled(true)
     }
@@ -169,29 +168,29 @@ export const Navbar = () => {
             </AnimatePresence>
           </div>
 
-         {/* ⚡ Badge de Crédito — apenas prestadores */}
-         {user && isProvider && <CreditoBadge />}
+          {/* ⚡ Badge de Crédito — apenas prestadores */}
+          {user && isProvider && <CreditoBadge />}
 
-        {/* 🔔 Sino — apenas prestadores */}
-        {user && isProvider && (
-          <div className="relative" ref={notificationsRef}>
-            <motion.button
-              onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className="p-2 text-muted hover:text-white relative"
-              whileHover={{ scale: 1.1 }}
-            >
-              <Bell className="w-5 h-5" />
-              {notificationsCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-primary text-background text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                  {notificationsCount > 9 ? '9+' : notificationsCount}
-                </span>
-              )}
-            </motion.button>
-            <NotificationsDropdown isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
-          </div>
-        )}
+          {/* 🔔 Sino — apenas prestadores */}
+          {user && isProvider && (
+            <div className="relative" ref={notificationsRef}>
+              <motion.button
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="p-2 text-muted hover:text-white relative"
+                whileHover={{ scale: 1.1 }}
+              >
+                <Bell className="w-5 h-5" />
+                {notificationsCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-primary text-background text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                    {notificationsCount > 9 ? '9+' : notificationsCount}
+                  </span>
+                )}
+              </motion.button>
+              <NotificationsDropdown isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+            </div>
+          )}
 
-          {/* 💬 Mensagens */}
+          {/* 💬 Mensagens — ícone fixo na navbar */}
           {user && (
             <motion.div whileHover={{ scale: 1.1 }} className="relative">
               <Link to="/chats" className="p-2 text-muted hover:text-white transition-colors flex items-center justify-center" aria-label="Mensagens">
@@ -251,10 +250,6 @@ export const Navbar = () => {
                               <CheckSquare className="w-4 h-4 text-primary" /><span>Solicitações</span>
                               {notificationsCount > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{notificationsCount}</span>}
                             </Link>
-                            <Link to="/chats" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
-                              <MessageCircle className="w-4 h-4 text-primary" /><span>Mensagens</span>
-                              {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
-                            </Link>
                           </>
                         )}
 
@@ -270,10 +265,6 @@ export const Navbar = () => {
                             </Link>
                             <Link to="/minha-conta" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
                               <ClipboardList className="w-4 h-4 text-blue-400" /><span>Minhas Solicitações</span>
-                            </Link>
-                            <Link to="/chats" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
-                              <MessageCircle className="w-4 h-4 text-blue-400" /><span>Mensagens</span>
-                              {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
                             </Link>
                           </>
                         )}
@@ -389,10 +380,6 @@ export const Navbar = () => {
                           <CheckSquare className="w-5 h-5 text-primary" /><span>Solicitações</span>
                           {notificationsCount > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-bold rounded-full">{notificationsCount}</span>}
                         </Link>
-                        <Link to="/chats" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
-                          <MessageCircle className="w-5 h-5 text-primary" /><span>Mensagens</span>
-                          {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
-                        </Link>
                       </div>
                     </div>
                   )}
@@ -405,10 +392,6 @@ export const Navbar = () => {
                         </Link>
                         <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
                           <ClipboardList className="w-5 h-5 text-blue-400" /><span>Minhas Solicitações</span>
-                        </Link>
-                        <Link to="/chats" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
-                          <MessageCircle className="w-5 h-5 text-blue-400" /><span>Mensagens</span>
-                          {unreadMessages > 0 && <span className="ml-auto px-2 py-0.5 bg-primary/20 text-primary text-xs font-bold rounded-full">{unreadMessages > 9 ? '9+' : unreadMessages}</span>}
                         </Link>
                       </div>
                     </div>
@@ -428,7 +411,6 @@ export const Navbar = () => {
                   )}
                   <div className="border-t border-border pt-4 space-y-1">
                     <Link to="/configuracoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Settings className="w-5 h-5" />Configurações</Link>
-                    {/* Instalar App no menu mobile */}
                     {!isAppInstalled && (
                       <Link
                         to="/instalar"
