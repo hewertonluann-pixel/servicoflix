@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Zap, RefreshCw, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Zap, RefreshCw, CheckCircle, ArrowLeft, ShoppingCart } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
 const STRIPE_LINKS = {
-  assinatura: 'https://buy.stripe.com/00w4gzglj7yfa2g3LfbfO02', // ← substitua pelo link do produto assinatura
-  creditos:   'https://buy.stripe.com/9B66oHedbf0H1vKchLbfO03', // ← substitua pelo link do produto 30 dias
+  assinatura: 'https://buy.stripe.com/00w4gzglj7yfa2g3LfbfO02',
+  creditos:   'https://buy.stripe.com/9B66oHedbf0H1vKchLbfO03',
 }
 
 export function CompraPage() {
@@ -24,6 +24,14 @@ export function CompraPage() {
     )
   }
 
+  // Título e subtítulo dinâmicos conforme o estado do prestador
+  const titulo = estaExpirado ? 'Reativar Acesso' : 'Adquirir Créditos'
+  const subtitulo = estaExpirado
+    ? 'Seu acesso expirou — escolha um plano para reativar'
+    : temAssinatura
+      ? 'Sua assinatura está ativa. Você pode adquirir créditos adicionais.'
+      : 'Escolha um plano para manter seu perfil visível'
+
   return (
     <div className="min-h-screen bg-background pt-20 pb-12 px-4">
       <div className="max-w-3xl mx-auto">
@@ -38,21 +46,26 @@ export function CompraPage() {
           </button>
 
           <div className="flex items-center justify-center gap-2 mb-3">
-            <Zap className="w-6 h-6 text-primary" fill="currentColor" />
-            <h1 className="text-3xl font-black text-white">Ativar Acesso</h1>
+            {estaExpirado
+              ? <Zap className="w-6 h-6 text-primary" fill="currentColor" />
+              : <ShoppingCart className="w-6 h-6 text-primary" />
+            }
+            <h1 className="text-3xl font-black text-white">{titulo}</h1>
           </div>
 
-          {/* Status atual */}
-          {estaAtivo && !estaExpirado ? (
+          {/* Status atual — expirado: badge vermelho | ativo: badge verde */}
+          {estaExpirado ? (
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-full text-red-400 text-sm font-semibold">
+              <Zap className="w-4 h-4" />
+              {subtitulo}
+            </div>
+          ) : estaAtivo ? (
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-full text-green-400 text-sm font-semibold">
               <CheckCircle className="w-4 h-4" />
               {temAssinatura ? 'Assinatura ativa' : `⚡ ${diasScore} dias restantes`}
             </div>
           ) : (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-full text-red-400 text-sm font-semibold">
-              <Zap className="w-4 h-4" />
-              Acesso expirado — escolha um plano para reativar
-            </div>
+            <p className="text-muted text-sm">{subtitulo}</p>
           )}
         </div>
 
