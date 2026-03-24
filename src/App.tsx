@@ -18,6 +18,7 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { EditProviderProfilePage } from '@/pages/EditProviderProfilePage'
 import { ChatPage } from '@/pages/ChatPage'
 import { ChatsPage } from '@/pages/ChatsPage'
+import { InstallPage } from '@/pages/InstallPage'
 import { usePresence } from '@/hooks/usePresence'
 
 function App() {
@@ -65,6 +66,9 @@ function App() {
         <Route path="/chats" element={<ChatsPage />} />
         <Route path="/chat/:chatId" element={<ChatPage />} />
         <Route path="/chat" element={<ChatPage />} />
+
+        {/* Instalação PWA */}
+        <Route path="/instalar" element={<InstallPage />} />
 
         {/* Admin */}
         <Route path="/admin" element={<AdminPage />} />

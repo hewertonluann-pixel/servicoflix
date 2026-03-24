@@ -2,7 +2,7 @@ import { CreditoBadge } from './CreditoBadge'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, ShoppingBag, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList, Download } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
@@ -22,6 +22,7 @@ export const Navbar = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [isAppInstalled, setIsAppInstalled] = useState(false)
   const navigate = useNavigate()
   const userMenuRef = useRef<HTMLDivElement>(null)
   const notificationsRef = useRef<HTMLDivElement>(null)
@@ -32,6 +33,14 @@ export const Navbar = () => {
     const onScroll = () => setScrolled(window.scrollY > 50)
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  useEffect(() => {
+    // Detecta se o PWA já está instalado
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsAppInstalled(true)
+    }
+    window.addEventListener('appinstalled', () => setIsAppInstalled(true))
   }, [])
 
   useEffect(() => {
@@ -163,24 +172,24 @@ export const Navbar = () => {
          {/* ⚡ Badge de Crédito — apenas prestadores */}
          {user && isProvider && <CreditoBadge />}
 
-{/* 🔔 Sino — apenas prestadores */}
-{user && isProvider && (
-  <div className="relative" ref={notificationsRef}>
-              <motion.button
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="p-2 text-muted hover:text-white relative"
-                whileHover={{ scale: 1.1 }}
-              >
-                <Bell className="w-5 h-5" />
-                {notificationsCount > 0 && (
-                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-primary text-background text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                    {notificationsCount > 9 ? '9+' : notificationsCount}
-                  </span>
-                )}
-              </motion.button>
-              <NotificationsDropdown isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
-            </div>
-          )}
+        {/* 🔔 Sino — apenas prestadores */}
+        {user && isProvider && (
+          <div className="relative" ref={notificationsRef}>
+            <motion.button
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              className="p-2 text-muted hover:text-white relative"
+              whileHover={{ scale: 1.1 }}
+            >
+              <Bell className="w-5 h-5" />
+              {notificationsCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-primary text-background text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                  {notificationsCount > 9 ? '9+' : notificationsCount}
+                </span>
+              )}
+            </motion.button>
+            <NotificationsDropdown isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+          </div>
+        )}
 
           {/* 💬 Mensagens */}
           {user && (
@@ -256,11 +265,9 @@ export const Navbar = () => {
                             <div className="px-3 py-1">
                               <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Área do Cliente</p>
                             </div>
-                            {/* ✅ ATUALIZADO: aponta para /meu-perfil-cliente */}
                             <Link to="/meu-perfil-cliente" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
                               <User className="w-4 h-4 text-blue-400" /><span>Meu Perfil</span>
                             </Link>
-                            {/* Minha Conta (solicitações) continua em /minha-conta */}
                             <Link to="/minha-conta" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
                               <ClipboardList className="w-4 h-4 text-blue-400" /><span>Minhas Solicitações</span>
                             </Link>
@@ -292,6 +299,20 @@ export const Navbar = () => {
                         <Link to="/configuracoes" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-background transition-colors">
                           <Settings className="w-4 h-4" />Configurações
                         </Link>
+
+                        {/* ── Instalar App ── */}
+                        {!isAppInstalled && (
+                          <Link
+                            to="/instalar"
+                            onClick={() => setUserMenuOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-primary hover:bg-primary/10 transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span className="font-semibold">Instalar App</span>
+                            <span className="ml-auto text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold">GRÁTIS</span>
+                          </Link>
+                        )}
+
                         {!isProvider && (
                           <Link to="/tornar-se-prestador" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
                             <Sparkles className="w-4 h-4" /><span className="font-semibold">Tornar-se Prestador</span>
@@ -379,11 +400,9 @@ export const Navbar = () => {
                     <div className="border-t border-border pt-4">
                       <p className="text-xs font-bold text-muted uppercase tracking-wider mb-2 px-2">Área do Cliente</p>
                       <div className="space-y-1">
-                        {/* ✅ ATUALIZADO: aponta para /meu-perfil-cliente */}
                         <Link to="/meu-perfil-cliente" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
                           <User className="w-5 h-5 text-blue-400" /><span>Meu Perfil</span>
                         </Link>
-                        {/* Solicitações continua em /minha-conta */}
                         <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors">
                           <ClipboardList className="w-5 h-5 text-blue-400" /><span>Minhas Solicitações</span>
                         </Link>
@@ -409,6 +428,18 @@ export const Navbar = () => {
                   )}
                   <div className="border-t border-border pt-4 space-y-1">
                     <Link to="/configuracoes" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-muted hover:text-white hover:bg-surface rounded-xl transition-colors"><Settings className="w-5 h-5" />Configurações</Link>
+                    {/* Instalar App no menu mobile */}
+                    {!isAppInstalled && (
+                      <Link
+                        to="/instalar"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                      >
+                        <Download className="w-5 h-5" />
+                        <span className="font-semibold">Instalar App</span>
+                        <span className="ml-auto text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold">GRÁTIS</span>
+                      </Link>
+                    )}
                   </div>
                   {!isProvider && (
                     <Link to="/tornar-se-prestador" onClick={() => setMenuOpen(false)} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary/20 border-2 border-primary/30 text-primary font-bold rounded-xl hover:bg-primary/30 transition-colors">
