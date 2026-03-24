@@ -7,9 +7,20 @@ import { db } from '@/lib/firebase'
 import { mockProviders, MockProvider } from '@/data/mock'
 import { ProviderCard } from '@/components/ProviderCard'
 
+// ✅ Retorna true se o prestador tem acesso ativo (score > 0 OU assinatura ativa)
+const isProviderActive = (data: any): boolean => {
+  const p = data.providerProfile || {}
+  if (p.subscriptionStatus === 'active') return true
+  const scoreExpiry = p.scoreExpiresAt
+  if (scoreExpiry) {
+    const expiry = scoreExpiry?.toDate ? scoreExpiry.toDate() : new Date(scoreExpiry)
+    if (expiry > new Date()) return true
+  }
+  return false
+}
+
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
-  // nome "comercial" se existir, senão o name normal
   name: data.providerProfile?.professionalName || data.name || 'Sem nome',
   avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
   coverImage:
@@ -60,20 +71,20 @@ export const SearchPage = () => {
           const data = d.data()
           if (
             data.roles?.includes('provider') &&
-            data.providerProfile?.status === 'approved'
+            data.providerProfile?.status === 'approved' &&
+            // ✅ FASE 8: só exibe prestadores com score/assinatura ativo
+            isProviderActive(data)
           ) {
             reais.push(docToProvider(d.id, data))
           }
         })
 
-        // Mocks como preenchimento: exibe apenas mocks de categorias sem reais suficientes
         const mocksFiltered = mockProviders.filter(p => {
-          if (!p.isMock) return true // perfil real do dono sempre aparece
+          if (!p.isMock) return true
           const countReal = reais.filter(r => r.category === p.category).length
           return countReal < 5
         })
 
-        // Reais primeiro, depois mocks complementares
         setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])
 
         const catSnap = await getDocs(collection(db, 'categories'))

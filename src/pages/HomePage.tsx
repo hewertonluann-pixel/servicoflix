@@ -22,6 +22,22 @@ interface MockSettings {
   [categoryId: string]: boolean
 }
 
+// ✅ Retorna true se o prestador tem acesso ativo (score > 0 OU assinatura ativa)
+const isProviderActive = (data: any): boolean => {
+  const p = data.providerProfile || {}
+  // Owner sempre ativo
+  if (data.id === OWNER_UID) return true
+  // Assinatura mensal ativa
+  if (p.subscriptionStatus === 'active') return true
+  // Score de dias ainda válido
+  const scoreExpiry = p.scoreExpiresAt
+  if (scoreExpiry) {
+    const expiry = scoreExpiry?.toDate ? scoreExpiry.toDate() : new Date(scoreExpiry)
+    if (expiry > new Date()) return true
+  }
+  return false
+}
+
 const docToProvider = (id: string, data: any): MockProvider => ({
   id,
   name: data.providerProfile?.professionalName || data.name || 'Sem nome',
@@ -60,8 +76,6 @@ export const HomePage = () => {
     minRating: 0,
   })
 
-  // ✅ onSnapshot em tempo real — todos os usuários (logados ou não) recebem
-  // imediatamente qualquer mudança feita pelo admin em settings/mockups
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'mockups'), (snap) => {
       if (snap.exists()) {
@@ -77,7 +91,6 @@ export const HomePage = () => {
     return () => unsub()
   }, [])
 
-  // Carrega prestadores reais e categorias
   useEffect(() => {
     const load = async () => {
       try {
@@ -94,22 +107,15 @@ export const HomePage = () => {
             data.roles?.includes('provider') &&
             data.providerProfile?.status === 'approved'
 
-          if (isOwner || isApproved) {
+          // ✅ FASE 8: só exibe se tiver score/assinatura ativo
+          const ativo = isOwner || isProviderActive({ ...data, id: d.id })
+
+          if ((isOwner || isApproved) && ativo) {
             const provider = docToProvider(d.id, data)
             providers.push(provider)
-            console.log(
-              isOwner ? '👑 Owner:' : '✅ Prestador:',
-              provider.name,
-              '- Cidade:', provider.city,
-              '- Featured:', provider.isFeatured,
-              '- Online:', provider.isOnline
-            )
           }
         })
 
-        console.log(`📊 Total de prestadores: ${providers.length}`)
-        console.log(`⭐ Featured: ${providers.filter(p => p.isFeatured).length}`)
-        console.log(`🟢 Online agora: ${providers.filter(p => p.isOnline).length}`)
         setRealProviders(providers)
 
         const catSnap = await getDocs(collection(db, 'categories'))
@@ -176,13 +182,8 @@ export const HomePage = () => {
 
   const getMerged = (categoryId: string) => {
     const reais = realProviders.filter(p => p.category === categoryId)
-
     const mocksEnabled = mockSettings[categoryId] !== false
-
-    if (!mocksEnabled) {
-      return applyFilters(reais)
-    }
-
+    if (!mocksEnabled) return applyFilters(reais)
     const mocks = mocksByCategory[categoryId] || []
     const mocksNeeded = reais.length < 5 ? mocks.slice(0, 5 - reais.length) : []
     const merged = [...reais, ...mocksNeeded]
@@ -210,9 +211,6 @@ export const HomePage = () => {
       if (b.id === OWNER_UID) return 1
       return b.rating - a.rating
     })
-
-  console.log('⭐ Prestadores em destaque (após filtros):', featuredProviders.length)
-  console.log('Cidades:', featuredProviders.map(p => `${p.name} (${p.city})`))
 
   const allForHero = [
     ...realProviders,
