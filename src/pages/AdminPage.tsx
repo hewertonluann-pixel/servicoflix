@@ -6,11 +6,11 @@ import {
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
   AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2, Sparkles,
   ChevronUp, ChevronDown, Archive, CheckSquare, Bug, Wrench, ArrowRight, Camera,
-  Flag, Eye, CheckCircle2
+  Flag, Eye, CheckCircle2, CreditCard, CalendarDays, TrendingUp, BadgeCheck, Ban
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, getDoc, query, orderBy
+  setDoc, serverTimestamp, getDoc, query, orderBy, addDoc, Timestamp
 } from 'firebase/firestore'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
@@ -21,7 +21,7 @@ import { useAllCities, type City } from '@/hooks/useCities'
 
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1', '5KqkZ0SPnpMkKO684W7fZBWHo4J2']
 
-type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias' | 'mockups' | 'cidades' | 'denuncias'
+type Tab = 'pendentes' | 'usuarios' | 'prestadores' | 'categorias' | 'mockups' | 'cidades' | 'denuncias' | 'monetizacao'
 
 interface UserData {
   id: string
@@ -59,6 +59,14 @@ interface Report {
   reportedUserName?: string
 }
 
+// ── NOVO: modal de edição manual de dias ──
+interface DiasModalState {
+  user: UserData
+  dias: string
+  observacao: string
+  saving: boolean
+}
+
 const ICON_GROUPS = [
   { label: '🎵 Música', icons: ['🎵','🎶','🎷','🎸','🎹','🎺','🎻','🥁','🎼','🎴','🎰','🎬'] },
   { label: '🔧 Serviços', icons: ['🔧','🏠','🚿','⚡','🌿','🎨','🚗','📦','🍽️','🐾','💻','📸'] },
@@ -80,6 +88,25 @@ const UF_OPTIONS = [
   'MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN',
   'RS','RO','RR','SC','SP','SE','TO'
 ]
+
+// ── helpers de score ──
+const isScoreAtivo = (p: any): boolean => {
+  if (!p) return false
+  if (p.subscriptionStatus === 'active') return true
+  if (p.scoreExpiresAt) {
+    const ms = p.scoreExpiresAt?.toMillis?.() ?? (p.scoreExpiresAt?.seconds ?? 0) * 1000
+    return ms > Date.now()
+  }
+  return false
+}
+
+const diasRestantes = (p: any): number | null => {
+  if (!p?.scoreExpiresAt) return null
+  const ms = p.scoreExpiresAt?.toMillis?.() ?? (p.scoreExpiresAt?.seconds ?? 0) * 1000
+  const diff = ms - Date.now()
+  if (diff <= 0) return 0
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
 
 export const AdminPage = () => {
   const { user, loading: authLoading } = useSimpleAuth()
@@ -124,6 +151,10 @@ export const AdminPage = () => {
   const [editingCity, setEditingCity] = useState<City | null>(null)
   const [savingCity, setSavingCity] = useState(false)
   const [providerCounts, setProviderCounts] = useState<Record<string, number>>({})
+
+  // ── NOVO: Monetização ──
+  const [diasModal, setDiasModal] = useState<DiasModalState | null>(null)
+  const [monetSearch, setMonetSearch] = useState('')
 
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
@@ -259,6 +290,58 @@ export const AdminPage = () => {
       loadReports()
     }
   }, [authLoading, isAdmin])
+
+  // ── NOVO: salvar dias manualmente ──
+  const saveDiasManual = async () => {
+    if (!diasModal) return
+    const dias = parseInt(diasModal.dias)
+    if (isNaN(dias) || dias < 1) {
+      showToast('Informe um número válido de dias (mínimo 1)', 'error')
+      return
+    }
+    setDiasModal(m => m ? { ...m, saving: true } : null)
+    try {
+      const u = diasModal.user
+      const p = u.providerProfile || {}
+      const currentExpiry: any = p.scoreExpiresAt || null
+      const baseDate =
+        currentExpiry && (currentExpiry?.toMillis?.() ?? (currentExpiry?.seconds ?? 0) * 1000) > Date.now()
+          ? (currentExpiry?.toDate ? currentExpiry.toDate() : new Date((currentExpiry.seconds ?? 0) * 1000))
+          : new Date()
+      baseDate.setDate(baseDate.getDate() + dias)
+      const newExpiry = Timestamp.fromDate(baseDate)
+
+      await updateDoc(doc(db, 'users', u.id), {
+        'providerProfile.scoreExpiresAt': newExpiry,
+        'providerProfile.diasScore': dias,
+        'providerProfile.active': true,
+      })
+
+      // grava no histórico de créditos
+      await addDoc(collection(db, 'historico_creditos'), {
+        providerId: u.id,
+        tipo: 'manual',
+        dias,
+        valor: 0,
+        observacao: diasModal.observacao.trim() || 'Adicionado manualmente pelo admin',
+        stripePaymentId: null,
+        createdAt: serverTimestamp(),
+      })
+
+      // atualiza estado local
+      setUsers(prev => prev.map(usr =>
+        usr.id === u.id
+          ? { ...usr, providerProfile: { ...usr.providerProfile, scoreExpiresAt: newExpiry, diasScore: dias, active: true } }
+          : usr
+      ))
+
+      showToast(`✅ +${dias} dias adicionados para ${u.providerProfile?.professionalName || u.name}`)
+      setDiasModal(null)
+    } catch (err: any) {
+      showToast('Erro ao salvar: ' + (err?.message || ''), 'error')
+      setDiasModal(m => m ? { ...m, saving: false } : null)
+    }
+  }
 
   // ---------- Cidades ----------
   const toggleCityStatus = async (city: City) => {
@@ -562,6 +645,15 @@ export const AdminPage = () => {
     u.email?.toLowerCase().includes(search.toLowerCase())
   )
 
+  // ── monetização: stats e lista filtrada ──
+  const monetProviders = providers.filter(u =>
+    (u.providerProfile?.professionalName || u.name || u.email)
+      ?.toLowerCase().includes(monetSearch.toLowerCase())
+  )
+  const monetAtivos = providers.filter(u => isScoreAtivo(u.providerProfile)).length
+  const monetExpirados = providers.filter(u => !isScoreAtivo(u.providerProfile)).length
+  const monetAssinatura = providers.filter(u => u.providerProfile?.subscriptionStatus === 'active').length
+
   const inputCls = 'w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors placeholder:text-muted'
   const totalMocks = Object.keys(mocksByCategory).reduce((sum, cat) => sum + mocksByCategory[cat].length, 0)
   const activeMocks = Object.keys(mockSettings).filter(cat => mockSettings[cat] === true).reduce((sum, cat) => sum + (mocksByCategory[cat]?.length || 0), 0)
@@ -640,6 +732,7 @@ export const AdminPage = () => {
             { id: 'mockups', label: 'Mockups', icon: Sparkles },
             { id: 'cidades', label: 'Cidades', icon: MapPin },
             { id: 'denuncias', label: 'Denúncias', icon: Flag, badge: pendingReports },
+            { id: 'monetizacao', label: 'Monetização', icon: CreditCard },
           ].map(tab => (
             <button key={tab.id} onClick={() => { setActiveTab(tab.id as Tab); setSearch('') }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-sm font-semibold transition-colors relative ${
@@ -656,7 +749,7 @@ export const AdminPage = () => {
           ))}
         </div>
 
-        {activeTab !== 'categorias' && activeTab !== 'pendentes' && activeTab !== 'mockups' && activeTab !== 'cidades' && activeTab !== 'denuncias' && (
+        {activeTab !== 'categorias' && activeTab !== 'pendentes' && activeTab !== 'mockups' && activeTab !== 'cidades' && activeTab !== 'denuncias' && activeTab !== 'monetizacao' && (
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -676,6 +769,7 @@ export const AdminPage = () => {
             {activeTab === 'mockups' && `${activeMocks}/${totalMocks} perfis mockup ativos`}
             {activeTab === 'cidades' && `${activeCities}/${allCities.length} cidades ativas`}
             {activeTab === 'denuncias' && `${reports.length} denúncias • ${pendingReports} pendentes`}
+            {activeTab === 'monetizacao' && `${monetAtivos} ativos • ${monetExpirados} expirados • ${monetAssinatura} assinantes`}
           </p>
           <div className="flex gap-2">
             <button onClick={() => { loadUsers(); loadCategories(); loadMockSettings(); reloadCities(); loadProviderCounts(); loadReports() }}
@@ -703,7 +797,7 @@ export const AdminPage = () => {
           </div>
         </div>
 
-        {loadingData && activeTab !== 'mockups' && activeTab !== 'cidades' && activeTab !== 'denuncias' && (
+        {loadingData && activeTab !== 'mockups' && activeTab !== 'cidades' && activeTab !== 'denuncias' && activeTab !== 'monetizacao' && (
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
@@ -1034,7 +1128,6 @@ export const AdminPage = () => {
               </div>
             </div>
 
-            {/* Filtros */}
             <div className="flex gap-1.5 bg-surface border border-border rounded-xl p-1">
               {([
                 { key: 'pending', label: 'Pendentes', color: 'text-yellow-400' },
@@ -1138,40 +1231,24 @@ export const AdminPage = () => {
                           </div>
 
                           <div className="flex gap-2 flex-wrap">
-                            <a
-                              href={`/chat/${report.chatId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-background border border-border text-muted hover:text-white text-xs rounded-lg transition-colors"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              Ver chat
+                            <a href={`/chat/${report.chatId}`} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-background border border-border text-muted hover:text-white text-xs rounded-lg transition-colors">
+                              <Eye className="w-3.5 h-3.5" /> Ver chat
                             </a>
-
                             {report.status === 'pending' && (
-                              <button
-                                onClick={() => updateReportStatus(report.id, 'reviewed')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 text-xs font-semibold rounded-lg transition-colors"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                Marcar revisada
+                              <button onClick={() => updateReportStatus(report.id, 'reviewed')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 text-xs font-semibold rounded-lg transition-colors">
+                                <Eye className="w-3.5 h-3.5" /> Marcar revisada
                               </button>
                             )}
-
                             {report.status !== 'resolved' && (
-                              <button
-                                onClick={() => updateReportStatus(report.id, 'resolved')}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 text-xs font-semibold rounded-lg transition-colors"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                Resolver
+                              <button onClick={() => updateReportStatus(report.id, 'resolved')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 text-xs font-semibold rounded-lg transition-colors">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Resolver
                               </button>
                             )}
-
-                            <button
-                              onClick={() => deleteReport(report.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs rounded-lg transition-colors ml-auto"
-                            >
+                            <button onClick={() => deleteReport(report.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs rounded-lg transition-colors ml-auto">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -1184,6 +1261,127 @@ export const AdminPage = () => {
             })()}
           </div>
         )}
+
+        {/* ══════════════════════════════════════════
+            ABA: MONETIZAÇÃO
+        ══════════════════════════════════════════ */}
+        {activeTab === 'monetizacao' && (
+          <div className="space-y-4">
+
+            {/* Cards de resumo */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
+                <BadgeCheck className="w-5 h-5 text-green-400 mx-auto mb-1" />
+                <p className="text-2xl font-black text-white">{monetAtivos}</p>
+                <p className="text-xs text-green-400 font-semibold">Ativos</p>
+              </div>
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
+                <Ban className="w-5 h-5 text-red-400 mx-auto mb-1" />
+                <p className="text-2xl font-black text-white">{monetExpirados}</p>
+                <p className="text-xs text-red-400 font-semibold">Expirados / Sem score</p>
+              </div>
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 text-center">
+                <CreditCard className="w-5 h-5 text-purple-400 mx-auto mb-1" />
+                <p className="text-2xl font-black text-white">{monetAssinatura}</p>
+                <p className="text-xs text-purple-400 font-semibold">Assinantes mensais</p>
+              </div>
+            </div>
+
+            {/* Busca */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+              <input
+                type="text"
+                value={monetSearch}
+                onChange={e => setMonetSearch(e.target.value)}
+                placeholder="Buscar prestador..."
+                className="w-full bg-surface border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-muted outline-none focus:border-primary transition-colors"
+              />
+            </div>
+
+            {/* Tabela de prestadores */}
+            {loadingData ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+              </div>
+            ) : monetProviders.length === 0 ? (
+              <div className="text-center py-16">
+                <CreditCard className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
+                <p className="font-semibold text-white">Nenhum prestador encontrado</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {monetProviders.map(u => {
+                  const p = u.providerProfile || {}
+                  const ativo = isScoreAtivo(p)
+                  const dias = diasRestantes(p)
+                  const isAssinante = p.subscriptionStatus === 'active'
+                  const expiryMs = p.scoreExpiresAt?.toMillis?.() ?? (p.scoreExpiresAt?.seconds ?? 0) * 1000
+                  const expiryDate = expiryMs ? new Date(expiryMs).toLocaleDateString('pt-BR') : null
+                  const avatarSrc = p.avatar || u.avatar
+
+                  return (
+                    <motion.div
+                      key={u.id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`bg-surface border rounded-xl p-4 flex items-center gap-4 ${
+                        ativo ? 'border-green-500/20' : 'border-red-500/20 opacity-70'
+                      }`}
+                    >
+                      {/* Avatar */}
+                      <div className="w-10 h-10 rounded-full bg-background border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                        {avatarSrc
+                          ? <img src={avatarSrc} alt={u.name} className="w-full h-full object-cover" />
+                          : <span className="text-sm font-black text-muted">{u.name?.charAt(0)?.toUpperCase()}</span>}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-white truncate">
+                          {p.professionalName || u.name}
+                        </p>
+                        <p className="text-xs text-muted truncate">{u.email}</p>
+                      </div>
+
+                      {/* Status badge */}
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {isAssinante ? (
+                          <span className="px-2 py-0.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold rounded-full flex items-center gap-1">
+                            <CreditCard className="w-3 h-3" /> Assinante
+                          </span>
+                        ) : ativo ? (
+                          <span className="px-2 py-0.5 bg-green-500/15 border border-green-500/30 text-green-300 text-[10px] font-bold rounded-full flex items-center gap-1">
+                            <CalendarDays className="w-3 h-3" />
+                            {dias !== null ? `${dias}d restantes` : 'Ativo'}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-red-500/15 border border-red-500/30 text-red-300 text-[10px] font-bold rounded-full flex items-center gap-1">
+                            <Ban className="w-3 h-3" /> Expirado
+                          </span>
+                        )}
+                        {expiryDate && !isAssinante && (
+                          <span className="text-[10px] text-muted">expira {expiryDate}</span>
+                        )}
+                      </div>
+
+                      {/* Botão editar dias */}
+                      <button
+                        onClick={() => setDiasModal({ user: u, dias: '30', observacao: '', saving: false })}
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 text-xs font-bold rounded-lg transition-colors"
+                        title="Adicionar dias manualmente"
+                      >
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        + Dias
+                      </button>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* MODAL: REJEITAR */}
@@ -1425,6 +1623,135 @@ export const AdminPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ══════════════════════════════════════════
+          MODAL: ADICIONAR DIAS MANUALMENTE
+      ══════════════════════════════════════════ */}
+      <AnimatePresence>
+        {diasModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !diasModal.saving && setDiasModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
+            >
+              {/* Cabeçalho */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-white">Adicionar Dias Manualmente</h2>
+                  <p className="text-xs text-muted">Pagamento fora da plataforma (dinheiro, pix, etc.)</p>
+                </div>
+              </div>
+
+              {/* Prestador */}
+              <div className="flex items-center gap-3 bg-background rounded-xl p-3 mb-5">
+                <div className="w-10 h-10 rounded-full bg-surface border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                  {diasModal.user.providerProfile?.avatar || diasModal.user.avatar
+                    ? <img src={diasModal.user.providerProfile?.avatar || diasModal.user.avatar} alt="" className="w-full h-full object-cover" />
+                    : <span className="text-sm font-black text-muted">{diasModal.user.name?.charAt(0)?.toUpperCase()}</span>}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-white truncate">
+                    {diasModal.user.providerProfile?.professionalName || diasModal.user.name}
+                  </p>
+                  <p className="text-xs text-muted truncate">{diasModal.user.email}</p>
+                  {(() => {
+                    const dias = diasRestantes(diasModal.user.providerProfile)
+                    if (diasModal.user.providerProfile?.subscriptionStatus === 'active') {
+                      return <p className="text-xs text-purple-400 font-semibold mt-0.5">Assinante mensal ativo</p>
+                    }
+                    if (dias !== null && dias > 0) {
+                      return <p className="text-xs text-green-400 font-semibold mt-0.5">{dias} dias restantes — os novos dias serão somados</p>
+                    }
+                    return <p className="text-xs text-red-400 font-semibold mt-0.5">Sem score ativo — prazo começa hoje</p>
+                  })()}
+                </div>
+              </div>
+
+              {/* Atalhos rápidos de dias */}
+              <div className="mb-3">
+                <label className="block text-xs text-muted mb-2">Pacote rápido</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[7, 15, 30, 60].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDiasModal(m => m ? { ...m, dias: String(d) } : null)}
+                      className={`py-2 rounded-xl text-xs font-bold transition-colors border ${
+                        diasModal.dias === String(d)
+                        ? 'bg-primary text-background border-primary'
+                        : 'bg-background text-muted border-border hover:text-white'
+                      }`}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Input de dias */}
+              <div className="mb-4">
+                <label className="block text-xs text-muted mb-1.5">
+                  Quantidade de dias *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={diasModal.dias}
+                  onChange={e => setDiasModal(m => m ? { ...m, dias: e.target.value } : null)}
+                  className={inputCls}
+                  placeholder="Ex: 30"
+                />
+              </div>
+
+              {/* Observação */}
+              <div className="mb-6">
+                <label className="block text-xs text-muted mb-1.5">
+                  Observação (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={diasModal.observacao}
+                  onChange={e => setDiasModal(m => m ? { ...m, observacao: e.target.value } : null)}
+                  className={inputCls}
+                  placeholder="Ex: Pagamento em dinheiro R$ 30,00"
+                />
+              </div>
+
+              {/* Botões */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDiasModal(null)}
+                  disabled={diasModal.saving}
+                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={saveDiasManual}
+                  disabled={diasModal.saving || !diasModal.dias || parseInt(diasModal.dias) < 1}
+                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {diasModal.saving
+                    ? <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                    : <TrendingUp className="w-4 h-4" />
+                  }
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   )
 }
