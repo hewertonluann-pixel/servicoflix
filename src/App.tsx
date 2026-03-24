@@ -1,3 +1,4 @@
+import { CompraPage } from '@/pages/CompraPage'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { Navbar } from '@/components/Navbar'
 import { HomePage } from '@/pages/HomePage'
@@ -50,6 +51,9 @@ function App() {
 
         {/* Onboarding */}
         <Route path="/tornar-se-prestador" element={<BecomeProviderPage />} />
+
+        {/* Compra de créditos */}
+        <Route path="/comprar" element={<CompraPage />} />
 
         {/* Busca */}
         <Route path="/buscar" element={<SearchPage />} />
