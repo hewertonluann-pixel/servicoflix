@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { MediaComment } from '@/types'
+import { sendCommentNotification } from '@/lib/commentNotificationUtils'
 
 interface UseCommentsResult {
   comments: MediaComment[]
@@ -39,7 +40,8 @@ export interface CommentUser {
  */
 export const useComments = (
   providerId: string | undefined,
-  mediaId: string | undefined
+  mediaId: string | undefined,
+  mediaType?: 'photo' | 'video' | 'audio'
 ): UseCommentsResult => {
   const [comments, setComments] = useState<MediaComment[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,8 +105,19 @@ export const useComments = (
         likes: 0,
         likedBy: [],
       })
+
+      // ── Notificar o prestador (best-effort) ──────────────────────────────
+      await sendCommentNotification({
+        providerId,
+        mediaId,
+        mediaType: mediaType ?? 'photo',
+        commenterId: user.uid,
+        commenterName: user.displayName ?? 'Usuário',
+        commenterAvatar: user.photoURL ?? '',
+        commentText: text.trim(),
+      })
     },
-    [providerId, mediaId]
+    [providerId, mediaId, mediaType]
   )
 
   // ── Deletar comentário ────────────────────────────────────────────────────
