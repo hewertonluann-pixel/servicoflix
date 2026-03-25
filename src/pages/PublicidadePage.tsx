@@ -133,7 +133,7 @@ function CanvasDarkDestaque({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES
       <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 70% 50%, ${cfg.acento}18 0%, transparent 70%)` }} />
       <div style={{ flex: isLandscape ? '0 0 55%' : '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isLandscape ? '60px 50px' : '60px 50px 30px', zIndex: 1 }}>
         {cfg.mostrarLogo && (
-          <LogoAd acento={cfg.acento} iconSize={isLandscape ? 20 : 24} fontSize={isLandscape ? 28 : 32} marginBottom={32} />
+          <LogoAd acento={cfg.acento} iconSize={isLandscape ? 28 : 32} fontSize={isLandscape ? 36 : 42} marginBottom={32} />
         )}
         <h1 style={{ color: '#fff', fontSize: isLandscape ? 48 : 56, fontWeight: 900, lineHeight: 1.1, margin: '0 0 20px', letterSpacing: -1 }}>
           {cfg.headline}
