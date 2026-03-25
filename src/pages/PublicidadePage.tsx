@@ -144,7 +144,7 @@ function CanvasDarkDestaque({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES
         <div style={{ display: 'inline-flex', alignItems: 'center', background: cfg.acento, borderRadius: 14, padding: '16px 32px', width: 'fit-content' }}>
           <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 18 }}>▶  {cfg.cta}</span>
         </div>
-        <p style={{ color: '#1e3a2a', fontSize: 13, marginTop: 28, fontWeight: 600 }}>servicoflix.com</p>
+        <p style={{ color: cfg.acento, fontSize: 15, marginTop: 28, fontWeight: 700, letterSpacing: 1, opacity: 0.9 }}>servicoflix.com</p>
       </div>
       {isLandscape && (
         <div style={{ flex: '0 0 45%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 50px 40px 0', zIndex: 1 }}>
@@ -198,7 +198,7 @@ function CanvasVerdeUrgencia({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOE
           <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 20 }}>▶  {cfg.cta}</span>
         </div>
       </div>
-      <p style={{ color: `${cfg.acento}80`, fontSize: 14, marginTop: 40, fontWeight: 600, zIndex: 1 }}>servicoflix.com</p>
+      <p style={{ color: cfg.acento, fontSize: 16, marginTop: 40, fontWeight: 700, letterSpacing: 1.5, zIndex: 1, opacity: 0.9 }}>servicoflix.com</p>
     </div>
   )
 }
@@ -221,7 +221,7 @@ function CanvasMinimalista({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES[
       <div style={{ border: `2px solid ${cfg.acento}`, borderRadius: 14, padding: '16px 40px' }}>
         <span style={{ color: cfg.acento, fontWeight: 900, fontSize: 18 }}>{cfg.cta}</span>
       </div>
-      <p style={{ color: '#94a3b8', fontSize: 16, marginTop: 48, fontWeight: 600, letterSpacing: 1 }}>servicoflix.com</p>
+      <p style={{ color: cfg.acento, fontSize: 17, marginTop: 48, fontWeight: 800, letterSpacing: 2 }}>servicoflix.com</p>
       <div style={{ width: 6, height: 60, background: cfg.acento, borderRadius: 3, marginTop: 40 }} />
     </div>
   )
@@ -258,7 +258,7 @@ function CanvasProfissionalMes({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENS
         <div style={{ background: cfg.acento, borderRadius: 12, padding: '14px 28px', display: 'inline-flex', width: 'fit-content' }}>
           <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 16 }}>▶  {cfg.cta}</span>
         </div>
-        <p style={{ color: '#1e3a2a', fontSize: 12, marginTop: 24, fontWeight: 600 }}>servicoflix.com</p>
+        <p style={{ color: cfg.acento, fontSize: 14, marginTop: 24, fontWeight: 700, letterSpacing: 1 }}>servicoflix.com</p>
       </div>
     </div>
   )
