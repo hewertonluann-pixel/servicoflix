@@ -1,435 +1,595 @@
-import { useState, useEffect } from 'react'
+// src/pages/PublicidadePage.tsx
+
+import { useRef, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toPng } from 'html-to-image'
 import {
-  Shield, LogOut, Megaphone, Plus, Trash2, Edit2,
-  Save, X, ToggleLeft, ToggleRight, RefreshCw, Loader2,
-  ExternalLink, Image, AlertTriangle, Eye, EyeOff
+  Shield, Download, Copy, RefreshCw, Monitor,
+  Instagram, Smartphone, AlertTriangle, Check,
+  Loader2, LogOut, Image
 } from 'lucide-react'
-import {
-  collection, getDocs, doc, updateDoc, deleteDoc,
-  setDoc, serverTimestamp, addDoc
-} from 'firebase/firestore'
+import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
+// ── Constante de UIDs admins (igual ao AdminPage) ──
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1', '5KqkZ0SPnpMkKO684W7fZBWHo4J2']
 
-type Posicao = 'home_top' | 'home_middle' | 'busca_topo' | 'perfil_banner'
+// ── Tipos ──
+type Formato = 'outdoor' | 'post' | 'stories'
+type TemplateId = 'dark-destaque' | 'verde-urgencia' | 'minimalista' | 'profissional-mes'
 
-interface Banner {
-  id: string
-  titulo: string
-  descricao?: string
-  imageUrl?: string
-  linkUrl?: string
-  posicao: Posicao
-  ativo: boolean
-  ordem: number
-  anunciante?: string
-  createdAt?: any
+interface AdConfig {
+  headline: string
+  subtexto: string
+  cta: string
+  acento: string
+  mostrarLogo: boolean
+  profissionalNome: string
+  profissionalEspecialidade: string
+  profissionalAvatar: string
+  profissionalCidade: string
+  avaliacao: string
 }
 
-const POSICOES: { key: Posicao; label: string; desc: string }[] = [
-  { key: 'home_top',      label: 'Home — Topo',         desc: 'Banner principal acima das categorias' },
-  { key: 'home_middle',   label: 'Home — Meio',          desc: 'Card destacado entre os carrosséis' },
-  { key: 'busca_topo',    label: 'Busca — Topo',         desc: 'Banner no topo da página de busca' },
-  { key: 'perfil_banner', label: 'Perfil — Banner',      desc: 'Banner no rodapé de perfis de prestadores' },
+interface Provider {
+  id: string
+  name: string
+  specialty: string
+  city: string
+  avatar: string
+  rating: number
+}
+
+// ── Dimensões por formato ──
+const DIMENSOES: Record<Formato, { w: number; h: number; label: string; scale: number }> = {
+  outdoor:  { w: 1200, h: 628,  label: '1200 × 628px', scale: 0.45 },
+  post:     { w: 1080, h: 1080, label: '1080 × 1080px', scale: 0.38 },
+  stories:  { w: 1080, h: 1920, label: '1080 × 1920px', scale: 0.26 },
+}
+
+// ── Templates disponíveis ──
+const TEMPLATES: { id: TemplateId; label: string; desc: string; emoji: string }[] = [
+  { id: 'dark-destaque',      label: 'Dark Destaque',        desc: 'Fundo escuro + profissional em destaque', emoji: '🎬' },
+  { id: 'verde-urgencia',     label: 'Verde Urgência',       desc: 'Chamada de ação forte, fundo verde', emoji: '⚡' },
+  { id: 'minimalista',        label: 'Minimalista',          desc: 'Logo + tagline + URL, limpo', emoji: '✨' },
+  { id: 'profissional-mes',   label: 'Profissional do Mês',  desc: 'Card grande com foto e avaliação', emoji: '🏆' },
 ]
 
-const EMPTY_FORM = {
-  titulo: '',
-  descricao: '',
-  imageUrl: '',
-  linkUrl: '',
-  posicao: 'home_top' as Posicao,
-  anunciante: '',
-  ativo: true,
-  ordem: 1,
+const CORES_ACENTO = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+
+const CONFIG_INICIAL: AdConfig = {
+  headline: 'O serviço certo, do jeito certo.',
+  subtexto: 'Encontre faxineiras, eletricistas, encanadores e muito mais.',
+  cta: 'Encontre um profissional',
+  acento: '#10b981',
+  mostrarLogo: true,
+  profissionalNome: 'João Silva',
+  profissionalEspecialidade: 'Encanador',
+  profissionalAvatar: '',
+  profissionalCidade: 'Diamantina, MG',
+  avaliacao: '4.9',
 }
+
+// ══════════════════════════════════════════
+// COMPONENTES DE CANVAS (templates visuais)
+// ══════════════════════════════════════════
+
+function CanvasDarkDestaque({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
+  const isLandscape = dim.w > dim.h
+  return (
+    <div style={{ width: dim.w, height: dim.h, background: '#0a0f0a', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: isLandscape ? 'row' : 'column', overflow: 'hidden', position: 'relative' }}>
+      {/* Gradiente de fundo */}
+      <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 70% 50%, ${cfg.acento}18 0%, transparent 70%)` }} />
+
+      {/* Coluna esquerda */}
+      <div style={{ flex: isLandscape ? '0 0 55%' : '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isLandscape ? '60px 50px' : '60px 50px 30px', zIndex: 1 }}>
+        {cfg.mostrarLogo && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+            <div style={{ width: 44, height: 44, background: cfg.acento, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#fff', fontWeight: 900, fontSize: 22 }}>S</span>
+            </div>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 28, letterSpacing: -0.5 }}>
+              Serviço<span style={{ color: cfg.acento }}>Flix</span>
+            </span>
+          </div>
+        )}
+        <h1 style={{ color: '#fff', fontSize: isLandscape ? 48 : 56, fontWeight: 900, lineHeight: 1.1, margin: '0 0 20px', letterSpacing: -1 }}>
+          {cfg.headline}
+        </h1>
+        <p style={{ color: '#94a3b8', fontSize: isLandscape ? 20 : 24, margin: '0 0 36px', lineHeight: 1.5 }}>
+          {cfg.subtexto}
+        </p>
+        <div style={{ display: 'inline-flex', alignItems: 'center', background: cfg.acento, borderRadius: 14, padding: '16px 32px', width: 'fit-content' }}>
+          <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 18 }}>▶  {cfg.cta}</span>
+        </div>
+        <p style={{ color: '#1e3a2a', fontSize: 13, marginTop: 28, fontWeight: 600 }}>servicoflix.com</p>
+      </div>
+
+      {/* Coluna direita — Card do profissional */}
+      {isLandscape && (
+        <div style={{ flex: '0 0 45%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 50px 40px 0', zIndex: 1 }}>
+          <div style={{ background: '#141a14', border: `1px solid ${cfg.acento}40`, borderRadius: 24, padding: 32, width: '100%', maxWidth: 360 }}>
+            <div style={{ fontSize: 11, color: cfg.acento, fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1.5 }}>⭐ Profissional em destaque</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#1a2e1a', border: `2px solid ${cfg.acento}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {cfg.profissionalAvatar
+                  ? <img src={cfg.profissionalAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ color: cfg.acento, fontWeight: 900, fontSize: 24 }}>{cfg.profissionalNome.charAt(0)}</span>}
+              </div>
+              <div>
+                <div style={{ color: '#fff', fontWeight: 900, fontSize: 20 }}>{cfg.profissionalNome}</div>
+                <div style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>{cfg.profissionalEspecialidade}</div>
+                <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }}>📍 {cfg.profissionalCidade}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0a0f0a', borderRadius: 12, padding: '12px 16px' }}>
+              <span style={{ color: '#f59e0b', fontSize: 18 }}>★★★★★</span>
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>{cfg.avaliacao}</span>
+              <span style={{ color: '#94a3b8', fontSize: 13 }}>/ 5.0</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CanvasVerdeUrgencia({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
+  return (
+    <div style={{ width: dim.w, height: dim.h, background: `linear-gradient(135deg, #0a1f0a 0%, #0f2d1a 50%, #0a1f0a 100%)`, fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400, borderRadius: '50%', background: `${cfg.acento}15`, filter: 'blur(60px)' }} />
+      <div style={{ position: 'absolute', bottom: -80, left: -80, width: 300, height: 300, borderRadius: '50%', background: `${cfg.acento}10`, filter: 'blur(40px)' }} />
+
+      {cfg.mostrarLogo && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
+          <div style={{ width: 40, height: 40, background: cfg.acento, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 20 }}>S</span>
+          </div>
+          <span style={{ color: '#fff', fontWeight: 900, fontSize: 26 }}>Serviço<span style={{ color: cfg.acento }}>Flix</span></span>
+        </div>
+      )}
+
+      <div style={{ background: `${cfg.acento}20`, border: `1px solid ${cfg.acento}50`, borderRadius: 100, padding: '8px 20px', marginBottom: 28 }}>
+        <span style={{ color: cfg.acento, fontWeight: 700, fontSize: 14, textTransform: 'uppercase', letterSpacing: 2 }}>🔥 Disponível agora</span>
+      </div>
+
+      <h1 style={{ color: '#fff', fontSize: dim.w > 800 ? 64 : 48, fontWeight: 900, lineHeight: 1.05, margin: '0 0 20px', letterSpacing: -2, zIndex: 1 }}>
+        {cfg.headline}
+      </h1>
+      <p style={{ color: '#94a3b8', fontSize: dim.w > 800 ? 22 : 18, margin: '0 0 48px', maxWidth: 700, lineHeight: 1.5, zIndex: 1 }}>
+        {cfg.subtexto}
+      </p>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', zIndex: 1 }}>
+        <div style={{ background: cfg.acento, borderRadius: 14, padding: '18px 40px' }}>
+          <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 20 }}>▶  {cfg.cta}</span>
+        </div>
+      </div>
+      <p style={{ color: `${cfg.acento}80`, fontSize: 14, marginTop: 40, fontWeight: 600, zIndex: 1 }}>servicoflix.com</p>
+    </div>
+  )
+}
+
+function CanvasMinimalista({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
+  return (
+    <div style={{ width: dim.w, height: dim.h, background: '#fff', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 80, textAlign: 'center' }}>
+      <div style={{ width: 6, height: 60, background: cfg.acento, borderRadius: 3, marginBottom: 40 }} />
+      {cfg.mostrarLogo && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+          <div style={{ width: 48, height: 48, background: cfg.acento, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 24 }}>S</span>
+          </div>
+          <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 36, letterSpacing: -1 }}>
+            Serviço<span style={{ color: cfg.acento }}>Flix</span>
+          </span>
+        </div>
+      )}
+      <h1 style={{ color: '#0a0f0a', fontSize: dim.w > 800 ? 60 : 44, fontWeight: 900, lineHeight: 1.1, margin: '0 0 24px', letterSpacing: -2 }}>
+        {cfg.headline}
+      </h1>
+      <p style={{ color: '#64748b', fontSize: dim.w > 800 ? 22 : 18, margin: '0 0 48px', maxWidth: 600, lineHeight: 1.6 }}>
+        {cfg.subtexto}
+      </p>
+      <div style={{ border: `2px solid ${cfg.acento}`, borderRadius: 14, padding: '16px 40px' }}>
+        <span style={{ color: cfg.acento, fontWeight: 900, fontSize: 18 }}>{cfg.cta}</span>
+      </div>
+      <p style={{ color: '#94a3b8', fontSize: 16, marginTop: 48, fontWeight: 600, letterSpacing: 1 }}>
+        servicoflix.com
+      </p>
+      <div style={{ width: 6, height: 60, background: cfg.acento, borderRadius: 3, marginTop: 40 }} />
+    </div>
+  )
+}
+
+function CanvasProfissionalMes({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
+  const isLandscape = dim.w > dim.h
+  return (
+    <div style={{ width: dim.w, height: dim.h, background: '#0a0f0a', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: isLandscape ? 'row' : 'column', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 30% 50%, ${cfg.acento}12 0%, transparent 60%)` }} />
+
+      {/* Lado do profissional */}
+      <div style={{ flex: isLandscape ? '0 0 50%' : '0 0 55%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isLandscape ? '60px' : '60px 40px 30px', zIndex: 1 }}>
+        <div style={{ fontSize: 13, color: cfg.acento, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 24 }}>🏆 Profissional do Mês</div>
+        <div style={{ width: isLandscape ? 200 : 160, height: isLandscape ? 200 : 160, borderRadius: '50%', border: `4px solid ${cfg.acento}`, overflow: 'hidden', background: '#141a14', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
+          {cfg.profissionalAvatar
+            ? <img src={cfg.profissionalAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <span style={{ color: cfg.acento, fontWeight: 900, fontSize: isLandscape ? 72 : 56 }}>{cfg.profissionalNome.charAt(0)}</span>}
+        </div>
+        <div style={{ color: '#fff', fontWeight: 900, fontSize: isLandscape ? 32 : 26, textAlign: 'center' }}>{cfg.profissionalNome}</div>
+        <div style={{ color: cfg.acento, fontSize: 18, marginTop: 6, fontWeight: 600 }}>{cfg.profissionalEspecialidade}</div>
+        <div style={{ color: '#94a3b8', fontSize: 14, marginTop: 4 }}>📍 {cfg.profissionalCidade}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20, background: '#141a14', borderRadius: 50, padding: '10px 20px' }}>
+          <span style={{ color: '#f59e0b', fontSize: 20 }}>★★★★★</span>
+          <span style={{ color: '#fff', fontWeight: 900, fontSize: 18 }}>{cfg.avaliacao}</span>
+        </div>
+      </div>
+
+      {/* Lado do texto */}
+      <div style={{ flex: isLandscape ? '0 0 50%' : '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isLandscape ? '60px 60px 60px 0' : '30px 40px 60px', zIndex: 1 }}>
+        {cfg.mostrarLogo && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
+            <div style={{ width: 36, height: 36, background: cfg.acento, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#fff', fontWeight: 900, fontSize: 18 }}>S</span>
+            </div>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 22 }}>Serviço<span style={{ color: cfg.acento }}>Flix</span></span>
+          </div>
+        )}
+        <h1 style={{ color: '#fff', fontSize: isLandscape ? 40 : 32, fontWeight: 900, lineHeight: 1.15, margin: '0 0 16px', letterSpacing: -1 }}>{cfg.headline}</h1>
+        <p style={{ color: '#94a3b8', fontSize: isLandscape ? 18 : 15, margin: '0 0 32px', lineHeight: 1.6 }}>{cfg.subtexto}</p>
+        <div style={{ background: cfg.acento, borderRadius: 12, padding: '14px 28px', display: 'inline-flex', width: 'fit-content' }}>
+          <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 16 }}>▶  {cfg.cta}</span>
+        </div>
+        <p style={{ color: '#1e3a2a', fontSize: 12, marginTop: 24, fontWeight: 600 }}>servicoflix.com</p>
+      </div>
+    </div>
+  )
+}
+
+// ── Renderizador de canvas por template ──
+function AdCanvas({ template, cfg, dim }: { template: TemplateId; cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
+  if (template === 'dark-destaque')    return <CanvasDarkDestaque    cfg={cfg} dim={dim} />
+  if (template === 'verde-urgencia')   return <CanvasVerdeUrgencia   cfg={cfg} dim={dim} />
+  if (template === 'minimalista')      return <CanvasMinimalista     cfg={cfg} dim={dim} />
+  if (template === 'profissional-mes') return <CanvasProfissionalMes cfg={cfg} dim={dim} />
+  return null
+}
+
+// ══════════════════════════════════════════
+// PÁGINA PRINCIPAL
+// ══════════════════════════════════════════
 
 export const PublicidadePage = () => {
   const { user, loading: authLoading } = useSimpleAuth()
   const navigate = useNavigate()
 
-  const [banners, setBanners] = useState<Banner[]>([])
-  const [loading, setLoading] = useState(false)
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [editing, setEditing] = useState<Banner | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [formato, setFormato] = useState<Formato>('outdoor')
+  const [template, setTemplate] = useState<TemplateId>('dark-destaque')
+  const [cfg, setCfg] = useState<AdConfig>(CONFIG_INICIAL)
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [downloading, setDownloading] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  const [filterPos, setFilterPos] = useState<Posicao | 'all'>('all')
 
+  const canvasRef = useRef<HTMLDivElement>(null)
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
+  const dim = DIMENSOES[formato]
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
   }
 
-  const loadBanners = async () => {
-    setLoading(true)
-    try {
-      const snap = await getDocs(collection(db, 'banners'))
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Banner))
-      list.sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99))
-      setBanners(list)
-    } catch (err: any) {
-      showToast('Erro ao carregar banners: ' + (err?.message || ''), 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // Carrega prestadores do Firestore
   useEffect(() => {
-    if (!authLoading && isAdmin) loadBanners()
-  }, [authLoading, isAdmin])
+    if (!isAdmin) return
+    const load = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users'))
+        const list: Provider[] = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as any))
+          .filter((u: any) => u.roles?.includes('provider') && u.providerProfile?.status === 'approved')
+          .map((u: any) => ({
+            id: u.id,
+            name: u.providerProfile?.professionalName || u.name || '',
+            specialty: u.providerProfile?.specialty || '',
+            city: u.providerProfile?.city || '',
+            avatar: u.providerProfile?.avatar || u.avatar || '',
+            rating: u.providerProfile?.rating || 4.9,
+          }))
+        setProviders(list)
+      } catch { /* silencia erro de carregamento */ }
+    }
+    load()
+  }, [isAdmin])
 
-  const openNew = () => {
-    setEditing(null)
-    setForm({ ...EMPTY_FORM, ordem: banners.length + 1 })
-    setModal(true)
+  const handleSelectProvider = (id: string) => {
+    const p = providers.find(p => p.id === id)
+    if (!p) return
+    setCfg(c => ({
+      ...c,
+      profissionalNome: p.name,
+      profissionalEspecialidade: p.specialty,
+      profissionalAvatar: p.avatar,
+      profissionalCidade: p.city,
+      avaliacao: String(p.rating),
+    }))
   }
 
-  const openEdit = (b: Banner) => {
-    setEditing(b)
-    setForm({
-      titulo: b.titulo || '',
-      descricao: b.descricao || '',
-      imageUrl: b.imageUrl || '',
-      linkUrl: b.linkUrl || '',
-      posicao: b.posicao || 'home_top',
-      anunciante: b.anunciante || '',
-      ativo: b.ativo ?? true,
-      ordem: b.ordem ?? 1,
-    })
-    setModal(true)
-  }
-
-  const saveBanner = async () => {
-    if (!form.titulo.trim()) return
-    setSaving(true)
+  const handleDownload = async () => {
+    if (!canvasRef.current) return
+    setDownloading(true)
     try {
-      const payload = {
-        titulo: form.titulo.trim(),
-        descricao: form.descricao.trim(),
-        imageUrl: form.imageUrl.trim(),
-        linkUrl: form.linkUrl.trim(),
-        posicao: form.posicao,
-        anunciante: form.anunciante.trim(),
-        ativo: form.ativo,
-        ordem: Number(form.ordem) || 1,
-        updatedAt: serverTimestamp(),
-      }
-      if (editing) {
-        await updateDoc(doc(db, 'banners', editing.id), payload)
-        setBanners(prev => prev.map(b => b.id === editing.id ? { ...b, ...payload } : b))
-        showToast('Banner atualizado!')
-      } else {
-        const ref = await addDoc(collection(db, 'banners'), { ...payload, createdAt: serverTimestamp() })
-        setBanners(prev => [...prev, { id: ref.id, ...payload } as Banner])
-        showToast('Banner criado!')
-      }
-      setModal(false)
-      setEditing(null)
-    } catch (err: any) {
-      showToast('Erro ao salvar: ' + (err?.message || ''), 'error')
+      const png = await toPng(canvasRef.current, { pixelRatio: 1, cacheBust: true })
+      const link = document.createElement('a')
+      link.download = `servicoflix-${template}-${formato}.png`
+      link.href = png
+      link.click()
+      showToast('✅ Download iniciado!')
+    } catch {
+      showToast('Erro ao gerar imagem. Tente novamente.', 'error')
     } finally {
-      setSaving(false)
+      setDownloading(false)
     }
   }
 
-  const toggleBanner = async (b: Banner) => {
+  const handleCopy = async () => {
+    if (!canvasRef.current) return
     try {
-      await updateDoc(doc(db, 'banners', b.id), { ativo: !b.ativo })
-      setBanners(prev => prev.map(x => x.id === b.id ? { ...x, ativo: !x.ativo } : x))
-      showToast(b.ativo ? 'Banner desativado' : 'Banner ativado!')
-    } catch (err: any) {
-      showToast('Erro: ' + (err?.message || ''), 'error')
+      const png = await toPng(canvasRef.current, { pixelRatio: 1, cacheBust: true })
+      const res = await fetch(png)
+      const blob = await res.blob()
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+      showToast('📋 Imagem copiada!')
+    } catch {
+      showToast('Navegador não suporta cópia. Use o download.', 'error')
     }
   }
 
-  const deleteBanner = async (id: string) => {
-    if (!confirm('Excluir este banner permanentemente?')) return
-    try {
-      await deleteDoc(doc(db, 'banners', id))
-      setBanners(prev => prev.filter(b => b.id !== id))
-      showToast('Banner excluído!')
-    } catch (err: any) {
-      showToast('Erro ao excluir: ' + (err?.message || ''), 'error')
-    }
-  }
-
-  const inputCls = 'w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary transition-colors placeholder:text-muted'
-
-  const filtered = filterPos === 'all' ? banners : banners.filter(b => b.posicao === filterPos)
-  const ativos = banners.filter(b => b.ativo).length
-
+  // ── Guards de acesso ──
   if (authLoading) return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   )
-  if (!user || !isAdmin) return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+  if (!user) return (
+    <div className="min-h-screen flex items-center justify-center px-4 bg-background">
+      <div className="text-center">
+        <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+        <h1 className="text-2xl font-black text-white mb-2">Login Necessário</h1>
+        <p className="text-muted mb-6">Você precisa estar logado.</p>
+        <button onClick={() => navigate('/entrar')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
+          Fazer Login
+        </button>
+      </div>
+    </div>
+  )
+  if (!isAdmin) return (
+    <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="text-center">
         <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
         <h1 className="text-2xl font-black text-white mb-2">Acesso Negado</h1>
-        <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">Voltar ao Início</button>
+        <p className="text-muted mb-6">Apenas administradores podem acessar esta página.</p>
+        <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl">
+          Voltar ao Início
+        </button>
       </div>
     </div>
   )
 
   return (
     <div className="min-h-screen bg-background">
+
+      {/* Toast */}
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
             className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl font-semibold text-sm shadow-lg max-w-sm ${
               toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`}>{toast.msg}</motion.div>
+            }`}>
+            {toast.msg}
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Header */}
       <div className="bg-surface border-b border-border sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/admin')} className="p-2 rounded-lg hover:bg-background text-muted hover:text-white transition-colors">
-              <Shield className="w-4 h-4" />
-            </button>
-            <div className="w-px h-5 bg-border" />
             <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
-              <Megaphone className="w-4 h-4 text-primary" />
+              <Image className="w-5 h-5 text-primary" />
             </div>
             <div>
               <h1 className="text-base font-black text-white">Publicidade</h1>
-              <p className="text-xs text-muted">Gerenciar banners e anúncios</p>
+              <p className="text-xs text-muted">Gerador de artes • ServiçoFlix</p>
             </div>
           </div>
-          <button onClick={() => navigate('/')} className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors">
-            <LogOut className="w-4 h-4" /> Sair
+          <button onClick={() => navigate('/admin')} className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors">
+            <LogOut className="w-4 h-4" /> Painel Admin
           </button>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
+        <div className="grid lg:grid-cols-[380px_1fr] gap-8">
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          {[
-            { label: 'Total de banners', value: banners.length, color: 'text-blue-400' },
-            { label: 'Banners ativos',   value: ativos,          color: 'text-green-400' },
-            { label: 'Desativados',      value: banners.length - ativos, color: 'text-red-400' },
-          ].map((s, i) => (
-            <div key={i} className="bg-surface border border-border rounded-xl p-4">
-              <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-muted">{s.label}</p>
+          {/* ─── PAINEL ESQUERDO: Controles ─── */}
+          <div className="space-y-6">
+
+            {/* Formato */}
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Formato</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { id: 'outdoor',  label: 'Outdoor',  icon: Monitor },
+                  { id: 'post',     label: 'Post',     icon: Instagram },
+                  { id: 'stories',  label: 'Stories',  icon: Smartphone },
+                ] as const).map(f => (
+                  <button key={f.id} onClick={() => setFormato(f.id)}
+                    className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition-colors ${
+                      formato === f.id ? 'bg-primary/10 border-primary text-primary' : 'border-border text-muted hover:text-white hover:border-muted'
+                    }`}>
+                    <f.icon className="w-4 h-4" />
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted mt-2 text-center">{dim.label}</p>
             </div>
-          ))}
-        </div>
 
-        {/* Filtro por posição */}
-        <div className="flex gap-1.5 mb-5 bg-surface border border-border rounded-xl p-1 flex-wrap">
-          <button onClick={() => setFilterPos('all')}
-            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-colors ${ filterPos === 'all' ? 'bg-primary text-background' : 'text-muted hover:text-white' }`}>
-            Todas ({banners.length})
-          </button>
-          {POSICOES.map(p => {
-            const count = banners.filter(b => b.posicao === p.key).length
-            return (
-              <button key={p.key} onClick={() => setFilterPos(p.key)}
-                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-colors ${ filterPos === p.key ? 'bg-primary text-background' : 'text-muted hover:text-white' }`}>
-                {p.label} ({count})
-              </button>
-            )
-          })}
-        </div>
+            {/* Template */}
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Template</p>
+              <div className="grid grid-cols-2 gap-2">
+                {TEMPLATES.map(t => (
+                  <button key={t.id} onClick={() => setTemplate(t.id)}
+                    className={`text-left p-3 rounded-xl border transition-colors ${
+                      template === t.id ? 'bg-primary/10 border-primary' : 'border-border hover:border-muted'
+                    }`}>
+                    <div className="text-lg mb-1">{t.emoji}</div>
+                    <div className={`text-xs font-bold ${template === t.id ? 'text-primary' : 'text-white'}`}>{t.label}</div>
+                    <div className="text-[10px] text-muted leading-tight mt-0.5">{t.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-xs text-muted">{filtered.length} banners</p>
-          <div className="flex gap-2">
-            <button onClick={loadBanners}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors">
-              <RefreshCw className="w-3.5 h-3.5" /> Atualizar
-            </button>
-            <button onClick={openNew}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-xs font-bold rounded-lg">
-              <Plus className="w-3.5 h-3.5" /> Novo Banner
-            </button>
-          </div>
-        </div>
+            {/* Conteúdo */}
+            <div className="bg-surface border border-border rounded-2xl p-5 space-y-4">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider">Conteúdo</p>
 
-        {/* Lista */}
-        {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <Megaphone className="w-12 h-12 mx-auto mb-3 opacity-30 text-muted" />
-            <p className="font-semibold text-white">Nenhum banner cadastrado</p>
-            <p className="text-xs text-muted mt-1">Clique em "Novo Banner" para começar</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map(b => {
-              const pos = POSICOES.find(p => p.key === b.posicao)
-              return (
-                <motion.div key={b.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                  className={`bg-surface border rounded-xl p-4 flex gap-4 ${ b.ativo ? 'border-primary/30' : 'border-border opacity-60' }`}>
-
-                  {/* Thumb */}
-                  <div className="w-20 h-14 rounded-lg overflow-hidden bg-background border border-border shrink-0 flex items-center justify-center">
-                    {b.imageUrl
-                      ? <img src={b.imageUrl} alt={b.titulo} className="w-full h-full object-cover" />
-                      : <Image className="w-5 h-5 text-muted" />}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="text-sm font-bold text-white">{b.titulo}</p>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${ b.ativo ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' }`}>
-                        {b.ativo ? '🟢 Ativo' : '🔴 Inativo'}
-                      </span>
-                      {b.anunciante && (
-                        <span className="px-2 py-0.5 bg-background border border-border text-muted text-[10px] rounded-full">{b.anunciante}</span>
-                      )}
-                    </div>
-                    {b.descricao && <p className="text-xs text-muted line-clamp-1 mb-1">{b.descricao}</p>}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="px-2 py-0.5 bg-primary/10 border border-primary/30 text-primary text-[10px] font-semibold rounded-full">
-                        {pos?.label || b.posicao}
-                      </span>
-                      {b.linkUrl && (
-                        <a href={b.linkUrl} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[10px] text-blue-400 hover:underline">
-                          <ExternalLink className="w-3 h-3" /> {b.linkUrl.slice(0, 30)}{b.linkUrl.length > 30 ? '…' : ''}
-                        </a>
-                      )}
-                      <span className="text-[10px] text-muted">ordem #{b.ordem}</span>
-                    </div>
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => toggleBanner(b)} className="p-1.5 rounded-lg hover:bg-background transition-colors" title={b.ativo ? 'Desativar' : 'Ativar'}>
-                      {b.ativo ? <ToggleRight className="w-5 h-5 text-primary" /> : <ToggleLeft className="w-5 h-5 text-muted" />}
-                    </button>
-                    <button onClick={() => openEdit(b)} className="p-1.5 rounded-lg hover:bg-background text-muted hover:text-white transition-colors">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => deleteBanner(b.id)} className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
-        )}
-
-      </div>
-
-      {/* MODAL */}
-      <AnimatePresence>
-        {modal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !saving && setModal(false)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-surface border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
-                    <Megaphone className="w-5 h-5 text-primary" />
-                  </div>
-                  <h2 className="text-lg font-black text-white">{editing ? 'Editar Banner' : 'Novo Banner'}</h2>
-                </div>
-                <button onClick={() => setModal(false)} className="p-1.5 rounded-lg text-muted hover:text-white transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Headline principal</label>
+                <input value={cfg.headline} onChange={e => setCfg(c => ({ ...c, headline: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
               </div>
 
-              <div className="space-y-4">
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Subtexto</label>
+                <textarea value={cfg.subtexto} onChange={e => setCfg(c => ({ ...c, subtexto: e.target.value }))}
+                  rows={2} className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors resize-none" />
+              </div>
 
-                {/* Preview */}
-                {form.imageUrl && (
-                  <div className="w-full h-32 rounded-xl overflow-hidden border border-border">
-                    <img src={form.imageUrl} alt="preview" className="w-full h-full object-cover" />
-                  </div>
-                )}
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Texto do CTA (botão)</label>
+                <input value={cfg.cta} onChange={e => setCfg(c => ({ ...c, cta: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+              </div>
 
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Título *</label>
-                  <input value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} placeholder="Ex: Promoção de Verão" className={inputCls} />
+              {/* Toggle logo */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div onClick={() => setCfg(c => ({ ...c, mostrarLogo: !c.mostrarLogo }))}
+                  className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${cfg.mostrarLogo ? 'bg-primary' : 'bg-border'}`}>
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${cfg.mostrarLogo ? 'translate-x-4' : 'translate-x-0'}`} />
                 </div>
+                <span className="text-sm text-white">Mostrar logo ServiçoFlix</span>
+              </label>
+            </div>
 
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Anunciante</label>
-                  <input value={form.anunciante} onChange={e => setForm(f => ({ ...f, anunciante: e.target.value }))} placeholder="Ex: Loja XYZ, ServiçoFlix" className={inputCls} />
-                </div>
+            {/* Cor de acento */}
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Cor de acento</p>
+              <div className="flex gap-2 flex-wrap">
+                {CORES_ACENTO.map(cor => (
+                  <button key={cor} onClick={() => setCfg(c => ({ ...c, acento: cor }))}
+                    style={{ background: cor }}
+                    className={`w-8 h-8 rounded-full transition-transform hover:scale-110 ${cfg.acento === cor ? 'ring-2 ring-white ring-offset-2 ring-offset-surface scale-110' : ''}`} />
+                ))}
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Descrição curta</label>
-                  <input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Texto de apoio (opcional)" className={inputCls} />
-                </div>
+            {/* Profissional */}
+            <div className="bg-surface border border-border rounded-2xl p-5 space-y-4">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider">Profissional em destaque</p>
 
+              {providers.length > 0 && (
                 <div>
-                  <label className="block text-xs text-muted mb-1.5">URL da imagem</label>
-                  <input value={form.imageUrl} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://..." className={inputCls} />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">URL do link (ao clicar)</label>
-                  <input value={form.linkUrl} onChange={e => setForm(f => ({ ...f, linkUrl: e.target.value }))} placeholder="https://... ou /buscar?cat=limpeza" className={inputCls} />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Posição na plataforma</label>
-                  <select value={form.posicao} onChange={e => setForm(f => ({ ...f, posicao: e.target.value as Posicao }))} className={inputCls}>
-                    {POSICOES.map(p => (
-                      <option key={p.key} value={p.key}>{p.label} — {p.desc}</option>
+                  <label className="text-xs text-muted mb-1.5 block">Selecionar prestador cadastrado</label>
+                  <select onChange={e => handleSelectProvider(e.target.value)}
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors">
+                    <option value="">-- Selecionar --</option>
+                    {providers.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} — {p.specialty}</option>
                     ))}
                   </select>
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-xs text-muted mb-1.5">Ordem de exibição</label>
-                  <input type="number" min={1} value={form.ordem} onChange={e => setForm(f => ({ ...f, ordem: Number(e.target.value) }))} className={inputCls} />
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Nome</label>
+                <input value={cfg.profissionalNome} onChange={e => setCfg(c => ({ ...c, profissionalNome: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Especialidade</label>
+                <input value={cfg.profissionalEspecialidade} onChange={e => setCfg(c => ({ ...c, profissionalEspecialidade: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Cidade</label>
+                <input value={cfg.profissionalCidade} onChange={e => setCfg(c => ({ ...c, profissionalCidade: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">Avaliação (ex: 4.9)</label>
+                <input value={cfg.avaliacao} onChange={e => setCfg(c => ({ ...c, avaliacao: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1.5 block">URL da foto (opcional)</label>
+                <input value={cfg.profissionalAvatar} onChange={e => setCfg(c => ({ ...c, profissionalAvatar: e.target.value }))}
+                  placeholder="https://..."
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+              </div>
+
+              <button onClick={() => setCfg(CONFIG_INICIAL)}
+                className="flex items-center gap-2 text-xs text-muted hover:text-white transition-colors">
+                <RefreshCw className="w-3.5 h-3.5" /> Resetar para padrão
+              </button>
+            </div>
+          </div>
+
+          {/* ─── PAINEL DIREITO: Preview + ações ─── */}
+          <div className="space-y-4">
+
+            {/* Botões de ação */}
+            <div className="flex gap-3 justify-end">
+              <button onClick={handleCopy}
+                className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border text-sm font-semibold text-white rounded-xl hover:border-primary transition-colors">
+                {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Copiado!' : 'Copiar imagem'}
+              </button>
+              <button onClick={handleDownload} disabled={downloading}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-background text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-60">
+                {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {downloading ? 'Gerando...' : 'Baixar PNG'}
+              </button>
+            </div>
+
+            {/* Canvas com escala visual */}
+            <div className="bg-surface border border-border rounded-2xl p-6 flex items-center justify-center overflow-hidden">
+              <div style={{ transform: `scale(${dim.scale})`, transformOrigin: 'top center', marginBottom: (dim.h * dim.scale) - dim.h }}>
+                <div ref={canvasRef}>
+                  <AdCanvas template={template} cfg={cfg} dim={dim} />
                 </div>
-
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <div onClick={() => setForm(f => ({ ...f, ativo: !f.ativo }))}
-                    className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${form.ativo ? 'bg-primary' : 'bg-border'}`}>
-                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${form.ativo ? 'translate-x-4' : 'translate-x-0'}`} />
-                  </div>
-                  <span className="text-sm text-white">Banner ativo</span>
-                </label>
-
               </div>
+            </div>
 
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setModal(false)} disabled={saving}
-                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors disabled:opacity-50">
-                  Cancelar
-                </button>
-                <button onClick={saveBanner} disabled={saving || !form.titulo.trim()}
-                  className="flex-1 py-3 bg-primary text-background font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {editing ? 'Salvar alterações' : 'Criar banner'}
-                </button>
-              </div>
+            {/* Info do formato */}
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs text-muted">
+                Formato: <span className="text-white font-semibold">{dim.label}</span>
+              </p>
+              <p className="text-xs text-muted">
+                Template: <span className="text-white font-semibold">{TEMPLATES.find(t => t.id === template)?.label}</span>
+              </p>
+            </div>
+          </div>
 
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      </div>
     </div>
   )
 }
