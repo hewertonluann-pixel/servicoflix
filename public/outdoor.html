@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServiçoFlix — O serviço certo, do jeito certo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── DESIGN TOKENS (README paleta) ──────────────────────────────── */
+    :root {
+      --bg:           #0a0f0a;
+      --surface:      #141a14;
+      --surface-hover:#1a231a;
+      --primary:      #10b981;
+      --primary-dark: #059669;
+      --muted:        #94a3b8;
+      --border:       #1e3a2a;
+      --white:        #ffffff;
+      --font:         'Inter', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--white);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      overflow-x: hidden;
+    }
+
+    /* ─── AMBIENT GLOW ──────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -30%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80vw;
+      height: 80vw;
+      background: radial-gradient(ellipse, rgba(16,185,129,.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── BILLBOARD FRAME ────────────────────────────────────────────── */
+    .billboard-wrapper {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    /* pole */
+    .pole {
+      width: 14px;
+      height: 60px;
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      margin: 0 auto;
+      border-radius: 0 0 4px 4px;
+    }
+
+    .billboard {
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(16,185,129,.08),
+        0 32px 80px rgba(0,0,0,.7),
+        0 0 60px rgba(16,185,129,.06);
+      display: grid;
+      grid-template-columns: 1fr 1px 420px;
+      min-height: 440px;
+    }
+
+    /* ─── LEFT PANEL ─────────────────────────────────────────────────── */
+    .left {
+      padding: 3rem 3rem 2.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1.5rem;
+    }
+
+    /* logo */
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+    }
+    .logo-icon {
+      width: 52px; height: 52px;
+      background: var(--primary);
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: #fff;
+      flex-shrink: 0;
+      box-shadow: 0 4px 20px rgba(16,185,129,.4);
+    }
+    .logo-text {
+      line-height: 1;
+    }
+    .logo-text .brand {
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -.03em;
+    }
+    .logo-text .brand span { color: var(--primary); }
+    .logo-text .tagline-sub {
+      font-size: .7rem;
+      color: var(--muted);
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* headline */
+    .headline {
+      flex: 1;
+    }
+    .headline h1 {
+      font-size: clamp(1.6rem, 3vw, 2.6rem);
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -.02em;
+    }
+    .headline h1 em {
+      font-style: normal;
+      color: var(--primary);
+    }
+    .headline p {
+      margin-top: .9rem;
+      font-size: clamp(.85rem, 1.3vw, 1rem);
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 420px;
+    }
+
+    /* category pills */
+    .categories {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-top: .25rem;
+    }
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .35rem .85rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--white);
+      background: rgba(16,185,129,.08);
+      transition: background .2s, border-color .2s;
+    }
+    .pill:hover { background: rgba(16,185,129,.18); border-color: var(--primary); cursor: default; }
+    .pill .icon { font-size: .9rem; }
+
+    /* CTA row */
+    .cta-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .8rem 1.8rem;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 800;
+      font-size: .95rem;
+      border-radius: 8px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: background .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 20px rgba(16,185,129,.35);
+    }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 6px 28px rgba(16,185,129,.5); }
+    .btn-secondary {
+      font-size: .88rem;
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color .2s;
+    }
+    .btn-secondary:hover { color: var(--white); }
+
+    /* stats strip */
+    .stats {
+      display: flex;
+      gap: 1.8rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+    .stat-item { text-align: left; }
+    .stat-item .num {
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: var(--primary);
+    }
+    .stat-item .label {
+      font-size: .7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-top: 1px;
+    }
+
+    /* ─── DIVIDER ────────────────────────────────────────────────────── */
+    .divider {
+      background: var(--border);
+      width: 1px;
+    }
+
+    /* ─── RIGHT PANEL — phone mockup ────────────────────────────────── */
+    .right {
+      background: linear-gradient(160deg, #0d1a0d 0%, #0a0f0a 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .right::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 70% 30%, rgba(16,185,129,.12) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* phone shell */
+    .phone {
+      position: relative;
+      width: 220px;
+      background: #0d1a0d;
+      border: 2px solid #2a3a2a;
+      border-radius: 32px;
+      padding: 12px 10px 14px;
+      box-shadow:
+        0 0 0 6px rgba(255,255,255,.03),
+        0 24px 60px rgba(0,0,0,.8);
+      z-index: 1;
+    }
+    /* notch */
+    .phone-notch {
+      width: 56px; height: 10px;
+      background: #0d1a0d;
+      border: 2px solid #2a3a2a;
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+      margin: 0 auto 8px;
+    }
+    /* screen */
+    .screen {
+      background: var(--bg);
+      border-radius: 20px;
+      overflow: hidden;
+      font-size: .7rem;
+    }
+
+    /* app header */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .5rem .7rem .4rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .app-header .app-logo {
+      font-size: .72rem;
+      font-weight: 900;
+      color: var(--primary);
+      letter-spacing: -.01em;
+    }
+    .app-header .app-logo span { color: var(--white); }
+    .app-header svg { width: 13px; height: 13px; color: var(--muted); }
+
+    /* hero card */
+    .hero-card {
+      margin: .5rem .4rem;
+      background: linear-gradient(135deg, #1a2e1a 0%, #0f1f0f 100%);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .6rem .7rem;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(16,185,129,.15);
+      color: var(--primary);
+      font-size: .58rem;
+      font-weight: 700;
+      padding: .2rem .5rem;
+      border-radius: 999px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      margin-bottom: .35rem;
+    }
+    .hero-card .provider-name { font-size: .75rem; font-weight: 800; margin-bottom: .2rem; }
+    .hero-card .provider-meta { color: var(--muted); font-size: .62rem; }
+    .stars { color: #facc15; margin-right: .2rem; }
+
+    /* section label */
+    .section-label {
+      padding: .4rem .7rem .2rem;
+      font-size: .63rem;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: .02em;
+    }
+
+    /* mini cards row */
+    .cards-row {
+      display: flex;
+      gap: .35rem;
+      padding: .1rem .4rem .4rem;
+      overflow-x: hidden;
+    }
+    .mini-card {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .45rem .3rem;
+      text-align: center;
+    }
+    .mini-card .mini-icon { font-size: 1.1rem; display: block; margin-bottom: .2rem; }
+    .mini-card .mini-name { font-size: .6rem; color: var(--white); font-weight: 600; }
+    .mini-card .mini-rating { font-size: .56rem; color: var(--primary); margin-top: .1rem; }
+
+    /* category chips */
+    .cat-row {
+      display: flex;
+      gap: .35rem;
+      padding: .1rem .4rem .5rem;
+    }
+    .cat-chip {
+      flex: 1;
+      background: var(--surface-hover);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: .35rem .2rem;
+      text-align: center;
+    }
+    .cat-chip .cat-icon { font-size: .95rem; display: block; margin-bottom: .15rem; }
+    .cat-chip .cat-name { font-size: .56rem; color: var(--muted); }
+
+    /* bottom nav */
+    .bottom-nav {
+      display: flex;
+      border-top: 1px solid var(--border);
+      padding: .35rem 0 .2rem;
+    }
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .1rem;
+    }
+    .nav-item .nav-icon { font-size: .85rem; }
+    .nav-item .nav-label { font-size: .52rem; color: var(--muted); }
+    .nav-item.active .nav-label { color: var(--primary); }
+
+    /* ─── BOTTOM BAR (URL strip below billboard) ─────────────────────── */
+    .url-strip {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: .75rem;
+      padding: .9rem 1.5rem;
+      background: rgba(14,20,14,.8);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+    }
+    .url-strip .left-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .url-strip .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+    .url-strip .status {
+      font-size: .75rem;
+      color: var(--muted);
+    }
+    .url-strip .status strong { color: var(--white); }
+    .url-strip .url {
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: .01em;
+    }
+    .url-strip .stores {
+      display: flex;
+      gap: .5rem;
+    }
+    .store-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .3rem .75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: .7rem;
+      color: var(--muted);
+      background: var(--surface);
+    }
+    .store-badge .s-icon { font-size: .9rem; }
+
+    /* ─── RESPONSIVE ─────────────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .billboard {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        min-height: unset;
+      }
+      .divider { display: none; }
+      .right {
+        border-top: 1px solid var(--border);
+        padding: 2rem 1rem;
+      }
+      .left { padding: 2rem 1.5rem; }
+      .stats { gap: 1.2rem; }
+      .url-strip { border-radius: 0 0 12px 12px; }
+    }
+    @media (max-width: 480px) {
+      .logo-text .brand { font-size: 1.5rem; }
+      .headline h1 { font-size: 1.5rem; }
+      .cta-row { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="billboard-wrapper">
+
+    <!-- ── BILLBOARD ─────────────────────────────────────────── -->
+    <div class="billboard">
+
+      <!-- LEFT -->
+      <div class="left">
+
+        <!-- Logo -->
+        <div class="logo">
+          <div class="logo-icon">S</div>
+          <div class="logo-text">
+            <div class="brand">Serviço<span>Flix</span></div>
+            <div class="tagline-sub">marketplace de serviços</div>
+          </div>
+        </div>
+
+        <!-- Headline -->
+        <div class="headline">
+          <h1>O serviço certo,<br /><em>do jeito certo.</em></h1>
+          <p>
+            Encontre faxineiras, eletricistas, encanadores e dezenas de
+            outros profissionais verificados na sua cidade — em segundos.
+          </p>
+        </div>
+
+        <!-- Categories -->
+        <div class="categories">
+          <div class="pill"><span class="icon">🧹</span> Limpeza</div>
+          <div class="pill"><span class="icon">🔌</span> Elétrica</div>
+          <div class="pill"><span class="icon">🔧</span> Hidráulica</div>
+          <div class="pill"><span class="icon">🪚</span> Marcenaria</div>
+          <div class="pill"><span class="icon">🎨</span> Pintura</div>
+          <div class="pill"><span class="icon">❄️</span> Ar-condicionado</div>
+        </div>
+
+        <!-- CTA -->
+        <div class="cta-row">
+          <a href="#" class="btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+              <path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445z"/>
+            </svg>
+            Encontre um profissional
+          </a>
+          <a href="#" class="btn-secondary">Cadastre-se grátis →</a>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats">
+          <div class="stat-item">
+            <div class="num">+1.200</div>
+            <div class="label">Profissionais</div>
+          </div>
+          <div class="stat-item">
+            <div class="num">4.9 ★</div>
+            <div class="label">Avaliação média</div>
+          </div>
+          <div class="stat-item">
+            <div class="num">100%</div>
+            <div class="label">Verificados</div>
+          </div>
+        </div>
+
+      </div><!-- /left -->
+
+      <!-- DIVIDER -->
+      <div class="divider"></div>
+
+      <!-- RIGHT — phone mockup -->
+      <div class="right">
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="screen">
+
+            <!-- App header -->
+            <div class="app-header">
+              <span class="app-logo">Serviço<span>Flix</span></span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </div>
+
+            <!-- Hero card -->
+            <div class="hero-card">
+              <span class="badge">⭐ Destaque da semana</span>
+              <div class="provider-name">João Silva — Encanador</div>
+              <div class="provider-meta">
+                <span class="stars">★★★★★</span> 4.9 · Diamantina, MG
+              </div>
+            </div>
+
+            <!-- Row: populares -->
+            <div class="section-label">Populares perto de você</div>
+            <div class="cards-row">
+              <div class="mini-card">
+                <span class="mini-icon">🧹</span>
+                <div class="mini-name">Ana Lima</div>
+                <div class="mini-rating">★ 4.8</div>
+              </div>
+              <div class="mini-card">
+                <span class="mini-icon">🔌</span>
+                <div class="mini-name">Carlos M.</div>
+                <div class="mini-rating">★ 4.7</div>
+              </div>
+              <div class="mini-card">
+                <span class="mini-icon">🔧</span>
+                <div class="mini-name">Pedro R.</div>
+                <div class="mini-rating">★ 5.0</div>
+              </div>
+            </div>
+
+            <!-- Row: categorias -->
+            <div class="section-label">Categorias</div>
+            <div class="cat-row">
+              <div class="cat-chip"><span class="cat-icon">🧹</span><span class="cat-name">Limpeza</span></div>
+              <div class="cat-chip"><span class="cat-icon">🔌</span><span class="cat-name">Elétrica</span></div>
+              <div class="cat-chip"><span class="cat-icon">🔧</span><span class="cat-name">Hidráulica</span></div>
+            </div>
+
+            <!-- Bottom nav -->
+            <div class="bottom-nav">
+              <div class="nav-item active">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Início</span>
+              </div>
+              <div class="nav-item">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Buscar</span>
+              </div>
+              <div class="nav-item">
+                <span class="nav-icon">💬</span>
+                <span class="nav-label">Chat</span>
+              </div>
+              <div class="nav-item">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Perfil</span>
+              </div>
+            </div>
+
+          </div><!-- /screen -->
+        </div><!-- /phone -->
+      </div><!-- /right -->
+
+    </div><!-- /billboard -->
+
+    <!-- ── URL STRIP ────────────────────────────────────────── -->
+    <div class="url-strip">
+      <div class="left-info">
+        <div class="dot"></div>
+        <div class="status"><strong>Disponível agora</strong> · Acesse pelo navegador ou baixe o app</div>
+      </div>
+      <div class="url">servicoflix.com</div>
+      <div class="stores">
+        <div class="store-badge"><span class="s-icon">🍎</span> App Store</div>
+        <div class="store-badge"><span class="s-icon">▶</span> Google Play</div>
+      </div>
+    </div>
+
+  </div><!-- /billboard-wrapper -->
+
+</body>
+</html>
