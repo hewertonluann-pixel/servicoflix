@@ -406,7 +406,7 @@ export const Navbar = () => {
                         <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors">
                           <Shield className="w-5 h-5" /><span>Painel Admin</span>
                         </Link>
-                        <Link to="/publicidade" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors">
+                        <Link to="https://prontto.onrender.com/admin/publicidade" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors">
                           <Image className="w-5 h-5" /><span>Publicidade</span>
                         </Link>
                       </div>
