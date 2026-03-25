@@ -2,7 +2,7 @@ import { CreditoBadge } from './CreditoBadge'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList, Download } from 'lucide-react'
+import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList, Download, Image } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useUnreadMessages } from '@/hooks/useUnreadMessages'
@@ -280,6 +280,9 @@ export const Navbar = () => {
                             <a href="https://prontto.onrender.com/admin" target="_blank" rel="noopener noreferrer" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
                               <Shield className="w-4 h-4" /><span className="font-semibold">Admin</span><ExternalLink className="w-3 h-3 ml-auto opacity-60" />
                             </a>
+                            <Link to="/publicidade" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-400/80 hover:text-yellow-300 hover:bg-yellow-500/10 transition-colors">
+                              <Image className="w-4 h-4" /><span className="font-semibold">Publicidade</span>
+                            </Link>
                             <div className="border-t border-border my-2" />
                           </>
                         )}
@@ -402,6 +405,9 @@ export const Navbar = () => {
                         </a>
                         <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors">
                           <Shield className="w-5 h-5" /><span>Painel Admin</span>
+                        </Link>
+                        <Link to="/publicidade" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-yellow-400/70 hover:text-yellow-300 hover:bg-yellow-500/10 rounded-xl transition-colors">
+                          <Image className="w-5 h-5" /><span>Publicidade</span>
                         </Link>
                       </div>
                     </div>
