@@ -49,6 +49,8 @@ export const dailyScoreDecrement = onSchedule(
         if (!p.scoreExpiresAt) {
           batch.update(docSnap.ref, {
             'providerProfile.active': false,
+            'providerProfile.status': 'expirado',
+            'providerProfile.diasScore': 0,
           })
           updated++
           continue
@@ -56,10 +58,12 @@ export const dailyScoreDecrement = onSchedule(
 
         const expiry: admin.firestore.Timestamp = p.scoreExpiresAt
 
-        // 3. Score expirou → marca inativo
+        // 3. Score expirou → marca inativo e status expirado
         if (expiry.toMillis() <= now.toMillis()) {
           batch.update(docSnap.ref, {
             'providerProfile.active': false,
+            'providerProfile.status': 'expirado',
+            'providerProfile.diasScore': 0,
             'providerProfile.scoreExpiresAt': null,
           })
           updated++
@@ -73,6 +77,7 @@ export const dailyScoreDecrement = onSchedule(
 
         batch.update(docSnap.ref, {
           'providerProfile.active': true,
+          'providerProfile.status': 'ativo',
           'providerProfile.diasScore': diasRestantes,
         })
         skipped++
