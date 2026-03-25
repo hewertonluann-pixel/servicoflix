@@ -76,7 +76,6 @@ const CONFIG_INICIAL: AdConfig = {
 // LOGO — idêntica à Navbar do site
 // ══════════════════════════════════════════
 
-// SVG inline do ícone Zap (lucide) para uso nos canvas inline-style
 const ZapSVG = ({ color, size }: { color: string; size: number }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -95,15 +94,14 @@ const ZapSVG = ({ color, size }: { color: string; size: number }) => (
 
 interface LogoAdProps {
   acento: string
-  bgColor?: string       // cor de fundo do ícone
-  textColor?: string     // cor do texto "Serviço"
+  bgColor?: string
+  textColor?: string
   iconSize?: number
   fontSize?: number
   gap?: number
   marginBottom?: number
 }
 
-// Componente de logo reutilizável para os templates
 function LogoAd({ acento, bgColor = acento, textColor = '#ffffff', iconSize = 20, fontSize = 24, gap = 10, marginBottom = 32 }: LogoAdProps) {
   const containerW = iconSize + 16
   return (
