@@ -567,12 +567,25 @@ export const PublicidadePage = () => {
               </button>
             </div>
             <div className="bg-surface border border-border rounded-2xl p-6 flex items-center justify-center overflow-hidden">
-              <div style={{ transform: `scale(${dim.scale})`, transformOrigin: 'top center', marginBottom: (dim.h * dim.scale) - dim.h }}>
-                <div ref={canvasRef}>
-                  <AdCanvas template={template} cfg={cfg} dim={dim} />
-                </div>
-              </div>
-            </div>
+  <div style={{
+    width: dim.w * dim.scale,
+    height: dim.h * dim.scale,
+    flexShrink: 0,
+    position: 'relative',
+  }}>
+    <div style={{
+      transform: `scale(${dim.scale})`,
+      transformOrigin: 'top left',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+    }}>
+      <div ref={canvasRef}>
+        <AdCanvas template={template} cfg={cfg} dim={dim} />
+      </div>
+    </div>
+  </div>
+</div>
             <div className="flex items-center justify-between px-1">
               <p className="text-xs text-muted">
                 Formato: <span className="text-white font-semibold">{dim.label}</span>
