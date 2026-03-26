@@ -697,6 +697,7 @@ export const AdminPage = () => {
             { to: '/admin/aprovacoes', bg: 'bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20', icon: <CheckSquare className="w-5 h-5 text-yellow-400 shrink-0" />, title: 'Aprovações', sub: 'Revisar solicitações', arrow: 'text-yellow-500/50 group-hover:text-yellow-400' },
             { to: '/debug', bg: 'bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20', icon: <Bug className="w-5 h-5 text-blue-400 shrink-0" />, title: 'Debug', sub: 'Inspecionar prestadores', arrow: 'text-blue-500/50 group-hover:text-blue-400' },
             { to: '/fix', bg: 'bg-orange-500/10 border-orange-500/30 hover:bg-orange-500/20', icon: <Wrench className="w-5 h-5 text-orange-400 shrink-0" />, title: 'Fix', sub: 'Corrigir dados', arrow: 'text-orange-500/50 group-hover:text-orange-400' },
+            { to: '/admin/relatorios', bg: 'bg-primary/10 border-primary/30 hover:bg-primary/20', icon: <BarChart2 className="w-5 h-5 text-primary shrink-0" />, title: 'Relatórios', sub: 'Métricas e receita', arrow: 'text-primary/50 group-hover:text-primary' },
           ].map(({ to, bg, icon, title, sub, arrow }) => (
             <Link key={to} to={to} className={`flex items-center justify-between gap-3 border rounded-xl px-4 py-3 transition-colors group ${bg}`}>
               <div className="flex items-center gap-3">{icon}<div><p className="text-sm font-bold text-white">{title}</p><p className="text-[11px] text-muted/70">{sub}</p></div></div>
