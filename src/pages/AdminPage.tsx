@@ -6,7 +6,7 @@ import {
   Search, Check, X, ToggleLeft, ToggleRight, Save, RefreshCw,
   AlertTriangle, LogOut, UserPlus, MapPin, DollarSign, Star, Clock, Loader2, Sparkles,
   ChevronUp, ChevronDown, Archive, CheckSquare, Bug, Wrench, ArrowRight, Camera,
-  Flag, Eye, CheckCircle2, CreditCard, CalendarDays, TrendingUp, BadgeCheck, Ban
+  Flag, Eye, CheckCircle2, CreditCard, CalendarDays, TrendingUp, BadgeCheck, Ban, BarChart2,
 } from 'lucide-react'
 import {
   collection, getDocs, doc, updateDoc, deleteDoc,
