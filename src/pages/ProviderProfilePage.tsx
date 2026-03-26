@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Star, MapPin, Clock, CheckCircle, Calendar, MessageCircle,
   Video as VideoIcon, Image as ImageIcon, Music, Loader2, AlertCircle, Sparkles,
-  X, Instagram, Facebook, Youtube, Globe, Linkedin, MessageSquare
+  X, Instagram, Facebook, Youtube, Globe, Linkedin, MessageSquare, Lock
 } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -355,16 +355,30 @@ export const ProviderProfilePage = () => {
             {/* Redes Sociais */}
             {hasSocialLinks && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                <div className="flex items-center gap-2 mb-3 sm:mb-4"><Globe className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Redes Sociais</h2></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {socialLinks?.instagram && <SocialButton icon={Instagram} label="Instagram" url={getSocialUrl('instagram', socialLinks.instagram)} />}
-                  {socialLinks?.facebook && <SocialButton icon={Facebook} label="Facebook" url={getSocialUrl('facebook', socialLinks.facebook)} />}
-                  {socialLinks?.youtube && <SocialButton icon={Youtube} label="YouTube" url={getSocialUrl('youtube', socialLinks.youtube)} />}
-                  {socialLinks?.whatsapp && <SocialButton icon={MessageCircle} label="WhatsApp" url={getSocialUrl('whatsapp', socialLinks.whatsapp)} />}
-                  {socialLinks?.tiktok && <SocialButton icon={VideoIcon} label="TikTok" url={getSocialUrl('tiktok', socialLinks.tiktok)} />}
-                  {socialLinks?.linkedin && <SocialButton icon={Linkedin} label="LinkedIn" url={getSocialUrl('linkedin', socialLinks.linkedin)} />}
-                  {socialLinks?.website && <SocialButton icon={Globe} label="Website" url={getSocialUrl('website', socialLinks.website)} />}
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                  <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Redes Sociais</h2>
                 </div>
+
+                {user ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {socialLinks?.instagram && <SocialButton icon={Instagram} label="Instagram" url={getSocialUrl('instagram', socialLinks.instagram)} />}
+                    {socialLinks?.facebook && <SocialButton icon={Facebook} label="Facebook" url={getSocialUrl('facebook', socialLinks.facebook)} />}
+                    {socialLinks?.youtube && <SocialButton icon={Youtube} label="YouTube" url={getSocialUrl('youtube', socialLinks.youtube)} />}
+                    {socialLinks?.whatsapp && <SocialButton icon={MessageCircle} label="WhatsApp" url={getSocialUrl('whatsapp', socialLinks.whatsapp)} />}
+                    {socialLinks?.tiktok && <SocialButton icon={VideoIcon} label="TikTok" url={getSocialUrl('tiktok', socialLinks.tiktok)} />}
+                    {socialLinks?.linkedin && <SocialButton icon={Linkedin} label="LinkedIn" url={getSocialUrl('linkedin', socialLinks.linkedin)} />}
+                    {socialLinks?.website && <SocialButton icon={Globe} label="Website" url={getSocialUrl('website', socialLinks.website)} />}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => navigate(`/entrar?redirect=/prestador/${provider.id}`)}
+                    className="w-full flex items-center justify-center gap-3 py-4 border border-dashed border-border rounded-xl text-muted hover:border-primary hover:text-primary transition-all group"
+                  >
+                    <Lock className="w-4 h-4 group-hover:text-primary transition-colors" />
+                    <span className="text-sm font-medium">Faça login para ver os contatos</span>
+                  </button>
+                )}
               </motion.div>
             )}
 
