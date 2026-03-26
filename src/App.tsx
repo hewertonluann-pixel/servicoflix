@@ -12,6 +12,7 @@ import { SearchPage } from '@/pages/SearchPage'
 import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { AdminApprovalPage } from '@/pages/AdminApprovalPage'
+import { AdminRelatoriosPage } from '@/pages/AdminRelatoriosPage' // ← NOVO
 import { PublicidadePage } from '@/pages/PublicidadePage'
 import { DebugProvidersPage } from '@/pages/DebugProvidersPage'
 import { FixProvidersPage } from '@/pages/FixProvidersPage'
@@ -75,6 +76,7 @@ function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/aprovacoes" element={<AdminApprovalPage />} />
         <Route path="/admin/publicidade" element={<PublicidadePage />} />
+        <Route path="/admin/relatorios" element={<AdminRelatoriosPage />} /> {/* ← NOVO */}
 
         {/* Utilitários (ocultos da navbar) */}
         <Route path="/debug" element={<DebugProvidersPage />} />
