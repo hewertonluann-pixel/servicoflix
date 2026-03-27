@@ -7,7 +7,9 @@ import { db } from '@/lib/firebase'
 import { mockProviders, MockProvider } from '@/data/mock'
 import { ProviderCard } from '@/components/ProviderCard'
 
-// ✅ Retorna true se o prestador tem acesso ativo (score > 0 OU assinatura ativa)
+const VALID_STATUSES = ['approved', 'ativo']
+
+// Retorna true se o prestador tem acesso ativo (score > 0 OU assinatura ativa)
 const isProviderActive = (data: any): boolean => {
   const p = data.providerProfile || {}
   if (p.subscriptionStatus === 'active') return true
@@ -19,35 +21,67 @@ const isProviderActive = (data: any): boolean => {
   return false
 }
 
-const docToProvider = (id: string, data: any): MockProvider => ({
-  id,
-  name: data.providerProfile?.professionalName || data.name || 'Sem nome',
-  avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
-  coverImage:
-    data.providerProfile?.coverImage ||
-    'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
-  specialty: data.providerProfile?.specialty || 'Profissional',
-  category: (
+/**
+ * Resolve o categoryId do prestador comparando os valores que ele
+ * salvou (texto livre, slug ou ID) com a lista de categorias do Firestore.
+ * Estratégia (em ordem de prioridade):
+ *  1. Valor já é um ID direto de categoria → usa ele
+ *  2. Valor bate com o `name` (case-insensitive) de alguma categoria → usa o ID correspondente
+ *  3. Fallback → devolve o valor bruto em lowercase para não quebrar
+ */
+const resolveCategoryId = (
+  raw: string,
+  categoryMap: Map<string, string> // id → name
+): string => {
+  const lower = raw.toLowerCase().trim()
+  // Caso 1: já é um ID conhecido
+  if (categoryMap.has(lower)) return lower
+  // Caso 2: bate com algum nome
+  for (const [id, name] of categoryMap.entries()) {
+    if (name.toLowerCase().trim() === lower) return id
+    // correspondência parcial (ex: "faxineira" dentro de "Limpeza Residencial")
+    if (name.toLowerCase().includes(lower) || lower.includes(name.toLowerCase())) return id
+  }
+  return lower
+}
+
+const docToProvider = (
+  id: string,
+  data: any,
+  categoryMap: Map<string, string>
+): MockProvider => {
+  const rawCategory =
+    data.providerProfile?.categoryId ||
     data.providerProfile?.categories?.[0] ||
     data.providerProfile?.category ||
     'outros'
-  ).toLowerCase(),
-  rating: data.providerProfile?.rating || 5.0,
-  reviewCount: data.providerProfile?.reviewCount || 0,
-  priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
-  city: data.providerProfile?.city || '',
-  neighborhood:
-    data.providerProfile?.neighborhood || data.providerProfile?.city || '',
-  isOnline: data.providerProfile?.isOnline === true,
-  isTopRated: data.providerProfile?.verified || false,
-  isFeatured: data.providerProfile?.featured || false,
-  bio: data.providerProfile?.bio || '',
-  skills: data.providerProfile?.skills || [],
-  completedJobs: data.providerProfile?.completedJobs || 0,
-  responseTime: data.providerProfile?.responseTime || '< 24h',
-  whatsapp: data.providerProfile?.whatsapp || '',
-  isMock: false,
-})
+
+  return {
+    id,
+    name: data.providerProfile?.professionalName || data.name || 'Sem nome',
+    avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
+    coverImage:
+      data.providerProfile?.coverImage ||
+      'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
+    specialty: data.providerProfile?.specialty || 'Profissional',
+    category: resolveCategoryId(rawCategory, categoryMap),
+    rating: data.providerProfile?.rating || 5.0,
+    reviewCount: data.providerProfile?.reviewCount || 0,
+    priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
+    city: data.providerProfile?.city || '',
+    neighborhood:
+      data.providerProfile?.neighborhood || data.providerProfile?.city || '',
+    isOnline: data.providerProfile?.isOnline === true,
+    isTopRated: data.providerProfile?.verified || false,
+    isFeatured: data.providerProfile?.featured || false,
+    bio: data.providerProfile?.bio || '',
+    skills: data.providerProfile?.skills || [],
+    completedJobs: data.providerProfile?.completedJobs || 0,
+    responseTime: data.providerProfile?.responseTime || '< 24h',
+    whatsapp: data.providerProfile?.whatsapp || '',
+    isMock: false,
+  }
+}
 
 export const SearchPage = () => {
   const [searchParams] = useSearchParams()
@@ -64,6 +98,20 @@ export const SearchPage = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        // Carrega categorias PRIMEIRO para montar o mapa id → name
+        const catSnap = await getDocs(collection(db, 'categories'))
+        const cats = catSnap.docs
+          .map(d => ({ id: d.id, ...(d.data() as any) }))
+          .filter((c: any) => c.active)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name))
+        setCategories(cats)
+
+        // Mapa id → name usado para normalizar categorias dos prestadores
+        const categoryMap = new Map<string, string>(
+          cats.map((c: any) => [c.id, c.name])
+        )
+
+        // Carrega prestadores
         const snap = await getDocs(collection(db, 'users'))
         const reais: MockProvider[] = []
 
@@ -71,11 +119,10 @@ export const SearchPage = () => {
           const data = d.data()
           if (
             data.roles?.includes('provider') &&
-            data.providerProfile?.status === 'approved' &&
-            // ✅ FASE 8: só exibe prestadores com score/assinatura ativo
+            VALID_STATUSES.includes(data.providerProfile?.status) &&
             isProviderActive(data)
           ) {
-            reais.push(docToProvider(d.id, data))
+            reais.push(docToProvider(d.id, data, categoryMap))
           }
         })
 
@@ -86,13 +133,6 @@ export const SearchPage = () => {
         })
 
         setAllProviders([...reais, ...mocksFiltered.filter(p => p.isMock)])
-
-        const catSnap = await getDocs(collection(db, 'categories'))
-        const cats = catSnap.docs
-          .map(d => ({ id: d.id, ...(d.data() as any) }))
-          .filter((c: any) => c.active)
-          .sort((a: any, b: any) => a.name.localeCompare(b.name))
-        setCategories(cats)
       } catch (err) {
         console.warn('Fallback para mocks:', err)
         setAllProviders(mockProviders)
