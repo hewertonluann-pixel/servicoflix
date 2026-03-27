@@ -59,7 +59,6 @@ interface Report {
   reportedUserName?: string
 }
 
-// ── NOVO: modal de edição manual de dias ──
 interface DiasModalState {
   user: UserData
   dias: string
@@ -89,7 +88,6 @@ const UF_OPTIONS = [
   'RS','RO','RR','SC','SP','SE','TO'
 ]
 
-// ── helpers de score ──
 const isScoreAtivo = (p: any): boolean => {
   if (!p) return false
   if (p.subscriptionStatus === 'active') return true
@@ -152,9 +150,13 @@ export const AdminPage = () => {
   const [savingCity, setSavingCity] = useState(false)
   const [providerCounts, setProviderCounts] = useState<Record<string, number>>({})
 
-  // ── NOVO: Monetização ──
+  // Monetização
   const [diasModal, setDiasModal] = useState<DiasModalState | null>(null)
   const [monetSearch, setMonetSearch] = useState('')
+
+  // ── NOVO: Dias bônus para novos prestadores ──
+  const [diasBonusNovoPrestador, setDiasBonusNovoPrestador] = useState(7)
+  const [savingBonus, setSavingBonus] = useState(false)
 
   const isAdmin = user && ADMIN_UIDS.includes(user.id)
 
@@ -203,6 +205,29 @@ export const AdminPage = () => {
       }
     } catch { showToast('Erro ao carregar mockups', 'error') }
     finally { setLoadingMocks(false) }
+  }
+
+  // ── NOVO: carregar configurações da plataforma ──
+  const loadPlataformaSettings = async () => {
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'plataforma'))
+      if (snap.exists()) {
+        setDiasBonusNovoPrestador(snap.data().diasBonusNovoPrestador ?? 7)
+      }
+    } catch {}
+  }
+
+  // ── NOVO: salvar configurações da plataforma ──
+  const savePlataformaSettings = async () => {
+    setSavingBonus(true)
+    try {
+      await setDoc(doc(db, 'settings', 'plataforma'), { diasBonusNovoPrestador }, { merge: true })
+      showToast(`✅ Configuração salva: ${diasBonusNovoPrestador} dias bônus`)
+    } catch (err: any) {
+      showToast('Erro ao salvar: ' + (err?.message || ''), 'error')
+    } finally {
+      setSavingBonus(false)
+    }
   }
 
   const loadProviderCounts = async () => {
@@ -288,10 +313,11 @@ export const AdminPage = () => {
       loadMockSettings()
       loadProviderCounts()
       loadReports()
+      loadPlataformaSettings() // ── NOVO ──
     }
   }, [authLoading, isAdmin])
 
-  // ── NOVO: salvar dias manualmente ──
+  // Salvar dias manualmente
   const saveDiasManual = async () => {
     if (!diasModal) return
     const dias = parseInt(diasModal.dias)
@@ -317,7 +343,6 @@ export const AdminPage = () => {
         'providerProfile.active': true,
       })
 
-      // grava no histórico de créditos
       await addDoc(collection(db, 'historico_creditos'), {
         providerId: u.id,
         tipo: 'manual',
@@ -328,7 +353,6 @@ export const AdminPage = () => {
         createdAt: serverTimestamp(),
       })
 
-      // atualiza estado local
       setUsers(prev => prev.map(usr =>
         usr.id === u.id
           ? { ...usr, providerProfile: { ...usr.providerProfile, scoreExpiresAt: newExpiry, diasScore: dias, active: true } }
@@ -400,20 +424,44 @@ export const AdminPage = () => {
   }
 
   // ---------- Prestadores pendentes ----------
+  // ── MODIFICADO: concede diasBonusNovoPrestador ao aprovar ──
   const approveProvider = async (u: UserData) => {
     setProcessingIds(prev => new Set(prev).add(u.id))
     try {
       const currentRoles: string[] = Array.isArray(u.roles) ? u.roles : ['client']
       const newRoles = currentRoles.includes('provider') ? currentRoles : [...currentRoles, 'provider']
+
+      const expiry = new Date()
+      expiry.setDate(expiry.getDate() + diasBonusNovoPrestador)
+      const scoreExpiresAt = Timestamp.fromDate(expiry)
+
       await setDoc(doc(db, 'users', u.id), {
         roles: newRoles,
-        providerProfile: { ...(u.providerProfile || {}), status: 'approved', verified: true, approvedAt: new Date().toISOString() },
+        providerProfile: {
+          ...(u.providerProfile || {}),
+          status: 'approved',
+          verified: true,
+          approvedAt: new Date().toISOString(),
+          scoreExpiresAt,
+          active: true,
+        },
       }, { merge: true })
+
+      await addDoc(collection(db, 'historico_creditos'), {
+        providerId: u.id,
+        tipo: 'bonus_aprovacao',
+        dias: diasBonusNovoPrestador,
+        valor: 0,
+        observacao: `Bônus de aprovação: ${diasBonusNovoPrestador} dias`,
+        stripePaymentId: null,
+        createdAt: serverTimestamp(),
+      })
+
       setUsers(prev => prev.map(p => p.id === u.id ? {
         ...p, roles: newRoles,
-        providerProfile: { ...p.providerProfile, status: 'approved', verified: true },
+        providerProfile: { ...p.providerProfile, status: 'approved', verified: true, scoreExpiresAt, active: true },
       } : p))
-      showToast(`✅ ${u.name} aprovado como prestador!`)
+      showToast(`✅ ${u.name} aprovado! +${diasBonusNovoPrestador} dias de bônus concedidos.`)
     } catch (err: any) {
       showToast('❌ Erro ao aprovar: ' + (err?.message || err?.code || ''), 'error')
     } finally {
@@ -645,7 +693,6 @@ export const AdminPage = () => {
     u.email?.toLowerCase().includes(search.toLowerCase())
   )
 
-  // ── monetização: stats e lista filtrada ──
   const monetProviders = providers.filter(u =>
     (u.providerProfile?.professionalName || u.name || u.email)
       ?.toLowerCase().includes(monetSearch.toLowerCase())
@@ -773,7 +820,7 @@ export const AdminPage = () => {
             {activeTab === 'monetizacao' && `${monetAtivos} ativos • ${monetExpirados} expirados • ${monetAssinatura} assinantes`}
           </p>
           <div className="flex gap-2">
-            <button onClick={() => { loadUsers(); loadCategories(); loadMockSettings(); reloadCities(); loadProviderCounts(); loadReports() }}
+            <button onClick={() => { loadUsers(); loadCategories(); loadMockSettings(); reloadCities(); loadProviderCounts(); loadReports(); loadPlataformaSettings() }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border text-muted hover:text-white text-xs rounded-lg transition-colors">
               <RefreshCw className="w-3.5 h-3.5" /> Atualizar
             </button>
@@ -1288,6 +1335,41 @@ export const AdminPage = () => {
               </div>
             </div>
 
+            {/* ── NOVO: Card de configuração de bônus ── */}
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-lg">🎁</span>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Créditos para Novos Prestadores</h3>
+                  <p className="text-xs text-yellow-300/80 mt-0.5">Dias concedidos automaticamente ao aprovar um prestador.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={diasBonusNovoPrestador}
+                  onChange={e => setDiasBonusNovoPrestador(Number(e.target.value))}
+                  className="w-24 bg-background border border-border rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-primary transition-colors text-center font-bold"
+                />
+                <span className="text-sm text-muted">dias</span>
+                <button
+                  onClick={savePlataformaSettings}
+                  disabled={savingBonus || diasBonusNovoPrestador < 1}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-yellow-500 text-background text-xs font-bold rounded-xl disabled:opacity-50 hover:bg-yellow-400 transition-colors"
+                >
+                  {savingBonus
+                    ? <div className="w-3.5 h-3.5 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                    : <Save className="w-3.5 h-3.5" />
+                  }
+                  Salvar configuração
+                </button>
+              </div>
+            </div>
+
             {/* Busca */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
@@ -1330,14 +1412,12 @@ export const AdminPage = () => {
                         ativo ? 'border-green-500/20' : 'border-red-500/20 opacity-70'
                       }`}
                     >
-                      {/* Avatar */}
                       <div className="w-10 h-10 rounded-full bg-background border border-border overflow-hidden shrink-0 flex items-center justify-center">
                         {avatarSrc
                           ? <img src={avatarSrc} alt={u.name} className="w-full h-full object-cover" />
                           : <span className="text-sm font-black text-muted">{u.name?.charAt(0)?.toUpperCase()}</span>}
                       </div>
 
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-white truncate">
                           {p.professionalName || u.name}
@@ -1345,7 +1425,6 @@ export const AdminPage = () => {
                         <p className="text-xs text-muted truncate">{u.email}</p>
                       </div>
 
-                      {/* Status badge */}
                       <div className="shrink-0 flex flex-col items-end gap-1">
                         {isAssinante ? (
                           <span className="px-2 py-0.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold rounded-full flex items-center gap-1">
@@ -1366,7 +1445,6 @@ export const AdminPage = () => {
                         )}
                       </div>
 
-                      {/* Botão editar dias */}
                       <button
                         onClick={() => setDiasModal({ user: u, dias: '30', observacao: '', saving: false })}
                         className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 text-xs font-bold rounded-lg transition-colors"
@@ -1596,7 +1674,7 @@ export const AdminPage = () => {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs text-muted mb-1.5">Nome da cidade *</label>
+                                    <label className="block text-xs text-muted mb-1.5">Nome da cidade *</label>
                   <input value={cityForm.nome} onChange={e => setCityForm(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: Diamantina, Felício dos Santos..." className={inputCls} />
                 </div>
                 <div>
@@ -1640,7 +1718,6 @@ export const AdminPage = () => {
               onClick={e => e.stopPropagation()}
               className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
             >
-              {/* Cabeçalho */}
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-9 h-9 bg-primary/20 rounded-xl flex items-center justify-center">
                   <TrendingUp className="w-5 h-5 text-primary" />
@@ -1651,7 +1728,6 @@ export const AdminPage = () => {
                 </div>
               </div>
 
-              {/* Prestador */}
               <div className="flex items-center gap-3 bg-background rounded-xl p-3 mb-5">
                 <div className="w-10 h-10 rounded-full bg-surface border border-border overflow-hidden shrink-0 flex items-center justify-center">
                   {diasModal.user.providerProfile?.avatar || diasModal.user.avatar
@@ -1676,7 +1752,6 @@ export const AdminPage = () => {
                 </div>
               </div>
 
-              {/* Atalhos rápidos de dias */}
               <div className="mb-3">
                 <label className="block text-xs text-muted mb-2">Pacote rápido</label>
                 <div className="grid grid-cols-4 gap-2">
@@ -1697,7 +1772,6 @@ export const AdminPage = () => {
                 </div>
               </div>
 
-              {/* Input de dias */}
               <div className="mb-4">
                 <label className="block text-xs text-muted mb-1.5">
                   Quantidade de dias *
@@ -1713,7 +1787,6 @@ export const AdminPage = () => {
                 />
               </div>
 
-              {/* Observação */}
               <div className="mb-6">
                 <label className="block text-xs text-muted mb-1.5">
                   Observação (opcional)
@@ -1727,7 +1800,6 @@ export const AdminPage = () => {
                 />
               </div>
 
-              {/* Botões */}
               <div className="flex gap-3">
                 <button
                   onClick={() => setDiasModal(null)}
@@ -1756,3 +1828,4 @@ export const AdminPage = () => {
     </div>
   )
 }
+
