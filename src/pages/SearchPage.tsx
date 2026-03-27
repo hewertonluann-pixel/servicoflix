@@ -24,22 +24,15 @@ const isProviderActive = (data: any): boolean => {
 /**
  * Resolve o categoryId do prestador comparando os valores que ele
  * salvou (texto livre, slug ou ID) com a lista de categorias do Firestore.
- * Estratégia (em ordem de prioridade):
- *  1. Valor já é um ID direto de categoria → usa ele
- *  2. Valor bate com o `name` (case-insensitive) de alguma categoria → usa o ID correspondente
- *  3. Fallback → devolve o valor bruto em lowercase para não quebrar
  */
 const resolveCategoryId = (
   raw: string,
-  categoryMap: Map<string, string> // id → name
+  categoryMap: Map<string, string>
 ): string => {
   const lower = raw.toLowerCase().trim()
-  // Caso 1: já é um ID conhecido
   if (categoryMap.has(lower)) return lower
-  // Caso 2: bate com algum nome
   for (const [id, name] of categoryMap.entries()) {
     if (name.toLowerCase().trim() === lower) return id
-    // correspondência parcial (ex: "faxineira" dentro de "Limpeza Residencial")
     if (name.toLowerCase().includes(lower) || lower.includes(name.toLowerCase())) return id
   }
   return lower
@@ -56,10 +49,18 @@ const docToProvider = (
     data.providerProfile?.category ||
     'outros'
 
+  // Foto: prioridade para a imagem definida no perfil profissional
+  const avatar =
+    data.providerProfile?.avatar ||
+    data.providerProfile?.photoURL ||
+    data.avatar ||
+    data.photoURL ||
+    `https://i.pravatar.cc/150?u=${id}`
+
   return {
     id,
     name: data.providerProfile?.professionalName || data.name || 'Sem nome',
-    avatar: data.avatar || `https://i.pravatar.cc/150?u=${id}`,
+    avatar,
     coverImage:
       data.providerProfile?.coverImage ||
       'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
@@ -98,7 +99,7 @@ export const SearchPage = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        // Carrega categorias PRIMEIRO para montar o mapa id → name
+        // Carrega categorias PRIMEIRO para montar o mapa id -> name
         const catSnap = await getDocs(collection(db, 'categories'))
         const cats = catSnap.docs
           .map(d => ({ id: d.id, ...(d.data() as any) }))
@@ -106,12 +107,10 @@ export const SearchPage = () => {
           .sort((a: any, b: any) => a.name.localeCompare(b.name))
         setCategories(cats)
 
-        // Mapa id → name usado para normalizar categorias dos prestadores
         const categoryMap = new Map<string, string>(
           cats.map((c: any) => [c.id, c.name])
         )
 
-        // Carrega prestadores
         const snap = await getDocs(collection(db, 'users'))
         const reais: MockProvider[] = []
 
