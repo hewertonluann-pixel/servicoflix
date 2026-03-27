@@ -22,14 +22,17 @@ interface MockSettings {
   [categoryId: string]: boolean
 }
 
-// ✅ Retorna true se o prestador tem acesso ativo (score > 0 OU assinatura ativa)
+// ✅ Retorna true se o prestador tem acesso ativo (diasScore > 0 OU assinatura ativa)
 const isProviderActive = (data: any): boolean => {
   const p = data.providerProfile || {}
   // Owner sempre ativo
   if (data.id === OWNER_UID) return true
   // Assinatura mensal ativa
   if (p.subscriptionStatus === 'active') return true
-  // Score de dias ainda válido
+  // diasScore fica na raiz do documento users (não dentro de providerProfile)
+  const diasScore = data.diasScore
+  if (typeof diasScore === 'number' && diasScore > 0) return true
+  // Compatibilidade: scoreExpiresAt dentro de providerProfile
   const scoreExpiry = p.scoreExpiresAt
   if (scoreExpiry) {
     const expiry = scoreExpiry?.toDate ? scoreExpiry.toDate() : new Date(scoreExpiry)
@@ -103,11 +106,12 @@ export const HomePage = () => {
           if (!data.providerProfile) return
 
           const isOwner = d.id === OWNER_UID
+          // Aceita 'approved' (legado) e 'ativo' (novo padrão)
           const isApproved =
             data.roles?.includes('provider') &&
-            data.providerProfile?.status === 'approved'
+            ['approved', 'ativo'].includes(data.providerProfile?.status)
 
-          // ✅ FASE 8: só exibe se tiver score/assinatura ativo
+          // Só exibe se tiver score/assinatura ativo
           const ativo = isOwner || isProviderActive({ ...data, id: d.id })
 
           if ((isOwner || isApproved) && ativo) {
