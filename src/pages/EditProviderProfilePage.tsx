@@ -1,15 +1,15 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Camera, Save, ArrowLeft, Upload, X, Play, Music, Image as ImageIcon,
   Video, Loader2, AlertCircle, CheckCircle, GripVertical, Trash2, Plus,
-  Sparkles, FileAudio, Instagram, Facebook, Youtube, MessageCircle, Globe
+  Sparkles, FileAudio, Instagram, Facebook, Youtube, MessageCircle, Globe, Link2
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 import { useCities } from '@/hooks/useCities'
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { storage, db } from '@/lib/firebase'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
 import { SocialLinks } from '@/types'
@@ -43,20 +43,17 @@ export const EditProviderProfilePage = () => {
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
 
-  // googleAvatar guarda a foto do Google para usar como preview/fallback
-  // sem nunca ser sobrescrita
   const [googleAvatar, setGoogleAvatar] = useState('')
 
   const [profile, setProfile] = useState({
     name: '',
-        professionalName: '',
+    professionalName: '',
     specialty: '',
     bio: '',
     city: '',
     neighborhood: '',
     priceFrom: 100,
     skills: [] as string[],
-    // avatar do PRESTADOR — separado do avatar pessoal (Google)
     providerAvatar: '',
     coverImage: '',
     phone: '',
@@ -78,6 +75,35 @@ export const EditProviderProfilePage = () => {
     website: ''
   })
 
+  // ── Username personalizado ────────────────────────────────────────────────
+  const [username, setUsername] = useState('')
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
+  const usernameTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const checkUsername = useCallback(async (value: string) => {
+    if (value.length < 3) { setUsernameStatus('idle'); return }
+    setUsernameStatus('checking')
+    try {
+      const q = query(collection(db, 'users'), where('username', '==', value))
+      const snap = await getDocs(q)
+      const taken = snap.docs.some(d => d.id !== user?.id)
+      setUsernameStatus(taken ? 'taken' : 'available')
+    } catch {
+      setUsernameStatus('idle')
+    }
+  }, [user?.id])
+
+  const handleUsernameChange = (raw: string) => {
+    const value = raw.toLowerCase().replace(/[^a-z0-9-]/g, '')
+    setUsername(value)
+    setUsernameStatus('idle')
+    if (usernameTimer.current) clearTimeout(usernameTimer.current)
+    if (value.length >= 3) {
+      usernameTimer.current = setTimeout(() => checkUsername(value), 600)
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const [photos, setPhotos] = useState<MediaItem[]>([])
   const [videos, setVideos] = useState<MediaItem[]>([])
   const [audios, setAudios] = useState<MediaItem[]>([])
@@ -96,19 +122,18 @@ export const EditProviderProfilePage = () => {
           const data = docSnap.data()
           const providerProfile = data.providerProfile || {}
 
-          // Salva a foto do Google separadamente como fallback visual
           setGoogleAvatar(data.avatar || '')
+          setUsername(data.username || '')
 
           setProfile({
             name: data.name || user.name || '',
-                        professionalName: providerProfile.professionalName || data.name || user.name || '',
+            professionalName: providerProfile.professionalName || data.name || user.name || '',
             specialty: providerProfile.specialty || '',
             bio: providerProfile.bio || '',
             city: providerProfile.city || '',
             neighborhood: providerProfile.neighborhood || 'Centro',
             priceFrom: providerProfile.priceFrom || 100,
             skills: providerProfile.skills || [],
-            // Só carrega o avatar que o próprio prestador escolheu
             providerAvatar: providerProfile.avatar || '',
             coverImage: providerProfile.coverImage || '',
             phone: providerProfile.phone || '',
@@ -249,6 +274,7 @@ export const EditProviderProfilePage = () => {
     if (!user?.id) return
     const hasUploading = [...photos, ...videos, ...audios].some(item => item.uploading)
     if (hasUploading) { setUploadError('Aguarde o upload de todos os arquivos'); return }
+    if (usernameStatus === 'taken') { setUploadError('O link personalizado escolhido já está em uso'); return }
     setSaving(true)
     setUploadError('')
     setSuccessMessage('')
@@ -256,18 +282,17 @@ export const EditProviderProfilePage = () => {
       await setDoc(
         doc(db, 'users', user.id),
         {
-          // ✅ NÃO toca no campo `avatar` raiz (foto do Google) — apenas atualiza o nome
           name: profile.name,
+          username: username.toLowerCase().trim(),
           providerProfile: {
-                          professionalName: profile.professionalName,
-          specialty: profile.specialty,
+            professionalName: profile.professionalName,
+            specialty: profile.specialty,
             bio: profile.bio,
             city: profile.city,
             neighborhood: profile.neighborhood,
             priceFrom: profile.priceFrom,
             skills: profile.skills,
             phone: profile.phone,
-            // ✅ Só salva avatar do prestador se ele trocou; deixa vazio se ainda usa o do Google
             avatar: profile.providerAvatar,
             coverImage: profile.coverImage,
             responseTime: profile.responseTime,
@@ -295,7 +320,6 @@ export const EditProviderProfilePage = () => {
     }
   }
 
-  // Upload do avatar do PRESTADOR (vai para providerProfile.avatar)
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user?.id) return
@@ -322,7 +346,6 @@ export const EditProviderProfilePage = () => {
     if (coverInputRef.current) coverInputRef.current.value = ''
   }
 
-  // Foto exibida no preview: a personalizada do prestador, ou a do Google como fallback
   const avatarPreview = profile.providerAvatar || googleAvatar
   const usingGooglePhoto = !profile.providerAvatar && !!googleAvatar
 
@@ -498,11 +521,7 @@ export const EditProviderProfilePage = () => {
                     <label className="block text-sm text-muted mb-2">Foto do Prestador</label>
                     <div className="relative w-32 h-32">
                       {avatarPreview ? (
-                        <img
-                          src={avatarPreview}
-                          alt="Avatar do Prestador"
-                          className="w-full h-full rounded-xl object-cover border-4 border-background"
-                        />
+                        <img src={avatarPreview} alt="Avatar do Prestador" className="w-full h-full rounded-xl object-cover border-4 border-background" />
                       ) : (
                         <div className="w-full h-full rounded-xl border-4 border-background bg-primary/20 flex items-center justify-center">
                           <Camera className="w-10 h-10 text-primary/60" />
@@ -513,15 +532,10 @@ export const EditProviderProfilePage = () => {
                       </button>
                     </div>
                     {usingGooglePhoto && (
-                      <p className="mt-2 text-xs text-primary/70 flex items-center gap-1">
-                        👤 Usando foto do Google — clique na câmera para trocar
-                      </p>
+                      <p className="mt-2 text-xs text-primary/70 flex items-center gap-1">👤 Usando foto do Google — clique na câmera para trocar</p>
                     )}
                     {profile.providerAvatar && (
-                      <button
-                        onClick={() => setProfile(prev => ({ ...prev, providerAvatar: '' }))}
-                        className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
-                      >
+                      <button onClick={() => setProfile(prev => ({ ...prev, providerAvatar: '' }))} className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
                         <X className="w-3 h-3" /> Remover foto personalizada
                       </button>
                     )}
@@ -541,14 +555,71 @@ export const EditProviderProfilePage = () => {
               <div className="bg-surface border border-border rounded-xl p-6">
                 <h2 className="text-lg font-bold text-white mb-4">Dados Básicos</h2>
                 <div className="space-y-4">
-                  <div><label className="block text-sm text-muted mb-2">Nome</label><input type="text" value={profile.name} onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Seu nome" />
-          </div>
-          <div>
-            <label className="block text-sm text-muted mb-2">Nome profissional (como prestador)</label>
-            <input type="text" value={profile.professionalName} onChange={e => setProfile(prev => ({ ...prev, professionalName: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Ex: Carol Fotografia, DJ Silva..." />
-            <p className="text-xs text-muted mt-1">Exibido nos cards e no seu perfil público</p></div>
-                  <div><label className="block text-sm text-muted mb-2">Especialidade</label><input type="text" value={profile.specialty} onChange={e => setProfile(prev => ({ ...prev, specialty: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Ex: Músico, Eletricista, Designer" /></div>
-                  <div><label className="block text-sm text-muted mb-2">Sobre você</label><textarea value={profile.bio} onChange={e => setProfile(prev => ({ ...prev, bio: e.target.value }))} rows={5} maxLength={500} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors resize-none" placeholder="Conte sobre sua experiência profissional..." /></div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2">Nome</label>
+                    <input type="text" value={profile.name} onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Seu nome" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-muted mb-2">Nome profissional (como prestador)</label>
+                    <input type="text" value={profile.professionalName} onChange={e => setProfile(prev => ({ ...prev, professionalName: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Ex: Carol Fotografia, DJ Silva..." />
+                    <p className="text-xs text-muted mt-1">Exibido nos cards e no seu perfil público</p>
+                  </div>
+
+                  {/* ── Link personalizado ── */}
+                  <div>
+                    <label className="block text-sm text-muted mb-2 flex items-center gap-2">
+                      <Link2 className="w-4 h-4" />
+                      Link personalizado do perfil
+                    </label>
+                    <div className={`flex items-center bg-background border rounded-lg overflow-hidden transition-colors ${
+                      usernameStatus === 'available' ? 'border-green-500' :
+                      usernameStatus === 'taken'     ? 'border-red-500' :
+                      'border-border focus-within:border-primary'
+                    }`}>
+                      <span className="px-3 py-3 text-muted text-sm border-r border-border bg-surface whitespace-nowrap select-none">
+                        servicoflix.com/
+                      </span>
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={e => handleUsernameChange(e.target.value)}
+                        className="flex-1 bg-transparent px-3 py-3 text-white outline-none text-sm"
+                        placeholder="seunome"
+                        maxLength={30}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <div className="pr-3">
+                        {usernameStatus === 'checking'  && <Loader2 className="w-4 h-4 text-muted animate-spin" />}
+                        {usernameStatus === 'available' && <CheckCircle className="w-4 h-4 text-green-400" />}
+                        {usernameStatus === 'taken'     && <AlertCircle className="w-4 h-4 text-red-400" />}
+                      </div>
+                    </div>
+                    {usernameStatus === 'available' && (
+                      <p className="text-green-400 text-xs mt-1.5 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Disponível! Seu link será: <span className="font-mono font-bold">servicoflix.com/{username}</span>
+                      </p>
+                    )}
+                    {usernameStatus === 'taken' && (
+                      <p className="text-red-400 text-xs mt-1.5 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> Este link já está em uso, tente outro
+                      </p>
+                    )}
+                    {usernameStatus === 'idle' && username.length > 0 && username.length < 3 && (
+                      <p className="text-muted text-xs mt-1.5">Mínimo de 3 caracteres</p>
+                    )}
+                    <p className="text-muted text-xs mt-1">Apenas letras minúsculas, números e hífens. Ex: <span className="font-mono">carolbrito</span>, <span className="font-mono">dj-silva</span></p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-muted mb-2">Especialidade</label>
+                    <input type="text" value={profile.specialty} onChange={e => setProfile(prev => ({ ...prev, specialty: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="Ex: Músico, Eletricista, Designer" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2">Sobre você</label>
+                    <textarea value={profile.bio} onChange={e => setProfile(prev => ({ ...prev, bio: e.target.value }))} rows={5} maxLength={500} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors resize-none" placeholder="Conte sobre sua experiência profissional..." />
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-muted mb-2">Cidade *</label>
@@ -558,10 +629,19 @@ export const EditProviderProfilePage = () => {
                         </select>
                       )}
                     </div>
-                    <div><label className="block text-sm text-muted mb-2">Bairro</label><input type="text" value={profile.neighborhood} onChange={e => setProfile(prev => ({ ...prev, neighborhood: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" /></div>
+                    <div>
+                      <label className="block text-sm text-muted mb-2">Bairro</label>
+                      <input type="text" value={profile.neighborhood} onChange={e => setProfile(prev => ({ ...prev, neighborhood: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" />
+                    </div>
                   </div>
-                  <div><label className="block text-sm text-muted mb-2">Telefone</label><input type="tel" value={profile.phone} onChange={e => setProfile(prev => ({ ...prev, phone: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="(38) 99999-9999" /></div>
-                  <div><label className="block text-sm text-muted mb-2">Preço inicial (R$)</label><input type="number" value={profile.priceFrom} onChange={e => setProfile(prev => ({ ...prev, priceFrom: parseInt(e.target.value) || 0 }))} min="0" step="10" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" /></div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2">Telefone</label>
+                    <input type="tel" value={profile.phone} onChange={e => setProfile(prev => ({ ...prev, phone: e.target.value }))} className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" placeholder="(38) 99999-9999" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-muted mb-2">Preço inicial (R$)</label>
+                    <input type="number" value={profile.priceFrom} onChange={e => setProfile(prev => ({ ...prev, priceFrom: parseInt(e.target.value) || 0 }))} min="0" step="10" className="w-full bg-background border border-border rounded-lg px-4 py-3 text-white focus:border-primary outline-none transition-colors" />
+                  </div>
                 </div>
               </div>
 
