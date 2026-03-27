@@ -7,18 +7,17 @@ import { toPng } from 'html-to-image'
 import {
   Download, Copy, RefreshCw, Monitor,
   Instagram, Smartphone, AlertTriangle, Check,
-  Loader2, LogOut, Image, Zap
+  Loader2, LogOut, Image
 } from 'lucide-react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
-// ── Constante de UIDs admins (igual ao AdminPage) ──
 const ADMIN_UIDS = ['Glhzl4mWRkNjttVBLaLhoUWLWxf1', '5KqkZ0SPnpMkKO684W7fZBWHo4J2']
+const VALID_STATUSES = ['ativo', 'approved']
 
-// ── Tipos ──
 type Formato = 'outdoor' | 'post' | 'stories'
-type TemplateId = 'dark-destaque' | 'verde-urgencia' | 'minimalista' | 'profissional-mes'
+type TemplateId = 'dark-destaque' | 'verde-urgencia' | 'minimalista' | 'profissional-mes' | 'esta-na-servicoflix'
 
 interface AdConfig {
   headline: string
@@ -42,19 +41,18 @@ interface Provider {
   rating: number
 }
 
-// ── Dimensões por formato ──
 const DIMENSOES: Record<Formato, { w: number; h: number; label: string; scale: number }> = {
-  outdoor:  { w: 1200, h: 628,  label: '1200 × 628px', scale: 0.45 },
+  outdoor:  { w: 1200, h: 628,  label: '1200 × 628px',  scale: 0.45 },
   post:     { w: 1080, h: 1080, label: '1080 × 1080px', scale: 0.38 },
   stories:  { w: 1080, h: 1920, label: '1080 × 1920px', scale: 0.26 },
 }
 
-// ── Templates disponíveis ──
 const TEMPLATES: { id: TemplateId; label: string; desc: string; emoji: string }[] = [
-  { id: 'dark-destaque',      label: 'Dark Destaque',        desc: 'Fundo escuro + profissional em destaque', emoji: '🎬' },
-  { id: 'verde-urgencia',     label: 'Verde Urgência',       desc: 'Chamada de ação forte, fundo verde', emoji: '⚡' },
-  { id: 'minimalista',        label: 'Minimalista',          desc: 'Logo + tagline + URL, limpo', emoji: '✨' },
-  { id: 'profissional-mes',   label: 'Profissional do Mês',  desc: 'Card grande com foto e avaliação', emoji: '🏆' },
+  { id: 'dark-destaque',         label: 'Dark Destaque',          desc: 'Fundo escuro + profissional em destaque',       emoji: '🎬' },
+  { id: 'verde-urgencia',        label: 'Verde Urgência',         desc: 'Chamada de ação forte, fundo verde',             emoji: '⚡' },
+  { id: 'minimalista',           label: 'Minimalista',            desc: 'Logo + tagline + URL, limpo',                  emoji: '✨' },
+  { id: 'profissional-mes',      label: 'Profissional do Mês',    desc: 'Card grande com foto e avaliação',             emoji: '🏆' },
+  { id: 'esta-na-servicoflix',   label: 'Está na ServiçoFlix!',  desc: 'Anuncia que a empresa chegou na plataforma',    emoji: '🎉' },
 ]
 
 const CORES_ACENTO = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
@@ -72,22 +70,10 @@ const CONFIG_INICIAL: AdConfig = {
   avaliacao: '4.9',
 }
 
-// ══════════════════════════════════════════
-// LOGO — idêntica à Navbar do site
-// ══════════════════════════════════════════
-
+// ══ SVG do raio ══
 const ZapSVG = ({ color, size }: { color: string; size: number }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill={color}
-    stroke={color}
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
+    fill={color} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
   </svg>
 )
@@ -106,13 +92,7 @@ function LogoAd({ acento, bgColor = acento, textColor = '#ffffff', iconSize = 20
   const containerW = iconSize + 16
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap, marginBottom }}>
-      <div style={{
-        width: containerW, height: containerW,
-        background: bgColor,
-        borderRadius: Math.round(containerW * 0.28),
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}>
+      <div style={{ width: containerW, height: containerW, background: bgColor, borderRadius: Math.round(containerW * 0.28), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
         <ZapSVG color="#ffffff" size={iconSize} />
       </div>
       <span style={{ color: textColor, fontWeight: 900, fontSize, letterSpacing: -0.5, lineHeight: 1 }}>
@@ -122,9 +102,7 @@ function LogoAd({ acento, bgColor = acento, textColor = '#ffffff', iconSize = 20
   )
 }
 
-// ══════════════════════════════════════════
-// COMPONENTES DE CANVAS (templates visuais)
-// ══════════════════════════════════════════
+// ══ Templates ══
 
 function CanvasDarkDestaque({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
   const isLandscape = dim.w > dim.h
@@ -132,15 +110,9 @@ function CanvasDarkDestaque({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES
     <div style={{ width: dim.w, height: dim.h, background: '#0a0f0a', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: isLandscape ? 'row' : 'column', overflow: 'hidden', position: 'relative' }}>
       <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 70% 50%, ${cfg.acento}18 0%, transparent 70%)` }} />
       <div style={{ flex: isLandscape ? '0 0 55%' : '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isLandscape ? '60px 50px' : '60px 50px 30px', zIndex: 1 }}>
-        {cfg.mostrarLogo && (
-          <LogoAd acento={cfg.acento} iconSize={isLandscape ? 28 : 32} fontSize={isLandscape ? 36 : 42} marginBottom={32} />
-        )}
-        <h1 style={{ color: '#fff', fontSize: isLandscape ? 48 : 56, fontWeight: 900, lineHeight: 1.1, margin: '0 0 20px', letterSpacing: -1 }}>
-          {cfg.headline}
-        </h1>
-        <p style={{ color: '#94a3b8', fontSize: isLandscape ? 20 : 24, margin: '0 0 36px', lineHeight: 1.5 }}>
-          {cfg.subtexto}
-        </p>
+        {cfg.mostrarLogo && <LogoAd acento={cfg.acento} iconSize={isLandscape ? 28 : 32} fontSize={isLandscape ? 36 : 42} marginBottom={32} />}
+        <h1 style={{ color: '#fff', fontSize: isLandscape ? 48 : 56, fontWeight: 900, lineHeight: 1.1, margin: '0 0 20px', letterSpacing: -1 }}>{cfg.headline}</h1>
+        <p style={{ color: '#94a3b8', fontSize: isLandscape ? 20 : 24, margin: '0 0 36px', lineHeight: 1.5 }}>{cfg.subtexto}</p>
         <div style={{ display: 'inline-flex', alignItems: 'center', background: cfg.acento, borderRadius: 14, padding: '16px 32px', width: 'fit-content' }}>
           <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 18 }}>▶  {cfg.cta}</span>
         </div>
@@ -152,9 +124,7 @@ function CanvasDarkDestaque({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES
             <div style={{ fontSize: 11, color: cfg.acento, fontWeight: 700, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1.5 }}>⭐ Profissional em destaque</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
               <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#1a2e1a', border: `2px solid ${cfg.acento}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {cfg.profissionalAvatar
-                  ? <img src={cfg.profissionalAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ color: cfg.acento, fontWeight: 900, fontSize: 24 }}>{cfg.profissionalNome.charAt(0)}</span>}
+                {cfg.profissionalAvatar ? <img src={cfg.profissionalAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: cfg.acento, fontWeight: 900, fontSize: 24 }}>{cfg.profissionalNome.charAt(0)}</span>}
               </div>
               <div>
                 <div style={{ color: '#fff', fontWeight: 900, fontSize: 20 }}>{cfg.profissionalNome}</div>
@@ -176,23 +146,15 @@ function CanvasDarkDestaque({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES
 
 function CanvasVerdeUrgencia({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
   return (
-    <div style={{ width: dim.w, height: dim.h, background: `linear-gradient(135deg, #0a1f0a 0%, #0f2d1a 50%, #0a1f0a 100%)`, fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ width: dim.w, height: dim.h, background: 'linear-gradient(135deg, #0a1f0a 0%, #0f2d1a 50%, #0a1f0a 100%)', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400, borderRadius: '50%', background: `${cfg.acento}15`, filter: 'blur(60px)' }} />
       <div style={{ position: 'absolute', bottom: -80, left: -80, width: 300, height: 300, borderRadius: '50%', background: `${cfg.acento}10`, filter: 'blur(40px)' }} />
-      {cfg.mostrarLogo && (
-        <div style={{ marginBottom: 40 }}>
-          <LogoAd acento={cfg.acento} iconSize={18} fontSize={26} gap={10} marginBottom={0} />
-        </div>
-      )}
+      {cfg.mostrarLogo && <div style={{ marginBottom: 40 }}><LogoAd acento={cfg.acento} iconSize={18} fontSize={26} gap={10} marginBottom={0} /></div>}
       <div style={{ background: `${cfg.acento}20`, border: `1px solid ${cfg.acento}50`, borderRadius: 100, padding: '8px 20px', marginBottom: 28 }}>
         <span style={{ color: cfg.acento, fontWeight: 700, fontSize: 14, textTransform: 'uppercase', letterSpacing: 2 }}>🔥 Disponível agora</span>
       </div>
-      <h1 style={{ color: '#fff', fontSize: dim.w > 800 ? 64 : 48, fontWeight: 900, lineHeight: 1.05, margin: '0 0 20px', letterSpacing: -2, zIndex: 1 }}>
-        {cfg.headline}
-      </h1>
-      <p style={{ color: '#94a3b8', fontSize: dim.w > 800 ? 22 : 18, margin: '0 0 48px', maxWidth: 700, lineHeight: 1.5, zIndex: 1 }}>
-        {cfg.subtexto}
-      </p>
+      <h1 style={{ color: '#fff', fontSize: dim.w > 800 ? 64 : 48, fontWeight: 900, lineHeight: 1.05, margin: '0 0 20px', letterSpacing: -2, zIndex: 1 }}>{cfg.headline}</h1>
+      <p style={{ color: '#94a3b8', fontSize: dim.w > 800 ? 22 : 18, margin: '0 0 48px', maxWidth: 700, lineHeight: 1.5, zIndex: 1 }}>{cfg.subtexto}</p>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', zIndex: 1 }}>
         <div style={{ background: cfg.acento, borderRadius: 14, padding: '18px 40px' }}>
           <span style={{ color: '#0a0f0a', fontWeight: 900, fontSize: 20 }}>▶  {cfg.cta}</span>
@@ -207,17 +169,9 @@ function CanvasMinimalista({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES[
   return (
     <div style={{ width: dim.w, height: dim.h, background: '#fff', fontFamily: 'Arial, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 80, textAlign: 'center' }}>
       <div style={{ width: 6, height: 60, background: cfg.acento, borderRadius: 3, marginBottom: 40 }} />
-      {cfg.mostrarLogo && (
-        <div style={{ marginBottom: 32 }}>
-          <LogoAd acento={cfg.acento} textColor='#0a0f0a' iconSize={22} fontSize={34} gap={12} marginBottom={0} />
-        </div>
-      )}
-      <h1 style={{ color: '#0a0f0a', fontSize: dim.w > 800 ? 60 : 44, fontWeight: 900, lineHeight: 1.1, margin: '0 0 24px', letterSpacing: -2 }}>
-        {cfg.headline}
-      </h1>
-      <p style={{ color: '#64748b', fontSize: dim.w > 800 ? 22 : 18, margin: '0 0 48px', maxWidth: 600, lineHeight: 1.6 }}>
-        {cfg.subtexto}
-      </p>
+      {cfg.mostrarLogo && <div style={{ marginBottom: 32 }}><LogoAd acento={cfg.acento} textColor='#0a0f0a' iconSize={22} fontSize={34} gap={12} marginBottom={0} /></div>}
+      <h1 style={{ color: '#0a0f0a', fontSize: dim.w > 800 ? 60 : 44, fontWeight: 900, lineHeight: 1.1, margin: '0 0 24px', letterSpacing: -2 }}>{cfg.headline}</h1>
+      <p style={{ color: '#64748b', fontSize: dim.w > 800 ? 22 : 18, margin: '0 0 48px', maxWidth: 600, lineHeight: 1.6 }}>{cfg.subtexto}</p>
       <div style={{ border: `2px solid ${cfg.acento}`, borderRadius: 14, padding: '16px 40px' }}>
         <span style={{ color: cfg.acento, fontWeight: 900, fontSize: 18 }}>{cfg.cta}</span>
       </div>
@@ -235,9 +189,7 @@ function CanvasProfissionalMes({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENS
       <div style={{ flex: isLandscape ? '0 0 50%' : '0 0 55%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isLandscape ? '60px' : '60px 40px 30px', zIndex: 1 }}>
         <div style={{ fontSize: 13, color: cfg.acento, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 24 }}>🏆 Profissional do Mês</div>
         <div style={{ width: isLandscape ? 200 : 160, height: isLandscape ? 200 : 160, borderRadius: '50%', border: `4px solid ${cfg.acento}`, overflow: 'hidden', background: '#141a14', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
-          {cfg.profissionalAvatar
-            ? <img src={cfg.profissionalAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <span style={{ color: cfg.acento, fontWeight: 900, fontSize: isLandscape ? 72 : 56 }}>{cfg.profissionalNome.charAt(0)}</span>}
+          {cfg.profissionalAvatar ? <img src={cfg.profissionalAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: cfg.acento, fontWeight: 900, fontSize: isLandscape ? 72 : 56 }}>{cfg.profissionalNome.charAt(0)}</span>}
         </div>
         <div style={{ color: '#fff', fontWeight: 900, fontSize: isLandscape ? 32 : 26, textAlign: 'center' }}>{cfg.profissionalNome}</div>
         <div style={{ color: cfg.acento, fontSize: 18, marginTop: 6, fontWeight: 600 }}>{cfg.profissionalEspecialidade}</div>
@@ -248,11 +200,7 @@ function CanvasProfissionalMes({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENS
         </div>
       </div>
       <div style={{ flex: isLandscape ? '0 0 50%' : '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isLandscape ? '60px 60px 60px 0' : '30px 40px 60px', zIndex: 1 }}>
-        {cfg.mostrarLogo && (
-          <div style={{ marginBottom: 28 }}>
-            <LogoAd acento={cfg.acento} iconSize={16} fontSize={22} gap={10} marginBottom={0} />
-          </div>
-        )}
+        {cfg.mostrarLogo && <div style={{ marginBottom: 28 }}><LogoAd acento={cfg.acento} iconSize={16} fontSize={22} gap={10} marginBottom={0} /></div>}
         <h1 style={{ color: '#fff', fontSize: isLandscape ? 40 : 32, fontWeight: 900, lineHeight: 1.15, margin: '0 0 16px', letterSpacing: -1 }}>{cfg.headline}</h1>
         <p style={{ color: '#94a3b8', fontSize: isLandscape ? 18 : 15, margin: '0 0 32px', lineHeight: 1.6 }}>{cfg.subtexto}</p>
         <div style={{ background: cfg.acento, borderRadius: 12, padding: '14px 28px', display: 'inline-flex', width: 'fit-content' }}>
@@ -264,17 +212,138 @@ function CanvasProfissionalMes({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENS
   )
 }
 
+// ══ NOVO TEMPLATE: Está na ServiçoFlix ══
+function CanvasEstaNaServicoflix({ cfg, dim }: { cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
+  const isLandscape = dim.w > dim.h
+  const isStories = dim.h > dim.w
+  const empresa = cfg.profissionalNome || 'Sua Empresa'
+
+  return (
+    <div style={{
+      width: dim.w, height: dim.h,
+      background: '#0a0f0a',
+      fontFamily: 'Arial, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: isStories ? '100px 80px' : '80px',
+      textAlign: 'center',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Gradientes de fundo */}
+      <div style={{ position: 'absolute', top: -200, left: '50%', transform: 'translateX(-50%)', width: 800, height: 800, borderRadius: '50%', background: `${cfg.acento}12`, filter: 'blur(80px)' }} />
+      <div style={{ position: 'absolute', bottom: -100, right: -100, width: 500, height: 500, borderRadius: '50%', background: `${cfg.acento}08`, filter: 'blur(60px)' }} />
+
+      {/* Confete / estrelas decorativas */}
+      <div style={{ position: 'absolute', top: 60, left: 80, fontSize: isStories ? 60 : 40, opacity: 0.5 }}>🎉</div>
+      <div style={{ position: 'absolute', top: 80, right: 100, fontSize: isStories ? 50 : 32, opacity: 0.4 }}>✨</div>
+      <div style={{ position: 'absolute', bottom: 80, left: 100, fontSize: isStories ? 50 : 32, opacity: 0.4 }}>✨</div>
+      <div style={{ position: 'absolute', bottom: 60, right: 80, fontSize: isStories ? 60 : 40, opacity: 0.5 }}>🎉</div>
+
+      {/* Avatar / logo da empresa */}
+      <div style={{ position: 'relative', marginBottom: isStories ? 48 : 36, zIndex: 1 }}>
+        <div style={{
+          width: isStories ? 200 : isLandscape ? 140 : 160,
+          height: isStories ? 200 : isLandscape ? 140 : 160,
+          borderRadius: '50%',
+          border: `4px solid ${cfg.acento}`,
+          overflow: 'hidden',
+          background: '#141a14',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 0 40px ${cfg.acento}40`,
+        }}>
+          {cfg.profissionalAvatar
+            ? <img src={cfg.profissionalAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <span style={{ color: cfg.acento, fontWeight: 900, fontSize: isStories ? 80 : 60 }}>{empresa.charAt(0)}</span>}
+        </div>
+        {/* Badge de check */}
+        <div style={{
+          position: 'absolute', bottom: 4, right: 4,
+          width: isStories ? 52 : 40, height: isStories ? 52 : 40,
+          borderRadius: '50%', background: cfg.acento,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '3px solid #0a0f0a',
+          fontSize: isStories ? 24 : 18,
+        }}>✓</div>
+      </div>
+
+      {/* Texto principal */}
+      <div style={{ zIndex: 1, maxWidth: isLandscape ? 700 : 860 }}>
+        {/* Nome da empresa */}
+        <div style={{
+          color: '#94a3b8',
+          fontSize: isStories ? 32 : isLandscape ? 22 : 26,
+          fontWeight: 700,
+          marginBottom: isStories ? 16 : 10,
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+        }}>
+          {cfg.profissionalEspecialidade || 'Profissional'} • {cfg.profissionalCidade || 'Diamantina, MG'}
+        </div>
+
+        {/* Headline principal: "A Empresa X está na ServiçoFlix!" */}
+        <h1 style={{
+          color: '#fff',
+          fontSize: isStories ? 72 : isLandscape ? 52 : 62,
+          fontWeight: 900,
+          lineHeight: 1.08,
+          margin: '0 0 8px',
+          letterSpacing: -2,
+        }}>
+          <span style={{ color: '#fff' }}>{empresa}</span>
+        </h1>
+        <h2 style={{
+          fontSize: isStories ? 52 : isLandscape ? 38 : 46,
+          fontWeight: 900,
+          margin: '0 0 32px',
+          letterSpacing: -1,
+          lineHeight: 1.1,
+        }}>
+          <span style={{ color: '#94a3b8' }}>está na </span>
+          <span style={{ color: '#fff' }}>Serviço</span><span style={{ color: cfg.acento }}>Flix</span>
+          <span style={{ color: cfg.acento }}>!</span>
+        </h2>
+
+        {/* Separador */}
+        <div style={{ width: 80, height: 4, background: cfg.acento, borderRadius: 2, margin: '0 auto 32px' }} />
+
+        {/* URL com destaque */}
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 12,
+          background: `${cfg.acento}18`,
+          border: `2px solid ${cfg.acento}60`,
+          borderRadius: 100,
+          padding: isStories ? '20px 48px' : '14px 36px',
+        }}>
+          <div style={{ width: isStories ? 32 : 24, height: isStories ? 32 : 24, background: cfg.acento, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ZapSVG color="#fff" size={isStories ? 18 : 14} />
+          </div>
+          <span style={{
+            color: cfg.acento,
+            fontWeight: 900,
+            fontSize: isStories ? 36 : isLandscape ? 24 : 28,
+            letterSpacing: 0.5,
+          }}>servicoflix.com</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AdCanvas({ template, cfg, dim }: { template: TemplateId; cfg: AdConfig; dim: typeof DIMENSOES['outdoor'] }) {
-  if (template === 'dark-destaque')    return <CanvasDarkDestaque    cfg={cfg} dim={dim} />
-  if (template === 'verde-urgencia')   return <CanvasVerdeUrgencia   cfg={cfg} dim={dim} />
-  if (template === 'minimalista')      return <CanvasMinimalista     cfg={cfg} dim={dim} />
-  if (template === 'profissional-mes') return <CanvasProfissionalMes cfg={cfg} dim={dim} />
+  if (template === 'dark-destaque')        return <CanvasDarkDestaque        cfg={cfg} dim={dim} />
+  if (template === 'verde-urgencia')       return <CanvasVerdeUrgencia       cfg={cfg} dim={dim} />
+  if (template === 'minimalista')          return <CanvasMinimalista         cfg={cfg} dim={dim} />
+  if (template === 'profissional-mes')     return <CanvasProfissionalMes     cfg={cfg} dim={dim} />
+  if (template === 'esta-na-servicoflix')  return <CanvasEstaNaServicoflix   cfg={cfg} dim={dim} />
   return null
 }
 
-// ══════════════════════════════════════════
-// PÁGINA PRINCIPAL
-// ══════════════════════════════════════════
+// ══ PÁGINA PRINCIPAL ══
 
 export const PublicidadePage = () => {
   const { user, loading: authLoading } = useSimpleAuth()
@@ -297,6 +366,7 @@ export const PublicidadePage = () => {
     setTimeout(() => setToast(null), 3500)
   }
 
+  // Carrega prestadores com status 'ativo' ou 'approved'
   useEffect(() => {
     if (!isAdmin) return
     const load = async () => {
@@ -304,7 +374,10 @@ export const PublicidadePage = () => {
         const snap = await getDocs(collection(db, 'users'))
         const list: Provider[] = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as any))
-          .filter((u: any) => u.roles?.includes('provider') && u.providerProfile?.status === 'approved')
+          .filter((u: any) =>
+            u.roles?.includes('provider') &&
+            VALID_STATUSES.includes(u.providerProfile?.status)
+          )
           .map((u: any) => ({
             id: u.id,
             name: u.providerProfile?.professionalName || u.name || '',
@@ -424,7 +497,7 @@ export const PublicidadePage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
         <div className="grid lg:grid-cols-[380px_1fr] gap-8">
 
-          {/* ─── PAINEL ESQUERDO: Controles ─── */}
+          {/* ─── PAINEL ESQUERDO ─── */}
           <div className="space-y-6">
 
             {/* Formato */}
@@ -465,32 +538,34 @@ export const PublicidadePage = () => {
               </div>
             </div>
 
-            {/* Conteúdo */}
-            <div className="bg-surface border border-border rounded-2xl p-5 space-y-4">
-              <p className="text-xs font-bold text-muted uppercase tracking-wider">Conteúdo</p>
-              <div>
-                <label className="text-xs text-muted mb-1.5 block">Headline principal</label>
-                <input value={cfg.headline} onChange={e => setCfg(c => ({ ...c, headline: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
-              </div>
-              <div>
-                <label className="text-xs text-muted mb-1.5 block">Subtexto</label>
-                <textarea value={cfg.subtexto} onChange={e => setCfg(c => ({ ...c, subtexto: e.target.value }))}
-                  rows={2} className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors resize-none" />
-              </div>
-              <div>
-                <label className="text-xs text-muted mb-1.5 block">Texto do CTA (botão)</label>
-                <input value={cfg.cta} onChange={e => setCfg(c => ({ ...c, cta: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
-              </div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <div onClick={() => setCfg(c => ({ ...c, mostrarLogo: !c.mostrarLogo }))}
-                  className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${cfg.mostrarLogo ? 'bg-primary' : 'bg-border'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${cfg.mostrarLogo ? 'translate-x-4' : 'translate-x-0'}`} />
+            {/* Conteúdo — oculta campos irrelevantes no template está-na-servicoflix */}
+            {template !== 'esta-na-servicoflix' && (
+              <div className="bg-surface border border-border rounded-2xl p-5 space-y-4">
+                <p className="text-xs font-bold text-muted uppercase tracking-wider">Conteúdo</p>
+                <div>
+                  <label className="text-xs text-muted mb-1.5 block">Headline principal</label>
+                  <input value={cfg.headline} onChange={e => setCfg(c => ({ ...c, headline: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
                 </div>
-                <span className="text-sm text-white">Mostrar logo ServiçoFlix</span>
-              </label>
-            </div>
+                <div>
+                  <label className="text-xs text-muted mb-1.5 block">Subtexto</label>
+                  <textarea value={cfg.subtexto} onChange={e => setCfg(c => ({ ...c, subtexto: e.target.value }))}
+                    rows={2} className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors resize-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted mb-1.5 block">Texto do CTA (botão)</label>
+                  <input value={cfg.cta} onChange={e => setCfg(c => ({ ...c, cta: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div onClick={() => setCfg(c => ({ ...c, mostrarLogo: !c.mostrarLogo }))}
+                    className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${cfg.mostrarLogo ? 'bg-primary' : 'bg-border'}`}>
+                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${cfg.mostrarLogo ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </div>
+                  <span className="text-sm text-white">Mostrar logo ServiçoFlix</span>
+                </label>
+              </div>
+            )}
 
             {/* Cor de acento */}
             <div className="bg-surface border border-border rounded-2xl p-5">
@@ -504,28 +579,40 @@ export const PublicidadePage = () => {
               </div>
             </div>
 
-            {/* Profissional */}
+            {/* Profissional / Empresa */}
             <div className="bg-surface border border-border rounded-2xl p-5 space-y-4">
-              <p className="text-xs font-bold text-muted uppercase tracking-wider">Profissional em destaque</p>
+              <p className="text-xs font-bold text-muted uppercase tracking-wider">
+                {template === 'esta-na-servicoflix' ? 'Dados da empresa / prestador' : 'Profissional em destaque'}
+              </p>
+
+              {/* Seletor de perfil existente */}
               {providers.length > 0 && (
                 <div>
-                  <label className="text-xs text-muted mb-1.5 block">Selecionar prestador cadastrado</label>
-                  <select onChange={e => handleSelectProvider(e.target.value)}
+                  <label className="text-xs text-muted mb-1.5 block">Selecionar perfil cadastrado</label>
+                  <select
+                    onChange={e => handleSelectProvider(e.target.value)}
+                    defaultValue=""
                     className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors">
-                    <option value="">-- Selecionar --</option>
+                    <option value="" disabled>-- Selecionar prestador --</option>
                     {providers.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} — {p.specialty}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.specialty ? ` — ${p.specialty}` : ''}
+                      </option>
                     ))}
                   </select>
+                  <p className="text-[11px] text-muted mt-1">Preenche automaticamente os campos abaixo</p>
                 </div>
               )}
+
               <div>
-                <label className="text-xs text-muted mb-1.5 block">Nome</label>
+                <label className="text-xs text-muted mb-1.5 block">
+                  {template === 'esta-na-servicoflix' ? 'Nome da empresa' : 'Nome'}
+                </label>
                 <input value={cfg.profissionalNome} onChange={e => setCfg(c => ({ ...c, profissionalNome: e.target.value }))}
                   className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
               </div>
               <div>
-                <label className="text-xs text-muted mb-1.5 block">Especialidade</label>
+                <label className="text-xs text-muted mb-1.5 block">Especialidade / Ramo</label>
                 <input value={cfg.profissionalEspecialidade} onChange={e => setCfg(c => ({ ...c, profissionalEspecialidade: e.target.value }))}
                   className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
               </div>
@@ -534,13 +621,15 @@ export const PublicidadePage = () => {
                 <input value={cfg.profissionalCidade} onChange={e => setCfg(c => ({ ...c, profissionalCidade: e.target.value }))}
                   className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
               </div>
+              {template !== 'esta-na-servicoflix' && (
+                <div>
+                  <label className="text-xs text-muted mb-1.5 block">Avaliação (ex: 4.9)</label>
+                  <input value={cfg.avaliacao} onChange={e => setCfg(c => ({ ...c, avaliacao: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
+                </div>
+              )}
               <div>
-                <label className="text-xs text-muted mb-1.5 block">Avaliação (ex: 4.9)</label>
-                <input value={cfg.avaliacao} onChange={e => setCfg(c => ({ ...c, avaliacao: e.target.value }))}
-                  className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
-              </div>
-              <div>
-                <label className="text-xs text-muted mb-1.5 block">URL da foto (opcional)</label>
+                <label className="text-xs text-muted mb-1.5 block">URL da foto / logo (opcional)</label>
                 <input value={cfg.profissionalAvatar} onChange={e => setCfg(c => ({ ...c, profissionalAvatar: e.target.value }))}
                   placeholder="https://..."
                   className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-primary transition-colors" />
@@ -552,7 +641,7 @@ export const PublicidadePage = () => {
             </div>
           </div>
 
-          {/* ─── PAINEL DIREITO: Preview + ações ─── */}
+          {/* ─── PAINEL DIREITO: Preview ─── */}
           <div className="space-y-4">
             <div className="flex gap-3 justify-end">
               <button onClick={handleCopy}
@@ -567,32 +656,17 @@ export const PublicidadePage = () => {
               </button>
             </div>
             <div className="bg-surface border border-border rounded-2xl p-6 flex items-center justify-center overflow-hidden">
-  <div style={{
-    width: dim.w * dim.scale,
-    height: dim.h * dim.scale,
-    flexShrink: 0,
-    position: 'relative',
-  }}>
-    <div style={{
-      transform: `scale(${dim.scale})`,
-      transformOrigin: 'top left',
-      position: 'absolute',
-      top: 0,
-      left: 0,
-    }}>
-      <div ref={canvasRef}>
-        <AdCanvas template={template} cfg={cfg} dim={dim} />
-      </div>
-    </div>
-  </div>
-</div>
+              <div style={{ width: dim.w * dim.scale, height: dim.h * dim.scale, flexShrink: 0, position: 'relative' }}>
+                <div style={{ transform: `scale(${dim.scale})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}>
+                  <div ref={canvasRef}>
+                    <AdCanvas template={template} cfg={cfg} dim={dim} />
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="flex items-center justify-between px-1">
-              <p className="text-xs text-muted">
-                Formato: <span className="text-white font-semibold">{dim.label}</span>
-              </p>
-              <p className="text-xs text-muted">
-                Template: <span className="text-white font-semibold">{TEMPLATES.find(t => t.id === template)?.label}</span>
-              </p>
+              <p className="text-xs text-muted">Formato: <span className="text-white font-semibold">{dim.label}</span></p>
+              <p className="text-xs text-muted">Template: <span className="text-white font-semibold">{TEMPLATES.find(t => t.id === template)?.label}</span></p>
             </div>
           </div>
 
