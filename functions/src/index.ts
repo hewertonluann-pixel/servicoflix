@@ -102,3 +102,11 @@ export const dailyScoreDecrement = onSchedule(
  * Adiciona dias ao scoreExpiresAt do prestador OU ativa assinatura mensal.
  */
 export const stripeWebhook = require('./stripeWebhook').stripeWebhook
+
+/**
+ * NOTIFICAÇÕES — Push FCM (PWA instalado) ou fallback por e-mail
+ *
+ * onNovaSolicitacao  → dispara ao criar /solicitacoes/{id}
+ * onNovaMensagemChat → dispara ao criar /chats/{chatId}/mensagens/{msgId}
+ */
+export { onNovaSolicitacao, onNovaMensagemChat } from './notifications'
