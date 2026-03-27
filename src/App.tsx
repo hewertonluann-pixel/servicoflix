@@ -14,6 +14,7 @@ import { AdminPage } from '@/pages/AdminPage'
 import { AdminApprovalPage } from '@/pages/AdminApprovalPage'
 import { AdminRelatoriosPage } from '@/pages/AdminRelatoriosPage'
 import { PublicidadePage } from '@/pages/PublicidadePage'
+import { ProviderPublicidadePage } from '@/pages/ProviderPublicidadePage'
 import { DebugProvidersPage } from '@/pages/DebugProvidersPage'
 import { FixProvidersPage } from '@/pages/FixProvidersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -44,6 +45,7 @@ function App() {
         {/* Área do prestador */}
         <Route path="/meu-perfil" element={<ProviderDashboardPage />} />
         <Route path="/meu-perfil/editar" element={<EditProviderProfilePage />} />
+        <Route path="/meu-perfil/artes" element={<ProviderPublicidadePage />} />
         <Route path="/prestador/solicitacoes" element={<ProviderRequestsPage />} />
 
         {/* Área do cliente */}
