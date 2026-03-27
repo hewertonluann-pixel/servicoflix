@@ -12,7 +12,7 @@ import { SearchPage } from '@/pages/SearchPage'
 import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 import { AdminPage } from '@/pages/AdminPage'
 import { AdminApprovalPage } from '@/pages/AdminApprovalPage'
-import { AdminRelatoriosPage } from '@/pages/AdminRelatoriosPage' // ← NOVO
+import { AdminRelatoriosPage } from '@/pages/AdminRelatoriosPage'
 import { PublicidadePage } from '@/pages/PublicidadePage'
 import { DebugProvidersPage } from '@/pages/DebugProvidersPage'
 import { FixProvidersPage } from '@/pages/FixProvidersPage'
@@ -21,6 +21,7 @@ import { EditProviderProfilePage } from '@/pages/EditProviderProfilePage'
 import { ChatPage } from '@/pages/ChatPage'
 import { ChatsPage } from '@/pages/ChatsPage'
 import { InstallPage } from '@/pages/InstallPage'
+import { UsernameProfilePage } from '@/pages/UsernameProfilePage'
 import { usePresence } from '@/hooks/usePresence'
 
 function App() {
@@ -76,11 +77,14 @@ function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/aprovacoes" element={<AdminApprovalPage />} />
         <Route path="/admin/publicidade" element={<PublicidadePage />} />
-        <Route path="/admin/relatorios" element={<AdminRelatoriosPage />} /> {/* ← NOVO */}
+        <Route path="/admin/relatorios" element={<AdminRelatoriosPage />} />
 
         {/* Utilitários (ocultos da navbar) */}
         <Route path="/debug" element={<DebugProvidersPage />} />
         <Route path="/fix" element={<FixProvidersPage />} />
+
+        {/* Link personalizado do profissional — deve ser a ÚLTIMA rota */}
+        <Route path="/:username" element={<UsernameProfilePage />} />
       </Routes>
     </div>
   )
