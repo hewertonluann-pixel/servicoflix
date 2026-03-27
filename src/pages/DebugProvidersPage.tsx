@@ -1,23 +1,30 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { Search, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { Search, CheckCircle, XCircle, AlertCircle, RefreshCw, Eye, EyeOff } from 'lucide-react'
+
+const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
 
 interface ProviderDebug {
   id: string
   name: string
   email: string
   roles: string[]
-  hasProviderProfile: boolean
   status?: string
+  diasScore?: number
+  subscriptionStatus?: string
   city?: string
   category?: string
   categories?: string[]
   specialty?: string
   featured?: boolean
   verified?: boolean
+  isOwner: boolean
+  visibleOnHome: boolean
   issues: string[]
 }
+
+const VALID_STATUSES = ['ativo', 'approved']
 
 export const DebugProvidersPage = () => {
   const [providers, setProviders] = useState<ProviderDebug[]>([])
@@ -31,64 +38,78 @@ export const DebugProvidersPage = () => {
 
       usersSnap.docs.forEach(d => {
         const data = d.data()
+        if (!data.providerProfile) return
+
         const issues: string[] = []
+        const p = data.providerProfile || {}
+        const isOwner = d.id === OWNER_UID
 
-        // Verifica se tem providerProfile
-        if (data.providerProfile) {
-          // Verifica status
-          if (!data.providerProfile.status) {
-            issues.push('⚠️ Status não definido')
-          } else if (data.providerProfile.status !== 'approved') {
-            issues.push(`⏳ Status: ${data.providerProfile.status}`)
-          }
-
-          // Verifica roles
-          if (!data.roles?.includes('provider')) {
-            issues.push('❌ Role "provider" faltando')
-          }
-
-          // Verifica categoria
-          const hasCategory = data.providerProfile.category || data.providerProfile.categories?.length > 0
-          if (!hasCategory) {
-            issues.push('💭 Categoria não definida')
-          }
-
-          // Verifica cidade
-          if (!data.providerProfile.city) {
-            issues.push('🏛️ Cidade não definida')
-          }
-
-          debugData.push({
-            id: d.id,
-            name: data.name || 'Sem nome',
-            email: data.email || '',
-            roles: data.roles || [],
-            hasProviderProfile: true,
-            status: data.providerProfile.status,
-            city: data.providerProfile.city,
-            category: data.providerProfile.category,
-            categories: data.providerProfile.categories,
-            specialty: data.providerProfile.specialty,
-            featured: data.providerProfile.featured,
-            verified: data.providerProfile.verified,
-            issues,
-          })
+        // --- Validação de status ---
+        const status = p.status
+        if (!status) {
+          issues.push('⚠️ Status não definido em providerProfile')
+        } else if (!VALID_STATUSES.includes(status)) {
+          issues.push(`❌ Status inválido para exibição na Home: "${status}" (esperado: "ativo" ou "approved")`)
         }
+
+        // --- Validação de role ---
+        if (!data.roles?.includes('provider')) {
+          issues.push('❌ Role "provider" faltando em roles[]')
+        }
+
+        // --- Validação de diasScore (raiz do doc users) ---
+        const diasScore = typeof data.diasScore === 'number' ? data.diasScore : undefined
+        const subscriptionStatus = p.subscriptionStatus
+        const hasActiveScore = (typeof diasScore === 'number' && diasScore > 0)
+        const hasActiveSub = subscriptionStatus === 'active'
+
+        if (!isOwner && !hasActiveScore && !hasActiveSub) {
+          issues.push(
+            diasScore === undefined
+              ? '⏳ diasScore não encontrado na raiz do documento (users/{id})'
+              : `⏳ diasScore = ${diasScore} — prestador não aparece na Home (necessário > 0)`
+          )
+        }
+
+        // --- Validação de categoria ---
+        const hasCategory = p.category || p.categories?.length > 0
+        if (!hasCategory) {
+          issues.push('💭 Categoria não definida')
+        }
+
+        // --- Validação de cidade ---
+        if (!p.city) {
+          issues.push('🏛️ Cidade não definida')
+        }
+
+        // --- Visível na Home? ---
+        const statusOk = isOwner || VALID_STATUSES.includes(status)
+        const roleOk = isOwner || data.roles?.includes('provider')
+        const ativoOk = isOwner || hasActiveScore || hasActiveSub
+        const visibleOnHome = statusOk && roleOk && ativoOk
+
+        debugData.push({
+          id: d.id,
+          name: p.professionalName || data.name || 'Sem nome',
+          email: data.email || '',
+          roles: data.roles || [],
+          status,
+          diasScore,
+          subscriptionStatus,
+          city: p.city,
+          category: p.category,
+          categories: p.categories,
+          specialty: p.specialty,
+          featured: p.featured,
+          verified: p.verified,
+          isOwner,
+          visibleOnHome,
+          issues,
+        })
       })
 
-      // Ordena: com problemas primeiro
       debugData.sort((a, b) => b.issues.length - a.issues.length)
-
       setProviders(debugData)
-      console.log('=== DIAGNÓSTICO DE PRESTADORES ===')
-      console.table(debugData.map(p => ({
-        Nome: p.name,
-        Status: p.status,
-        Roles: p.roles.join(', '),
-        Categoria: p.category || p.categories?.[0] || 'NÃO DEFINIDA',
-        Cidade: p.city || 'NÃO DEFINIDA',
-        Problemas: p.issues.length,
-      })))
     } catch (err) {
       console.error('Erro ao carregar:', err)
     } finally {
@@ -96,32 +117,26 @@ export const DebugProvidersPage = () => {
     }
   }
 
-  useEffect(() => {
-    loadProviders()
-  }, [])
+  useEffect(() => { loadProviders() }, [])
 
   const getStatusColor = (status?: string) => {
-    switch (status) {
-      case 'approved': return 'text-green-400 bg-green-500/10 border-green-500/30'
-      case 'pending': return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
-      case 'rejected': return 'text-red-400 bg-red-500/10 border-red-500/30'
-      default: return 'text-gray-400 bg-gray-500/10 border-gray-500/30'
-    }
+    if (!status) return 'text-gray-400 bg-gray-500/10 border-gray-500/30'
+    if (VALID_STATUSES.includes(status)) return 'text-green-400 bg-green-500/10 border-green-500/30'
+    if (status === 'pending') return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30'
+    return 'text-red-400 bg-red-500/10 border-red-500/30'
   }
 
   const getStatusIcon = (status?: string) => {
-    switch (status) {
-      case 'approved': return <CheckCircle className="w-4 h-4" />
-      case 'pending': return <AlertCircle className="w-4 h-4" />
-      case 'rejected': return <XCircle className="w-4 h-4" />
-      default: return <Search className="w-4 h-4" />
-    }
+    if (!status) return <Search className="w-4 h-4" />
+    if (VALID_STATUSES.includes(status)) return <CheckCircle className="w-4 h-4" />
+    if (status === 'pending') return <AlertCircle className="w-4 h-4" />
+    return <XCircle className="w-4 h-4" />
   }
 
-  const totalProviders = providers.length
-  const approved = providers.filter(p => p.status === 'approved' && p.roles.includes('provider')).length
-  const pending = providers.filter(p => p.status === 'pending').length
+  const total = providers.length
+  const visiveis = providers.filter(p => p.visibleOnHome).length
   const withIssues = providers.filter(p => p.issues.length > 0).length
+  const semScore = providers.filter(p => !p.isOwner && !p.subscriptionStatus && (p.diasScore === undefined || p.diasScore <= 0)).length
   const noCategory = providers.filter(p => !p.category && !p.categories?.length).length
   const noCity = providers.filter(p => !p.city).length
 
@@ -139,6 +154,7 @@ export const DebugProvidersPage = () => {
   return (
     <div className="min-h-screen pt-16 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8">
+
         {/* Cabeçalho */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
@@ -146,7 +162,7 @@ export const DebugProvidersPage = () => {
               <h1 className="text-2xl sm:text-3xl font-black text-white mb-2">
                 🔍 Diagnóstico de Prestadores
               </h1>
-              <p className="text-muted text-sm">Verificação completa dos dados no Firestore</p>
+              <p className="text-muted text-sm">Verificação completa dos dados em <code className="text-primary">users/</code> no Firestore</p>
             </div>
             <button
               onClick={loadProviders}
@@ -161,19 +177,19 @@ export const DebugProvidersPage = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="bg-surface border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">Total</p>
-              <p className="text-2xl font-black text-white">{totalProviders}</p>
+              <p className="text-2xl font-black text-white">{total}</p>
             </div>
             <div className="bg-surface border border-border rounded-xl p-4">
-              <p className="text-muted text-xs mb-1">Aprovados</p>
-              <p className="text-2xl font-black text-green-400">{approved}</p>
-            </div>
-            <div className="bg-surface border border-border rounded-xl p-4">
-              <p className="text-muted text-xs mb-1">Pendentes</p>
-              <p className="text-2xl font-black text-yellow-400">{pending}</p>
+              <p className="text-muted text-xs mb-1">Visíveis na Home</p>
+              <p className="text-2xl font-black text-green-400">{visiveis}</p>
             </div>
             <div className="bg-surface border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">Com Problemas</p>
               <p className="text-2xl font-black text-red-400">{withIssues}</p>
+            </div>
+            <div className="bg-surface border border-border rounded-xl p-4">
+              <p className="text-muted text-xs mb-1">Sem diasScore</p>
+              <p className="text-2xl font-black text-yellow-400">{semScore}</p>
             </div>
             <div className="bg-surface border border-border rounded-xl p-4">
               <p className="text-muted text-xs mb-1">Sem Categoria</p>
@@ -198,18 +214,33 @@ export const DebugProvidersPage = () => {
               {/* Cabeçalho do card */}
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-black text-white truncate mb-1">{provider.name}</h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-black text-white truncate">{provider.name}</h3>
+                    {provider.isOwner && (
+                      <span className="px-2 py-0.5 bg-primary/20 border border-primary/40 text-primary rounded text-xs font-bold shrink-0">OWNER</span>
+                    )}
+                  </div>
                   <p className="text-sm text-muted truncate">{provider.email}</p>
                   <p className="text-xs text-muted mt-1">ID: {provider.id}</p>
                 </div>
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusColor(provider.status)}`}>
-                  {getStatusIcon(provider.status)}
-                  {provider.status || 'indefinido'}
+                <div className="flex flex-col items-end gap-2">
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatusColor(provider.status)}`}>
+                    {getStatusIcon(provider.status)}
+                    {provider.status || 'indefinido'}
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                    provider.visibleOnHome
+                      ? 'text-green-400 bg-green-500/10 border-green-500/30'
+                      : 'text-red-400 bg-red-500/10 border-red-500/30'
+                  }`}>
+                    {provider.visibleOnHome ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                    {provider.visibleOnHome ? 'Visível na Home' : 'Oculto na Home'}
+                  </div>
                 </div>
               </div>
 
               {/* Informações detalhadas */}
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
                 <div>
                   <p className="text-xs text-muted mb-1">Roles</p>
                   <div className="flex flex-wrap gap-1">
@@ -228,9 +259,7 @@ export const DebugProvidersPage = () => {
                 <div>
                   <p className="text-xs text-muted mb-1">Categoria</p>
                   <p className={`text-sm font-semibold ${
-                    provider.category || provider.categories?.length 
-                      ? 'text-white' 
-                      : 'text-red-400'
+                    provider.category || provider.categories?.length ? 'text-white' : 'text-red-400'
                   }`}>
                     {provider.category || provider.categories?.[0] || '❌ Não definida'}
                   </p>
@@ -254,6 +283,25 @@ export const DebugProvidersPage = () => {
                     {provider.specialty || '-'}
                   </p>
                 </div>
+
+                <div>
+                  <p className="text-xs text-muted mb-1">diasScore <span className="text-muted/60">(raiz users/)</span></p>
+                  <p className={`text-sm font-black ${
+                    provider.isOwner ? 'text-primary'
+                    : provider.diasScore !== undefined && provider.diasScore > 0 ? 'text-green-400'
+                    : provider.subscriptionStatus === 'active' ? 'text-blue-400'
+                    : 'text-red-400'
+                  }`}>
+                    {provider.isOwner
+                      ? '∞ (owner)'
+                      : provider.subscriptionStatus === 'active'
+                      ? '🔄 Assinatura ativa'
+                      : provider.diasScore !== undefined
+                      ? `${provider.diasScore} dias`
+                      : '❌ Não encontrado'
+                    }
+                  </p>
+                </div>
               </div>
 
               {/* Badges */}
@@ -271,7 +319,7 @@ export const DebugProvidersPage = () => {
               </div>
 
               {/* Problemas detectados */}
-              {provider.issues.length > 0 && (
+              {provider.issues.length > 0 ? (
                 <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
                   <p className="text-red-400 text-xs font-semibold mb-2">
                     🚨 {provider.issues.length} problema(s) detectado(s):
@@ -285,13 +333,11 @@ export const DebugProvidersPage = () => {
                     ))}
                   </ul>
                 </div>
-              )}
-
-              {provider.issues.length === 0 && (
+              ) : (
                 <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
                   <p className="text-green-400 text-xs font-semibold flex items-center gap-2">
                     <CheckCircle className="w-4 h-4" />
-                    Tudo OK! Prestador configurado corretamente.
+                    Tudo OK! Prestador configurado corretamente e visível na Home.
                   </p>
                 </div>
               )}
