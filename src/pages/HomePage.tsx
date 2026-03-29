@@ -7,6 +7,7 @@ import { HeroBillboard } from '@/components/HeroBillboard'
 import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
 import { FilterBar, Filters } from '@/components/FilterBar'
+import { Footer } from '@/components/Footer'
 import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
 
 const OWNER_UID = 'Glhzl4mWRkNjttVBLaLhoUWLWxf1'
@@ -308,6 +309,8 @@ export const HomePage = () => {
           </>
         )}
       </div>
+
+      <Footer />
     </main>
   )
 }
