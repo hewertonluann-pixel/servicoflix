@@ -3,28 +3,28 @@
 
   <!-- Página principal -->
   <url>
-    <loc>https://servicoflix.com.br/</loc>
+    <loc>https://servicoflix.com/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
 
   <!-- Busca -->
   <url>
-    <loc>https://servicoflix.com.br/buscar</loc>
+    <loc>https://servicoflix.com/buscar</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
 
   <!-- Onboarding de prestadores -->
   <url>
-    <loc>https://servicoflix.com.br/tornar-se-prestador</loc>
+    <loc>https://servicoflix.com/tornar-se-prestador</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <!-- Instalação PWA -->
   <url>
-    <loc>https://servicoflix.com.br/instalar</loc>
+    <loc>https://servicoflix.com/instalar</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -39,28 +39,28 @@
 
   <!-- Diamantina MG -->
   <url>
-    <loc>https://servicoflix.com.br/diamantina</loc>
+    <loc>https://servicoflix.com/diamantina</loc>
     <changefreq>daily</changefreq>
     <priority>0.95</priority>
   </url>
 
   <!-- Gouveia MG -->
   <url>
-    <loc>https://servicoflix.com.br/gouveia</loc>
+    <loc>https://servicoflix.com/gouveia</loc>
     <changefreq>daily</changefreq>
     <priority>0.85</priority>
   </url>
 
   <!-- Datas MG -->
   <url>
-    <loc>https://servicoflix.com.br/datas</loc>
+    <loc>https://servicoflix.com/datas</loc>
     <changefreq>daily</changefreq>
     <priority>0.85</priority>
   </url>
 
   <!-- Couto de Magalhães de Minas MG -->
   <url>
-    <loc>https://servicoflix.com.br/couto-de-magalhaes-de-minas</loc>
+    <loc>https://servicoflix.com/couto-de-magalhaes-de-minas</loc>
     <changefreq>daily</changefreq>
     <priority>0.85</priority>
   </url>
