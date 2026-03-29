@@ -1,0 +1,19 @@
+# Servicoflix - robots.txt
+User-agent: *
+Allow: /
+
+# Bloqueia rotas privadas e administrativas
+Disallow: /admin
+Disallow: /admin/
+Disallow: /debug
+Disallow: /fix
+Disallow: /meu-perfil
+Disallow: /meu-perfil-cliente
+Disallow: /minha-conta
+Disallow: /configuracoes
+Disallow: /chats
+Disallow: /chat
+Disallow: /comprar
+
+# Sitemap
+Sitemap: https://servicoflix.com.br/sitemap.xml
