@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { CompraPage } from '@/pages/CompraPage'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { Navbar } from '@/components/Navbar'
 import { HomePage } from '@/pages/HomePage'
 import { ProviderProfilePage } from '@/pages/ProviderProfilePage'
@@ -23,7 +24,77 @@ import { ChatPage } from '@/pages/ChatPage'
 import { ChatsPage } from '@/pages/ChatsPage'
 import { InstallPage } from '@/pages/InstallPage'
 import { UsernameProfilePage } from '@/pages/UsernameProfilePage'
+import { CidadePage } from '@/pages/CidadePage'
 import { usePresence } from '@/hooks/usePresence'
+import { collection, query, where, getDocs } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { Loader2 } from 'lucide-react'
+
+/**
+ * SlugResolver
+ *
+ * Componente intermediário que recebe um /:slug genérico e decide:
+ *   - Se o slug bate com uma cidade ativa no Firestore → renderiza CidadePage
+ *   - Caso contrário → renderiza UsernameProfilePage (comportamento anterior)
+ *
+ * A resolução é feita UMA única vez por slug, com cache em memória
+ * para evitar consultas repetidas ao Firestore.
+ */
+const slugCache: Record<string, 'cidade' | 'username'> = {}
+
+const SlugResolver = () => {
+  const { slug } = useParams<{ slug: string }>()
+  const navigate = useNavigate()
+  const [tipo, setTipo] = useState<'cidade' | 'username' | null>(
+    slug ? (slugCache[slug.toLowerCase()] ?? null) : null
+  )
+
+  useEffect(() => {
+    if (!slug) { navigate('/'); return }
+
+    const lower = slug.toLowerCase()
+
+    // Já resolvido antes (cache)
+    if (slugCache[lower]) {
+      setTipo(slugCache[lower])
+      return
+    }
+
+    const resolve = async () => {
+      try {
+        const q = query(
+          collection(db, 'cities'),
+          where('slug', '==', lower),
+          where('status', '==', 'ativa')
+        )
+        const snap = await getDocs(q)
+        const resultado: 'cidade' | 'username' = snap.empty ? 'username' : 'cidade'
+        slugCache[lower] = resultado
+        setTipo(resultado)
+      } catch {
+        slugCache[lower] = 'username'
+        setTipo('username')
+      }
+    }
+
+    resolve()
+  }, [slug])
+
+  // Aguarda resolução
+  if (tipo === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
+          <p className="text-muted text-sm">Carregando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (tipo === 'cidade') return <CidadePage />
+  return <UsernameProfilePage />
+}
 
 function App() {
   const location = useLocation()
@@ -85,8 +156,11 @@ function App() {
         <Route path="/debug" element={<DebugProvidersPage />} />
         <Route path="/fix" element={<FixProvidersPage />} />
 
-        {/* Link personalizado do profissional — deve ser a ÚLTIMA rota */}
-        <Route path="/:username" element={<UsernameProfilePage />} />
+        {/*
+          Rota genérica — deve ser a Última.
+          SlugResolver decide se é uma página de cidade (SEO) ou perfil de usuário.
+        */}
+        <Route path="/:slug" element={<SlugResolver />} />
       </Routes>
     </div>
   )
