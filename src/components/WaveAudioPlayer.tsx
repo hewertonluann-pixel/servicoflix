@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-// ─── Cores e tipos ────────────────────────────────────────────────────
 type VisualMode = 'bars' | 'wave' | 'circle'
 
 interface AccentColor {
@@ -28,7 +27,6 @@ export interface WaveAudioPlayerProps {
   hasNext?: boolean
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────
 const fmtTime = (s: number) => {
   if (!s || !isFinite(s)) return '0:00'
   return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
@@ -39,7 +37,6 @@ const hexAlpha = (hex: string, alpha: number) => {
   return hex + a
 }
 
-// ─── Componente ──────────────────────────────────────────────────────────────
 export const WaveAudioPlayer = ({
   src,
   title    = 'Nenhuma faixa carregada',
@@ -59,7 +56,7 @@ export const WaveAudioPlayer = ({
   const audioCtxRef  = useRef<AudioContext | null>(null)
   const analyserRef  = useRef<AnalyserNode | null>(null)
   const gainRef      = useRef<GainNode | null>(null)
-  const sourceRef    = useRef<MediaElementAudioSourceNode | null>(null) // FIX 1: rastreia o source
+  const sourceRef    = useRef<MediaElementAudioSourceNode | null>(null)
   const prevVolRef   = useRef(0.8)
 
   const [isPlaying,   setIsPlaying]   = useState(false)
@@ -76,7 +73,7 @@ export const WaveAudioPlayer = ({
 
   const accent = ACCENT_COLORS[accentIdx]
 
-  // ─── Canvas resize ──────────────────────────────────────────────────
+  // ─── Canvas resize ───────────────────────────────────────────────────
   const resizeCanvas = useCallback(() => {
     const canvas    = canvasRef.current
     const container = containerRef.current
@@ -99,51 +96,66 @@ export const WaveAudioPlayer = ({
     return () => { ro.disconnect(); window.removeEventListener('resize', resizeCanvas) }
   }, [resizeCanvas])
 
-  // ─── AudioContext ────────────────────────────────────────────────────
+  // ─── AudioContext ───────────────────────────────────────────────────
   const initAudio = useCallback(() => {
     if (!audioRef.current) return
 
-    // FIX 2: se já existe AudioContext mas o source ainda não foi criado
-    // (acontece quando o src muda e o audioEl é novo), recria o source
+    // Se o AudioContext já existe mas o source foi perdido (troca de src)
     if (audioCtxRef.current) {
       if (!sourceRef.current) {
         try {
           const source = audioCtxRef.current.createMediaElementSource(audioRef.current)
+          // ALT 2: source → gain → destination (som sempre sai)
+          //        source → analyser           (escuta em paralelo)
+          source.connect(gainRef.current!)
           source.connect(analyserRef.current!)
           sourceRef.current = source
-        } catch { /* elemento já estava conectado */ }
+        } catch (err) {
+          // ALT 3: log visível em vez de catch silencioso
+          console.error('[WaveAudioPlayer] createMediaElementSource (reconnect) falhou:', err)
+        }
       }
       return
     }
 
+    // Primeira inicialização
     const actx     = new AudioContext()
     const analyser = actx.createAnalyser()
     analyser.fftSize = 2048
     analyser.smoothingTimeConstant = 0.82
 
-    // FIX 3: gain.value deve ser o volume atual, não o valor de fechamento
     const gain = actx.createGain()
     gain.gain.value = prevVolRef.current
-
-    const source = actx.createMediaElementSource(audioRef.current)
-    source.connect(analyser)
-    analyser.connect(gain)
+    // ALT 2: gain ligado direto ao destination — som não depende do analyser
     gain.connect(actx.destination)
+
+    try {
+      const source = actx.createMediaElementSource(audioRef.current)
+      // ALT 2: topologia paralela
+      //   source → gain → destination
+      //   source → analyser (sem sair para destination — só leitura)
+      source.connect(gain)
+      source.connect(analyser)
+      sourceRef.current = source
+    } catch (err) {
+      // ALT 3: log visível
+      console.error('[WaveAudioPlayer] createMediaElementSource falhou:', err)
+      // Fallback: o <audio> vai tocar pelo pipeline nativo (sem gain/analyser)
+      // O visualizador ficará estático mas o som sairá
+    }
 
     audioCtxRef.current = actx
     analyserRef.current = analyser
     gainRef.current     = gain
-    sourceRef.current   = source
   }, [])
 
-  // ─── Reinicia quando o src muda ───────────────────────────────────────
+  // ─── Reinicia estado ao trocar src ─────────────────────────────────────
   useEffect(() => {
     setIsReady(false)
     setIsPlaying(false)
     setProgress(0)
     setCurrentTime(0)
     setDuration(0)
-    // FIX 1 cont.: ao trocar de src o MediaElementSource anterior deixa de ser válido
     sourceRef.current = null
   }, [src])
 
@@ -410,14 +422,13 @@ export const WaveAudioPlayer = ({
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-    // FIX 3 cont.: sincroniza volume com o estado atual
     audio.volume = volume
-    const onMeta  = () => { setDuration(audio.duration); setIsReady(true) }
-    const onTime  = () => {
+    const onMeta = () => { setDuration(audio.duration); setIsReady(true) }
+    const onTime = () => {
       setCurrentTime(audio.currentTime)
       setProgress(audio.duration ? audio.currentTime / audio.duration : 0)
     }
-    const onEnd   = () => {
+    const onEnd = () => {
       if (isLoop) { audio.currentTime = 0; audio.play() }
       else { setIsPlaying(false); onEnded?.() }
     }
@@ -448,9 +459,7 @@ export const WaveAudioPlayer = ({
     const audio = audioRef.current
     if (!audio || !isReady) return
     initAudio()
-    // FIX 2 cont.: garante que o AudioContext não está suspenso antes de tocar
     if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
-    // FIX 3 cont.: sincroniza gain com o volume atual antes de tocar
     if (gainRef.current) gainRef.current.gain.value = volume
     if (isPlaying) { audio.pause(); setIsPlaying(false) }
     else           { await audio.play(); setIsPlaying(true) }
@@ -500,7 +509,8 @@ export const WaveAudioPlayer = ({
       className="w-full flex flex-col select-none"
       style={{ fontFamily: "'Space Grotesk', system-ui, sans-serif", background: '#0f0f0f' }}
     >
-      <audio ref={audioRef} src={src} preload="metadata" loop={isLoop} />
+      {/* ALT 1: crossOrigin="anonymous" permite createMediaElementSource em URLs externas (Firebase Storage) */}
+      <audio ref={audioRef} src={src} preload="metadata" loop={isLoop} crossOrigin="anonymous" />
 
       {/* ── Canvas area ── */}
       <div
@@ -513,13 +523,11 @@ export const WaveAudioPlayer = ({
       >
         <canvas ref={canvasRef} style={{ display: 'block', position: 'absolute', inset: 0 }} />
 
-        {/* Scanlines */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5,
           background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px)',
         }} />
 
-        {/* Corner decorations */}
         {(['tl','tr','bl','br'] as const).map(c => (
           <div key={c} style={{
             position: 'absolute', width: 18, height: 18, pointerEvents: 'none', zIndex: 6, opacity: 0.5,
@@ -534,7 +542,6 @@ export const WaveAudioPlayer = ({
           }} />
         ))}
 
-        {/* Status badge */}
         <div style={{
           position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
           display: 'flex', alignItems: 'center', gap: 6,
@@ -553,7 +560,6 @@ export const WaveAudioPlayer = ({
           <span>{isPlaying ? 'REPRODUZINDO' : (isReady ? 'PAUSADO' : 'AGUARDANDO ÁUDIO')}</span>
         </div>
 
-        {/* Dark gradient overlay */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
           background: 'linear-gradient(to bottom, transparent 0%, transparent 50%, rgba(0,0,0,0.5) 80%, rgba(0,0,0,0.85) 100%)',
@@ -561,7 +567,6 @@ export const WaveAudioPlayer = ({
           transition: 'opacity 300ms ease',
         }} />
 
-        {/* Center play/pause button */}
         <button
           onClick={e => { e.stopPropagation(); togglePlay() }}
           disabled={!isReady}
@@ -589,7 +594,6 @@ export const WaveAudioPlayer = ({
           )}
         </button>
 
-        {/* Mode switcher — top right */}
         <div style={{
           position: 'absolute', top: 12, right: 12, zIndex: 15,
           display: 'flex', gap: 4,
@@ -628,8 +632,6 @@ export const WaveAudioPlayer = ({
         padding: '10px 16px 12px',
         display: 'flex', flexDirection: 'column', gap: 8,
       }}>
-
-        {/* Progress row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{
             fontFamily: "'Space Mono', monospace", fontSize: '0.65rem',
@@ -659,10 +661,7 @@ export const WaveAudioPlayer = ({
           }}>{fmtTime(duration)}</span>
         </div>
 
-        {/* Buttons row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-
-          {/* Play/Pause */}
           <button
             onClick={togglePlay}
             disabled={!isReady}
@@ -686,7 +685,6 @@ export const WaveAudioPlayer = ({
             )}
           </button>
 
-          {/* Skip -10s */}
           <button onClick={() => skip(-10)} disabled={!isReady} style={ctrlBtnStyle(isReady)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="1 4 1 10 7 10"/>
@@ -695,7 +693,6 @@ export const WaveAudioPlayer = ({
             </svg>
           </button>
 
-          {/* Skip +10s */}
           <button onClick={() => skip(10)} disabled={!isReady} style={ctrlBtnStyle(isReady)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="23 4 23 10 17 10"/>
@@ -704,7 +701,6 @@ export const WaveAudioPlayer = ({
             </svg>
           </button>
 
-          {/* Volume */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
             <button onClick={toggleMute} style={ctrlBtnStyle(true)}>
               {isMuted || volume === 0 ? (
@@ -738,16 +734,10 @@ export const WaveAudioPlayer = ({
             />
           </div>
 
-          {/* Right side */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 0 }}>
-
-            {/* Loop */}
             <button
               onClick={() => setIsLoop(l => !l)}
-              style={{
-                ...ctrlBtnStyle(true),
-                color: isLoop ? accent.main : '#aaa',
-              }}
+              style={{ ...ctrlBtnStyle(true), color: isLoop ? accent.main : '#aaa' }}
               title="Repetir"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -773,7 +763,6 @@ export const WaveAudioPlayer = ({
               </button>
             )}
 
-            {/* Accent dots */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '0 8px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginLeft: 8,
@@ -788,9 +777,7 @@ export const WaveAudioPlayer = ({
                     background: c.main, cursor: 'pointer',
                     border: accentIdx === i ? '2px solid #fff' : '2px solid transparent',
                     transform: accentIdx === i ? 'scale(1.25)' : 'scale(1)',
-                    transition: 'all 160ms',
-                    flexShrink: 0,
-                    outline: 'none',
+                    transition: 'all 160ms', flexShrink: 0, outline: 'none',
                   }}
                 />
               ))}
@@ -799,11 +786,8 @@ export const WaveAudioPlayer = ({
         </div>
       </div>
 
-      {/* ── Track info (YouTube style) ── */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', gap: 16,
-        marginTop: 16, padding: '0 4px',
-      }}>
+      {/* ── Track info ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginTop: 16, padding: '0 4px' }}>
         <div style={{
           width: 40, height: 40, borderRadius: 4, flexShrink: 0,
           background: '#212121', border: '1px solid rgba(255,255,255,0.1)',
@@ -822,13 +806,11 @@ export const WaveAudioPlayer = ({
           }}>{title}</div>
           <div style={{
             fontFamily: "'Space Mono', monospace",
-            fontSize: '0.6rem', color: '#aaa',
-            marginTop: 2, letterSpacing: '0.05em',
+            fontSize: '0.6rem', color: '#aaa', marginTop: 2, letterSpacing: '0.05em',
           }}>{subtitle}</div>
         </div>
       </div>
 
-      {/* keyframes inline */}
       <style>{`
         @keyframes wave-pulse {
           0%, 100% { opacity: 1; }
@@ -838,8 +820,6 @@ export const WaveAudioPlayer = ({
     </div>
   )
 }
-
-// ─── helper de estilo de botão de controle ────────────────────────────────────────
 
 const ctrlBtnStyle = (active: boolean): React.CSSProperties => ({
   background: 'none', border: 'none',
