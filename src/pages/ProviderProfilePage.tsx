@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -23,6 +23,7 @@ import { ReviewModal } from '@/components/ReviewModal'
 import { ReviewCard } from '@/components/ReviewCard'
 import { RatingDistribution } from '@/components/RatingDistribution'
 import { MediaViewerModal } from '@/components/MediaViewerModal'
+import { AudioMiniPlayer } from '@/components/AudioMiniPlayer'
 import { useMediaCommentCounts } from '@/hooks/useMediaCommentCounts'
 import type { MediaItem } from '@/types'
 
@@ -138,8 +139,10 @@ export const ProviderProfilePage = () => {
   // ── Media Viewer ──────────────────────────────────────────────────────────
   const [viewerOpen, setViewerOpen] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
-  // Títulos customizados (Opção B) — espelha o que está no Firestore
   const [mediaTitles, setMediaTitles] = useState<Record<string, string>>({})
+
+  // ── AudioMiniPlayer: índice do áudio sendo pré-visualizado ────────────────
+  const [activeMiniIdx, setActiveMiniIdx] = useState(0)
 
   const openViewer = (index: number) => {
     setViewerIndex(index)
@@ -299,6 +302,11 @@ export const ProviderProfilePage = () => {
   const videoStartIdx = photos.length
   const audioStartIdx = photos.length + videos.length
 
+  // Item de áudio atualmente exibido no MiniPlayer
+  const activeMiniItem = audios[activeMiniIdx]
+    ? toMediaItem(audios[activeMiniIdx], 'audio', activeMiniIdx)
+    : null
+
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
       {provider.isMock && (
@@ -439,28 +447,81 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* ── Áudios ── */}
+            {/* ── Áudios: MiniPlayer + lista de tracks ── */}
             {audios.length > 0 && (
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
+              >
+                {/* Cabeçalho da seção */}
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="flex items-center gap-2"><Music className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Áudios</h2></div>
-                  <span className="text-[10px] sm:text-xs text-muted">{audios.length} áudio{audios.length > 1 ? 's' : ''}</span>
+                  <div className="flex items-center gap-2">
+                    <Music className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Áudios</h2>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-muted">
+                    {audios.length} áudio{audios.length > 1 ? 's' : ''}
+                  </span>
                 </div>
-                <div className="space-y-3">
-                  {audios.map((url, i) => {
-                    const count = commentCounts[`audio-${i}`] ?? 0
-                    return (
-                      <div key={i} className="bg-background border border-border rounded-lg p-4 flex items-center gap-4 relative group cursor-pointer hover:border-primary/40 transition-colors" onClick={() => openViewer(audioStartIdx + i)}>
-                        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0"><Music className="w-5 h-5 text-primary" /></div>
-                        <div className="flex-1 min-w-0" onClick={e => e.stopPropagation()}><audio src={url} controls className="w-full" /></div>
-                        <span className="flex items-center gap-1 px-2.5 py-1.5 bg-surface border border-border rounded-full text-muted text-[10px] font-semibold hover:border-primary hover:text-primary transition-colors shrink-0">
-                          <MessageSquare className="w-3 h-3" />
-                          {count > 0 ? (count > 99 ? '99+' : count) : 'Ver'}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+
+                {/* MiniPlayer do áudio ativo */}
+                {activeMiniItem && (
+                  <div className="mb-4">
+                    <AudioMiniPlayer
+                      key={activeMiniItem.id}
+                      src={activeMiniItem.url}
+                      title={activeMiniItem.title}
+                      meta={activeMiniItem.duration
+                        ? `${Math.floor(activeMiniItem.duration / 60)}:${String(activeMiniItem.duration % 60).padStart(2, '0')} · áudio`
+                        : 'Áudio'
+                      }
+                      onOpenGallery={() => openViewer(audioStartIdx + activeMiniIdx)}
+                    />
+                  </div>
+                )}
+
+                {/* Lista de tracks — clique troca o MiniPlayer; ícone de comentários abre o viewer */}
+                {audios.length > 1 && (
+                  <div className="space-y-2">
+                    {audios.map((url, i) => {
+                      const count   = commentCounts[`audio-${i}`] ?? 0
+                      const isActive = i === activeMiniIdx
+                      return (
+                        <div
+                          key={i}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors cursor-pointer
+                            ${
+                              isActive
+                                ? 'border-primary bg-primary/10'
+                                : 'border-border bg-background hover:border-primary/40'
+                            }`}
+                          onClick={() => setActiveMiniIdx(i)}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
+                            ${ isActive ? 'bg-primary' : 'bg-primary/20' }`}>
+                            <Music className={`w-4 h-4 ${ isActive ? 'text-white' : 'text-primary' }`} />
+                          </div>
+                          <span className={`flex-1 text-sm font-medium truncate
+                            ${ isActive ? 'text-white' : 'text-muted' }`}>
+                            Áudio {i + 1}
+                          </span>
+                          {/* Botão de comentários */}
+                          {canComment && (
+                            <button
+                              onClick={e => { e.stopPropagation(); openViewer(audioStartIdx + i) }}
+                              className="flex items-center gap-1 px-2.5 py-1.5 bg-surface border border-border rounded-full text-muted text-[10px] font-semibold hover:border-primary hover:text-primary transition-colors flex-shrink-0"
+                            >
+                              <MessageSquare className="w-3 h-3" />
+                              {count > 0 ? (count > 99 ? '99+' : count) : 'Ver'}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </motion.div>
             )}
 
