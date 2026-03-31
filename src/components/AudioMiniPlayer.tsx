@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Play, Pause, Volume2, VolumeX, Maximize2, Music } from 'lucide-react'
+
+// ─── Cores ciano idênticas ao HTML de referência ───────────────────────────
+const CYAN        = '#22d3ee'
+const CYAN_ALPHA  = (a: number) => `rgba(34,211,238,${a})`
+const BAR_COUNT   = 40
 
 interface AudioMiniPlayerProps {
   src: string
@@ -8,280 +12,392 @@ interface AudioMiniPlayerProps {
   onOpenGallery?: () => void
 }
 
-const BAR_COUNT = 40
-
 export const AudioMiniPlayer = ({
   src,
-  title = 'Áudio',
-  meta,
+  title = 'Nenhum arquivo carregado',
+  meta  = 'Áudio do portfólio',
   onOpenGallery,
 }: AudioMiniPlayerProps) => {
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animFrameRef = useRef<number>(0)
+  const audioRef    = useRef<HTMLAudioElement>(null)
+  const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const animRef     = useRef<number>(0)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null)
-  const barsRef = useRef<number[]>(Array(BAR_COUNT).fill(0.08))
+  const prevVolRef  = useRef(0.8)
 
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [isPlaying,   setIsPlaying]   = useState(false)
+  const [progress,    setProgress]    = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [isMuted, setIsMuted] = useState(false)
-  const [volume, setVolume] = useState(0.8)
-  const [isReady, setIsReady] = useState(false)
+  const [duration,    setDuration]    = useState(0)
+  const [isMuted,     setIsMuted]     = useState(false)
+  const [volume,      setVolume]      = useState(0.8)
+  const [isReady,     setIsReady]     = useState(false)
 
-  // ─── Formatar tempo ───────────────────────────────────────────────────────
+  // ─── helpers ───────────────────────────────────────────────────────────────
   const fmt = (s: number) => {
     if (!isFinite(s)) return '0:00'
-    const m = Math.floor(s / 60)
-    const sec = Math.floor(s % 60)
-    return `${m}:${sec.toString().padStart(2, '0')}`
+    return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
   }
 
-  // ─── Inicializar AudioContext na primeira reprodução ──────────────────────
-  const initAudioContext = useCallback(() => {
-    if (audioCtxRef.current || !audioRef.current) return
-    const ctx = new AudioContext()
-    const analyser = ctx.createAnalyser()
-    analyser.fftSize = 256
-    analyser.smoothingTimeConstant = 0.8
-    const source = ctx.createMediaElementSource(audioRef.current)
-    source.connect(analyser)
-    analyser.connect(ctx.destination)
-    audioCtxRef.current = ctx
-    analyserRef.current = analyser
-    sourceRef.current = source
-  }, [])
-
-  // ─── Loop de animação do waveform ─────────────────────────────────────────
-  const drawBars = useCallback(() => {
+  // ─── idle wave (estática, igual ao drawIdleWave do HTML) ──────────────────
+  const drawIdle = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const W = canvas.width
-    const H = canvas.height
-    const analyser = analyserRef.current
-
-    if (analyser) {
-      const data = new Uint8Array(analyser.frequencyBinCount)
-      analyser.getByteFrequencyData(data)
-      const step = Math.floor(data.length / BAR_COUNT)
-      for (let i = 0; i < BAR_COUNT; i++) {
-        const raw = data[i * step] / 255
-        // suavização exponencial
-        barsRef.current[i] += (raw - barsRef.current[i]) * 0.3
-      }
-    } else {
-      // idle — respira suavemente
-      const t = Date.now() / 1000
-      for (let i = 0; i < BAR_COUNT; i++) {
-        barsRef.current[i] = 0.05 + 0.03 * Math.sin(t * 1.5 + i * 0.4)
-      }
-    }
-
+    const ctx = canvas.getContext('2d')!
+    const W = canvas.width, H = canvas.height
     ctx.clearRect(0, 0, W, H)
-
-    const barW = (W - (BAR_COUNT - 1) * 2) / BAR_COUNT
-    const accentR = 229, accentG = 57, accentB = 53 // --color-primary via CSS var não acessível no canvas
-
+    const bw = (W / BAR_COUNT) - 1.5
     for (let i = 0; i < BAR_COUNT; i++) {
-      const barH = Math.max(3, barsRef.current[i] * H * 0.85)
-      const x = i * (barW + 2)
-      const y = (H - barH) / 2
-      const alpha = 0.4 + barsRef.current[i] * 0.6
-      ctx.fillStyle = `rgba(${accentR}, ${accentG}, ${accentB}, ${alpha})`
-      const radius = Math.min(barW / 2, 3)
-      ctx.beginPath()
-      ctx.roundRect(x, y, barW, barH, radius)
-      ctx.fill()
+      const t = i / BAR_COUNT
+      const h = (Math.sin(t * Math.PI * 2.8) * 0.28 + 0.38) * H * 0.48
+      ctx.fillStyle = CYAN_ALPHA(0.16)
+      ctx.fillRect(i * (bw + 1.5), (H - h) / 2, bw, Math.max(2, h))
     }
-
-    animFrameRef.current = requestAnimationFrame(drawBars)
   }, [])
 
-  // ─── Inicia / pausa animação conforme estado ──────────────────────────────
-  useEffect(() => {
-    cancelAnimationFrame(animFrameRef.current)
-    drawBars()
-    return () => cancelAnimationFrame(animFrameRef.current)
-  }, [drawBars])
+  // ─── loop de visualização (igual ao paintBars do HTML) ────────────────────
+  const drawViz = useCallback(() => {
+    animRef.current = requestAnimationFrame(drawViz)
+    const canvas = canvasRef.current
+    if (!canvas || !analyserRef.current) return
+    const ctx  = canvas.getContext('2d')!
+    const W = canvas.width, H = canvas.height
+    const buf  = new Uint8Array(analyserRef.current.frequencyBinCount)
+    analyserRef.current.getByteFrequencyData(buf)
+    ctx.clearRect(0, 0, W, H)
+    const n    = BAR_COUNT
+    const step = Math.floor(buf.length / n)
+    const bw   = (W / n) - 1.5
+    for (let i = 0; i < n; i++) {
+      let sum = 0
+      for (let j = 0; j < step; j++) sum += buf[i * step + j]
+      const avg  = sum / step
+      const barH = Math.max(2, (avg / 255) * H * 0.9)
+      const alpha = 0.4 + (avg / 255) * 0.6
+      ctx.fillStyle = CYAN_ALPHA(alpha)
+      ctx.fillRect(i * (bw + 1.5), (H - barH) / 2, bw, barH)
+    }
+  }, [])
 
-  // ─── Cleanup ao desmontar ─────────────────────────────────────────────────
+  // ─── AudioContext (criado só no primeiro gesto) ────────────────────────────
+  const initCtx = useCallback(() => {
+    if (audioCtxRef.current || !audioRef.current) return
+    const actx     = new AudioContext()
+    const analyser = actx.createAnalyser()
+    analyser.fftSize = 128
+    actx.createMediaElementSource(audioRef.current).connect(analyser)
+    analyser.connect(actx.destination)
+    audioCtxRef.current = actx
+    analyserRef.current = analyser
+  }, [])
+
+  // ─── Desenha idle na montagem e troca de src ──────────────────────────────
+  useEffect(() => {
+    drawIdle()
+  }, [drawIdle, src])
+
+  // ─── Cleanup ──────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      cancelAnimationFrame(animFrameRef.current)
+      cancelAnimationFrame(animRef.current)
       audioCtxRef.current?.close()
     }
   }, [])
 
-  // ─── Sync de eventos do elemento <audio> ─────────────────────────────────
+  // ─── Eventos do <audio> ───────────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    audio.volume = volume
 
-    const onLoaded = () => {
-      setDuration(audio.duration)
-      setIsReady(true)
-    }
-    const onTimeUpdate = () => {
+    const onMeta  = () => { setDuration(audio.duration); setIsReady(true) }
+    const onTime  = () => {
       setCurrentTime(audio.currentTime)
       setProgress(audio.duration ? audio.currentTime / audio.duration : 0)
     }
-    const onEnded = () => setIsPlaying(false)
+    const onPlay  = () => {
+      setIsPlaying(true)
+      cancelAnimationFrame(animRef.current)
+      drawViz()
+    }
+    const onPause = () => {
+      setIsPlaying(false)
+      cancelAnimationFrame(animRef.current)
+      animRef.current = 0
+      drawIdle()
+    }
+    const onEnded = () => {
+      setIsPlaying(false)
+      setProgress(0)
+      cancelAnimationFrame(animRef.current)
+      animRef.current = 0
+      drawIdle()
+    }
 
-    audio.addEventListener('loadedmetadata', onLoaded)
-    audio.addEventListener('timeupdate', onTimeUpdate)
-    audio.addEventListener('ended', onEnded)
-    audio.volume = volume
+    audio.addEventListener('loadedmetadata', onMeta)
+    audio.addEventListener('timeupdate',     onTime)
+    audio.addEventListener('play',           onPlay)
+    audio.addEventListener('pause',          onPause)
+    audio.addEventListener('ended',          onEnded)
 
     return () => {
-      audio.removeEventListener('loadedmetadata', onLoaded)
-      audio.removeEventListener('timeupdate', onTimeUpdate)
-      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('loadedmetadata', onMeta)
+      audio.removeEventListener('timeupdate',     onTime)
+      audio.removeEventListener('play',           onPlay)
+      audio.removeEventListener('pause',          onPause)
+      audio.removeEventListener('ended',          onEnded)
     }
-  }, [src])
+  }, [src, drawViz, drawIdle])
 
-  // ─── Toggle play / pause ──────────────────────────────────────────────────
+  // ─── Play / Pause ─────────────────────────────────────────────────────────
   const togglePlay = async () => {
     const audio = audioRef.current
-    if (!audio) return
-    if (!audioCtxRef.current) initAudioContext()
-    if (audioCtxRef.current?.state === 'suspended') {
-      await audioCtxRef.current.resume()
-    }
-    if (isPlaying) {
-      audio.pause()
-      setIsPlaying(false)
-    } else {
-      await audio.play()
-      setIsPlaying(true)
-    }
+    if (!audio || !isReady) return
+    initCtx()
+    if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
+    audio.paused ? await audio.play() : audio.pause()
   }
 
-  // ─── Seek por clique na barra de progresso ────────────────────────────────
+  // ─── Seek ─────────────────────────────────────────────────────────────────
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current
-    if (!audio || !duration) return
+    if (!audio || !isFinite(duration)) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const ratio = (e.clientX - rect.left) / rect.width
-    audio.currentTime = ratio * duration
+    audio.currentTime = ((e.clientX - rect.left) / rect.width) * duration
   }
 
   // ─── Volume ───────────────────────────────────────────────────────────────
   const handleVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value)
     setVolume(v)
+    setIsMuted(v === 0)
     if (audioRef.current) audioRef.current.volume = v
-    if (v === 0) setIsMuted(true)
-    else setIsMuted(false)
   }
 
   const toggleMute = () => {
     const audio = audioRef.current
     if (!audio) return
-    const next = !isMuted
-    audio.muted = next
-    setIsMuted(next)
+    if (volume > 0) {
+      prevVolRef.current = volume
+      audio.volume = 0
+      setVolume(0)
+      setIsMuted(true)
+    } else {
+      audio.volume = prevVolRef.current
+      setVolume(prevVolRef.current)
+      setIsMuted(false)
+    }
+  }
+
+  // ─── Estilos inline fiéis ao CSS do HTML ──────────────────────────────────
+  const cardStyle: React.CSSProperties = {
+    width: '100%',
+    background: '#141518',
+    border: `1px solid ${isPlaying ? 'rgba(34,211,238,0.28)' : 'rgba(255,255,255,0.07)'}`,
+    borderRadius: '1rem',
+    padding: '1.25rem 1.5rem 1.125rem',
+    position: 'relative',
+    overflow: 'hidden',
+    transition: 'border-color 220ms cubic-bezier(0.16,1,0.3,1), box-shadow 220ms cubic-bezier(0.16,1,0.3,1)',
+    boxShadow: isPlaying ? '0 0 0 1px rgba(34,211,238,0.07), 0 10px 40px rgba(0,0,0,0.45)' : 'none',
+    fontFamily: "'Inter', system-ui, sans-serif",
+  }
+
+  const glowOverlay: React.CSSProperties = {
+    content: '',
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(135deg, rgba(34,211,238,0.10) 0%, transparent 55%)',
+    opacity: isPlaying ? 1 : 0,
+    transition: 'opacity 300ms cubic-bezier(0.16,1,0.3,1)',
+    pointerEvents: 'none',
+  }
+
+  const playBtnStyle: React.CSSProperties = {
+    width: 44, height: 44,
+    borderRadius: '50%',
+    background: isPlaying ? CYAN : '#1a1c20',
+    border: `1px solid ${isPlaying ? CYAN : 'rgba(255,255,255,0.07)'}`,
+    color: isPlaying ? '#0e0f11' : '#e2e4e9',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: isReady ? 'pointer' : 'not-allowed',
+    flexShrink: 0,
+    boxShadow: isPlaying ? '0 0 18px rgba(34,211,238,0.22)' : 'none',
+    transition: 'background 180ms, border-color 180ms, color 180ms',
+    opacity: isReady ? 1 : 0.4,
+    outline: 'none',
   }
 
   return (
-    <div className="w-full bg-surface border border-border rounded-2xl overflow-hidden">
-      {/* Elemento de áudio oculto */}
+    <div style={cardStyle}>
+      {/* overlay de brilho */}
+      <div style={glowOverlay} />
+
       <audio ref={audioRef} src={src} preload="metadata" />
 
-      {/* Cabeçalho */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-          <Music className="w-5 h-5 text-primary" />
+      {/* ── TOP ROW: play | info | waveform ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '44px 1fr 120px',
+        columnGap: '1rem',
+        alignItems: 'center',
+        marginBottom: '0.9rem',
+        position: 'relative',
+        zIndex: 1,
+      }}>
+        {/* Botão play */}
+        <button style={playBtnStyle} onClick={togglePlay} aria-label="Play / Pause">
+          {isPlaying ? (
+            // Pause — dois retângulos idênticos ao SVG do HTML
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6"  y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          ) : (
+            // Play
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 2 }}>
+              <path d="M6 4l14 8-14 8V4z" />
+            </svg>
+          )}
+        </button>
+
+        {/* Info */}
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+          <span style={{
+            fontSize: '0.9375rem', fontWeight: 500, color: '#e2e4e9',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {title}
+          </span>
+          <span style={{
+            fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+            fontSize: '0.6875rem', color: '#6b7280',
+            letterSpacing: '0.05em',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {meta}
+          </span>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{title}</p>
-          {meta && <p className="text-xs text-muted">{meta}</p>}
+
+        {/* Waveform compacto 120×44 */}
+        <div style={{ width: 120, height: 44, flexShrink: 0 }}>
+          <canvas
+            ref={canvasRef}
+            width={240}
+            height={88}
+            style={{ display: 'block', width: '100%', height: '100%' }}
+          />
         </div>
-        {onOpenGallery && (
+      </div>
+
+      {/* ── PROGRESS ROW ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0.75rem',
+        marginBottom: '0.75rem', position: 'relative', zIndex: 1,
+      }}>
+        {/* Seek track */}
+        <div
+          onClick={handleSeek}
+          style={{
+            flex: 1, height: 3,
+            background: '#374151',
+            borderRadius: 9999,
+            cursor: 'pointer',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{
+            height: '100%',
+            background: CYAN,
+            borderRadius: 9999,
+            width: `${progress * 100}%`,
+            transition: 'width 80ms linear',
+          }} />
+        </div>
+
+        {/* Tempo */}
+        <span style={{
+          fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+          fontSize: '0.6875rem', color: '#6b7280',
+          letterSpacing: '0.04em',
+          flexShrink: 0, minWidth: 80, textAlign: 'right',
+        }}>
+          {fmt(currentTime)} / {fmt(duration)}
+        </span>
+      </div>
+
+      {/* ── BOTTOM ROW: abrir + volume ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', gap: '1rem',
+        position: 'relative', zIndex: 1,
+      }}>
+        {/* Botão ABRIR */}
+        {onOpenGallery ? (
           <button
             onClick={onOpenGallery}
-            title="Abrir na galeria"
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+              fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+              fontSize: '0.6875rem', color: CYAN,
+              cursor: 'pointer', letterSpacing: '0.07em',
+              background: 'none', border: 'none', padding: 0,
+              opacity: 0.65,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '0.65')}
           >
-            <Maximize2 className="w-3.5 h-3.5" />
-            <span>ABRIR</span>
+            {/* ícone ⤢ expand */}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+            ABRIR
           </button>
+        ) : (
+          <span />
         )}
-      </div>
-
-      {/* Waveform Canvas */}
-      <div className="px-4 py-2">
-        <canvas
-          ref={canvasRef}
-          width={600}
-          height={48}
-          className="w-full h-12 rounded-lg"
-        />
-      </div>
-
-      {/* Barra de progresso (seek) */}
-      <div className="px-4 pb-1">
-        <div
-          className="relative h-1.5 bg-border rounded-full cursor-pointer group"
-          onClick={handleSeek}
-        >
-          <div
-            className="absolute inset-y-0 left-0 bg-primary rounded-full transition-all"
-            style={{ width: `${progress * 100}%` }}
-          />
-          {/* thumb */}
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ left: `calc(${progress * 100}% - 6px)` }}
-          />
-        </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-[10px] text-muted tabular-nums">{fmt(currentTime)}</span>
-          <span className="text-[10px] text-muted tabular-nums">{fmt(duration)}</span>
-        </div>
-      </div>
-
-      {/* Controles */}
-      <div className="flex items-center gap-3 px-4 pb-4">
-        {/* Play / Pause */}
-        <button
-          onClick={togglePlay}
-          disabled={!isReady}
-          className="w-10 h-10 rounded-full bg-primary flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40 flex-shrink-0 shadow-md"
-        >
-          {isPlaying ? (
-            <Pause className="w-4 h-4 text-white" />
-          ) : (
-            <Play className="w-4 h-4 text-white ml-0.5" />
-          )}
-        </button>
 
         {/* Volume */}
-        <button
-          onClick={toggleMute}
-          className="flex-shrink-0 text-muted hover:text-foreground transition-colors"
-        >
-          {isMuted || volume === 0 ? (
-            <VolumeX className="w-4 h-4" />
-          ) : (
-            <Volume2 className="w-4 h-4" />
-          )}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <button
+            onClick={toggleMute}
+            style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', lineHeight: 0, padding: 0 }}
+          >
+            {isMuted || volume === 0 ? (
+              // muted X
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                <line x1="23" y1="9" x2="17" y2="15" />
+                <line x1="17" y1="9" x2="23" y2="15" />
+              </svg>
+            ) : (
+              // volume on
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              </svg>
+            )}
+          </button>
 
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={isMuted ? 0 : volume}
-          onChange={handleVolume}
-          className="flex-1 h-1 accent-primary cursor-pointer"
-        />
+          <input
+            type="range"
+            min={0} max={1} step={0.01}
+            value={isMuted ? 0 : volume}
+            onChange={handleVolume}
+            style={{
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              width: 72, height: 3,
+              background: '#374151',
+              borderRadius: 9999,
+              outline: 'none',
+              cursor: 'pointer',
+              accentColor: CYAN,
+            }}
+          />
+        </div>
       </div>
     </div>
   )
