@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Camera, Save, ArrowLeft, Upload, X, Play, Music, Image as ImageIcon,
   Video, Loader2, AlertCircle, CheckCircle, GripVertical, Trash2, Plus,
-  Sparkles, FileAudio, Instagram, Facebook, Youtube, MessageCircle, Globe, Link2
+  Sparkles, FileAudio, Instagram, Facebook, Youtube, MessageCircle, Globe, Link2, Mic
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
@@ -12,9 +12,11 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject }
 import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { storage, db } from '@/lib/firebase'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
+import { AudioRecorder } from '@/components/AudioRecorder'
 import { SocialLinks } from '@/types'
 
 type TabType = 'fotos' | 'videos' | 'audios' | 'dados'
+type AudioTab = 'upload' | 'record'
 
 interface MediaItem {
   id: string
@@ -30,6 +32,7 @@ export const EditProviderProfilePage = () => {
   const { user } = useSimpleAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabType>('fotos')
+  const [audioTab, setAudioTab] = useState<AudioTab>('upload')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [uploadError, setUploadError] = useState('')
@@ -242,6 +245,27 @@ export const EditProviderProfilePage = () => {
       }
     }
     if (audioInputRef.current) audioInputRef.current.value = ''
+  }
+
+  // Gravação direta: recebe o File do AudioRecorder e faz upload
+  const handleRecordedAudio = async (file: File) => {
+    if (!user?.id) return
+    if (audios.length >= 3) { setUploadError('Máximo de 3 áudios'); return }
+    setUploadError('')
+    const tempId = `rec-audio-${Date.now()}`
+    const tempItem: MediaItem = { id: tempId, url: URL.createObjectURL(file), type: 'audio', title: file.name, uploading: true, progress: 0 }
+    setAudios(prev => [...prev, tempItem])
+    try {
+      const url = await uploadFile(
+        file,
+        `portfolio/${user.id}/audios/${Date.now()}_${file.name}`,
+        (progress) => setAudios(prev => prev.map(a => a.id === tempId ? { ...a, progress } : a))
+      )
+      setAudios(prev => prev.map(a => a.id === tempId ? { ...a, url, uploading: false, file: undefined } : a))
+    } catch {
+      setAudios(prev => prev.filter(a => a.id !== tempId))
+      setUploadError('Erro ao fazer upload da gravação')
+    }
   }
 
   const addYouTubeVideo = () => {
@@ -487,20 +511,76 @@ export const EditProviderProfilePage = () => {
             <motion.div key="audios" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
               <div className="bg-surface border border-border rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div><h2 className="text-lg font-bold text-white">Áudios</h2><p className="text-sm text-muted">Até 3 arquivos de áudio</p></div>
-                  <button onClick={() => audioInputRef.current?.click()} disabled={audios.length >= 3} className="flex items-center gap-2 px-4 py-2 bg-primary text-background font-bold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 text-sm"><Plus className="w-4 h-4" />Adicionar</button>
+                  <div><h2 className="text-lg font-bold text-white">Áudios</h2><p className="text-sm text-muted">Até 3 áudios — upload ou gravação direta (máx. 1 min)</p></div>
                 </div>
+
+                {/* Sub-abas Upload / Gravar */}
+                {audios.length < 3 && (
+                  <div className="rounded-xl border border-border overflow-hidden mb-5">
+                    <div className="flex border-b border-border">
+                      <button
+                        onClick={() => setAudioTab('upload')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors ${
+                          audioTab === 'upload' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted hover:text-white'
+                        }`}
+                      >
+                        <Upload className="w-3.5 h-3.5" />Upload de áudio
+                      </button>
+                      <button
+                        onClick={() => setAudioTab('record')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors ${
+                          audioTab === 'record' ? 'bg-primary/10 text-primary border-b-2 border-primary' : 'text-muted hover:text-white'
+                        }`}
+                      >
+                        <Mic className="w-3.5 h-3.5" />Gravar agora
+                      </button>
+                    </div>
+                    <div className="p-3">
+                      {audioTab === 'upload' ? (
+                        <button
+                          onClick={() => audioInputRef.current?.click()}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-border rounded-xl hover:border-primary hover:bg-primary/5 transition-colors text-sm font-semibold text-white"
+                        >
+                          <FileAudio className="w-4 h-4 text-primary" />Selecionar arquivo de áudio
+                        </button>
+                      ) : (
+                        <AudioRecorder
+                          onSave={handleRecordedAudio}
+                          disabled={audios.length >= 3}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de áudios */}
                 {audios.length === 0 ? (
-                  <div className="border-2 border-dashed border-border rounded-xl p-12 text-center"><FileAudio className="w-12 h-12 text-muted mx-auto mb-4" /><p className="text-muted mb-4">Nenhum áudio adicionado</p><button onClick={() => audioInputRef.current?.click()} className="px-4 py-2 bg-primary text-background font-bold rounded-lg hover:bg-primary-dark transition-colors text-sm">Adicionar Áudios</button></div>
+                  <div className="border-2 border-dashed border-border rounded-xl p-10 text-center">
+                    <FileAudio className="w-12 h-12 text-muted mx-auto mb-3" />
+                    <p className="text-muted text-sm">Nenhum áudio adicionado</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {audios.map(audio => (
                       <div key={audio.id} className="bg-background border border-border rounded-lg p-4 flex items-center gap-4">
                         <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center shrink-0"><Music className="w-5 h-5 text-primary" /></div>
                         <div className="flex-1 min-w-0">
-                          {audio.uploading ? (<div><p className="text-white text-sm mb-1">Enviando...</p><div className="w-full bg-background-dark rounded-full h-2"><div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${audio.progress}%` }} /></div></div>) : (<audio src={audio.url} controls className="w-full" />)}
+                          {audio.uploading ? (
+                            <div>
+                              <p className="text-white text-sm mb-1">Enviando...</p>
+                              <div className="w-full bg-background-dark rounded-full h-2">
+                                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${audio.progress}%` }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <audio src={audio.url} controls className="w-full" />
+                          )}
                         </div>
-                        {!audio.uploading && (<button onClick={() => removeItem('audio', audio.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>)}
+                        {!audio.uploading && (
+                          <button onClick={() => removeItem('audio', audio.id)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
