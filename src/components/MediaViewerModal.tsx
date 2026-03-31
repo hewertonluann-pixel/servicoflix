@@ -12,6 +12,7 @@ import { CommentSection } from '@/components/CommentSection'
 import type { MediaItem } from '@/types'
 import type { CommentUser } from '@/hooks/useComments'
 import { YouTubeEmbed, isValidYouTubeUrl } from '@/components/YouTubeEmbed'
+import { WaveAudioPlayer } from '@/components/WaveAudioPlayer'
 
 interface Props {
   isOpen: boolean
@@ -76,7 +77,7 @@ export const MediaViewerModal = ({
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
 
-  // ── Sai do fullscreen ao fechar o modal ──────────────────────────────────
+  // ── Sai do fullscreen ao fechar o modal ───────────────────────────────
   useEffect(() => {
     if (!isOpen && document.fullscreenElement) {
       document.exitFullscreen().catch(() => {})
@@ -88,7 +89,7 @@ export const MediaViewerModal = ({
   const next = useCallback(() =>
     setIdx(i => (i < items.length - 1 ? i + 1 : 0)), [items.length])
 
-  // ── Auto-hide do header no fullscreen ────────────────────────────────────
+  // ── Auto-hide do header no fullscreen ────────────────────────────────
   const resetHideTimer = useCallback(() => {
     setHeaderVisible(true)
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
@@ -125,7 +126,7 @@ export const MediaViewerModal = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, idx, editingTitle, fullscreen])
 
-  // ── Toggle Fullscreen ────────────────────────────────────────────────────
+  // ── Toggle Fullscreen ─────────────────────────────────────────────────
   const toggleFullscreen = async () => {
     const el = containerRef.current
     if (!el) return
@@ -136,12 +137,11 @@ export const MediaViewerModal = ({
         await document.exitFullscreen()
       }
     } catch {
-      // Fallback: usa estado CSS puro (alguns browsers bloqueiam a API)
       setFullscreen(f => !f)
     }
   }
 
-  // ── Edição de título ─────────────────────────────────────────────────────
+  // ── Edição de título ────────────────────────────────────────────────────
   const startEdit = () => {
     setTitleDraft(getTitle(item))
     setEditingTitle(true)
@@ -189,7 +189,6 @@ export const MediaViewerModal = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          // Quando fullscreen via CSS-fallback: ocupa toda a viewport com z altíssimo
           className={
             fullscreen && !document.fullscreenElement
               ? 'fixed inset-0 z-[9999] bg-black flex flex-col'
@@ -207,7 +206,7 @@ export const MediaViewerModal = ({
             onClick={e => e.stopPropagation()}
             onMouseMove={fullscreen ? resetHideTimer : undefined}
           >
-            {/* ── Header ────────────────────────────────────────────────── */}
+            {/* ── Header ───────────────────────────────────────────────── */}
             <div
               className={`flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-black/80 backdrop-blur-sm shrink-0 transition-all duration-300 ${
                 fullscreen
@@ -260,7 +259,6 @@ export const MediaViewerModal = ({
                 </button>
               )}
 
-              {/* Botão Fullscreen */}
               <button
                 onClick={toggleFullscreen}
                 className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white"
@@ -269,13 +267,12 @@ export const MediaViewerModal = ({
                 {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </button>
 
-              {/* Fechar */}
               <button onClick={onClose} className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* ── Corpo: mídia + comentários ────────────────────────────── */}
+            {/* ── Corpo: mídia + comentários ───────────────────────────────── */}
             <div className={`flex min-h-0 ${fullscreen ? 'flex-1' : 'flex flex-col md:flex-row flex-1'}`}>
 
               {/* Seta esquerda desktop */}
@@ -290,7 +287,7 @@ export const MediaViewerModal = ({
                 </button>
               )}
 
-              {/* ── Painel mídia ──────────────────────────────────────────── */}
+              {/* ── Painel mídia ─────────────────────────────────────────────── */}
               <div className={`flex items-center justify-center bg-black relative min-h-[40vh] md:min-h-0 ${fullscreen ? 'w-full h-full' : 'flex-1'}`}>
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -301,6 +298,7 @@ export const MediaViewerModal = ({
                     transition={{ duration: 0.15 }}
                     className="w-full h-full flex items-center justify-center p-4"
                   >
+                    {/* FOTO */}
                     {item.type === 'photo' && (
                       <img
                         src={item.url}
@@ -314,6 +312,7 @@ export const MediaViewerModal = ({
                       />
                     )}
 
+                    {/* VÍDEO */}
                     {item.type === 'video' && (
                       isValidYouTubeUrl(item.url)
                         ? <div className={fullscreen ? 'w-full max-w-5xl' : 'w-full max-w-2xl'}>
@@ -327,19 +326,24 @@ export const MediaViewerModal = ({
                           />
                     )}
 
+                    {/* ÁUDIO — WaveAudioPlayer */}
                     {item.type === 'audio' && (
-                      <div className="flex flex-col items-center gap-6 p-8">
-                        <div className="w-24 h-24 bg-gradient-to-br from-primary to-purple-500 rounded-full flex items-center justify-center">
-                          <Music className="w-12 h-12 text-white" />
-                        </div>
-                        <p className="text-white font-semibold text-lg">{getTitle(item)}</p>
-                        <audio src={item.url} controls className="w-72 max-w-full" />
+                      <div className="w-full max-w-2xl px-2">
+                        <WaveAudioPlayer
+                          key={item.id}
+                          src={item.url}
+                          title={getTitle(item)}
+                          subtitle={item.id}
+                          onNext={items.length > 1 ? next : undefined}
+                          onPrev={items.length > 1 ? prev : undefined}
+                          hasNext={items.length > 1}
+                          hasPrev={items.length > 1}
+                        />
                       </div>
                     )}
                   </motion.div>
                 </AnimatePresence>
 
-                {/* Hint duplo-clique para fotos em fullscreen */}
                 {fullscreen && item.type === 'photo' && (
                   <span className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/40 select-none pointer-events-none">
                     Duplo clique para sair
@@ -361,7 +365,7 @@ export const MediaViewerModal = ({
                 </button>
               )}
 
-              {/* ── Painel comentários (oculto em fullscreen) ─────────────── */}
+              {/* ── Painel comentários (oculto em fullscreen) ─────────────────── */}
               {!fullscreen && (
                 <div className="w-full md:w-80 lg:w-96 flex flex-col border-t md:border-t-0 md:border-l border-white/10 bg-background shrink-0">
                   <div className="px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
@@ -381,7 +385,7 @@ export const MediaViewerModal = ({
               )}
             </div>
 
-            {/* ── Tira de thumbnails (oculta em fullscreen) ──────────────── */}
+            {/* ── Tira de thumbnails (oculta em fullscreen) ───────────────────── */}
             {items.length > 1 && !fullscreen && (
               <div className="shrink-0 flex gap-2 px-4 py-2 bg-black/60 border-t border-white/10 overflow-x-auto">
                 {items.map((it, i) => (
