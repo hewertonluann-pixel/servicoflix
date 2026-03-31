@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-// ─── Cores ciano idênticas ao HTML de referência ───────────────────────────
 const CYAN        = '#22d3ee'
 const CYAN_ALPHA  = (a: number) => `rgba(34,211,238,${a})`
 const BAR_COUNT   = 40
@@ -23,6 +22,8 @@ export const AudioMiniPlayer = ({
   const animRef     = useRef<number>(0)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
+  const gainRef     = useRef<GainNode | null>(null)          // FIX: GainNode separado
+  const sourceRef   = useRef<MediaElementAudioSourceNode | null>(null) // FIX: rastreia source
   const prevVolRef  = useRef(0.8)
 
   const [isPlaying,   setIsPlaying]   = useState(false)
@@ -33,13 +34,12 @@ export const AudioMiniPlayer = ({
   const [volume,      setVolume]      = useState(0.8)
   const [isReady,     setIsReady]     = useState(false)
 
-  // ─── helpers ───────────────────────────────────────────────────────────────
   const fmt = (s: number) => {
     if (!isFinite(s)) return '0:00'
     return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
   }
 
-  // ─── idle wave (estática, igual ao drawIdleWave do HTML) ──────────────────
+  // ─── Idle wave ─────────────────────────────────────────────────────────────────────
   const drawIdle = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -55,7 +55,7 @@ export const AudioMiniPlayer = ({
     }
   }, [])
 
-  // ─── loop de visualização (igual ao paintBars do HTML) ────────────────────
+  // ─── Visualizer loop ────────────────────────────────────────────────────────
   const drawViz = useCallback(() => {
     animRef.current = requestAnimationFrame(drawViz)
     const canvas = canvasRef.current
@@ -79,24 +79,66 @@ export const AudioMiniPlayer = ({
     }
   }, [])
 
-  // ─── AudioContext (criado só no primeiro gesto) ────────────────────────────
+  // ─── AudioContext ───────────────────────────────────────────────────────────────
   const initCtx = useCallback(() => {
-    if (audioCtxRef.current || !audioRef.current) return
+    if (!audioRef.current) return
+
+    // Se AudioContext já existe mas source foi perdido (troca de src)
+    if (audioCtxRef.current) {
+      if (!sourceRef.current) {
+        try {
+          const source = audioCtxRef.current.createMediaElementSource(audioRef.current)
+          // FIX ALT2: topologia paralela
+          source.connect(gainRef.current!)
+          source.connect(analyserRef.current!)
+          sourceRef.current = source
+        } catch (err) {
+          // FIX ALT3: log visível
+          console.error('[AudioMiniPlayer] createMediaElementSource (reconnect) falhou:', err)
+        }
+      }
+      return
+    }
+
     const actx     = new AudioContext()
     const analyser = actx.createAnalyser()
     analyser.fftSize = 128
-    actx.createMediaElementSource(audioRef.current).connect(analyser)
-    analyser.connect(actx.destination)
+
+    const gain = actx.createGain()
+    gain.gain.value = prevVolRef.current
+    // FIX ALT2: gain → destination direto, som nunca bloqueado pelo analyser
+    gain.connect(actx.destination)
+
+    try {
+      const source = actx.createMediaElementSource(audioRef.current)
+      // FIX ALT2: paralelo — source vai para gain E para analyser separadamente
+      source.connect(gain)
+      source.connect(analyser)
+      // analyser NÃO conecta ao destination — só leitura
+      sourceRef.current = source
+    } catch (err) {
+      // FIX ALT3: log visível
+      console.error('[AudioMiniPlayer] createMediaElementSource falhou:', err)
+      // Fallback: som sai pelo pipeline nativo, visualizador fica estático
+    }
+
     audioCtxRef.current = actx
     analyserRef.current = analyser
+    gainRef.current     = gain
   }, [])
 
-  // ─── Desenha idle na montagem e troca de src ──────────────────────────────
+  // ─── Reinicia ao trocar src ─────────────────────────────────────────────────────
   useEffect(() => {
+    setIsReady(false)
+    setIsPlaying(false)
+    setProgress(0)
+    setCurrentTime(0)
+    setDuration(0)
+    sourceRef.current = null   // FIX: força recriação do source na próxima play
     drawIdle()
-  }, [drawIdle, src])
+  }, [src, drawIdle])
 
-  // ─── Cleanup ──────────────────────────────────────────────────────────────
+  // ─── Cleanup ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current)
@@ -104,7 +146,7 @@ export const AudioMiniPlayer = ({
     }
   }, [])
 
-  // ─── Eventos do <audio> ───────────────────────────────────────────────────
+  // ─── Eventos do <audio> ──────────────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
@@ -147,18 +189,20 @@ export const AudioMiniPlayer = ({
       audio.removeEventListener('pause',          onPause)
       audio.removeEventListener('ended',          onEnded)
     }
-  }, [src, drawViz, drawIdle])
+  }, [src, drawViz, drawIdle, volume])
 
-  // ─── Play / Pause ─────────────────────────────────────────────────────────
+  // ─── Play / Pause ────────────────────────────────────────────────────────────
   const togglePlay = async () => {
     const audio = audioRef.current
     if (!audio || !isReady) return
     initCtx()
     if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
+    // FIX: sincroniza gain com volume atual antes de tocar
+    if (gainRef.current) gainRef.current.gain.value = volume
     audio.paused ? await audio.play() : audio.pause()
   }
 
-  // ─── Seek ─────────────────────────────────────────────────────────────────
+  // ─── Seek ──────────────────────────────────────────────────────────────────────
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current
     if (!audio || !isFinite(duration)) return
@@ -166,12 +210,14 @@ export const AudioMiniPlayer = ({
     audio.currentTime = ((e.clientX - rect.left) / rect.width) * duration
   }
 
-  // ─── Volume ───────────────────────────────────────────────────────────────
+  // ─── Volume ─────────────────────────────────────────────────────────────────────
   const handleVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value)
     setVolume(v)
+    prevVolRef.current = v > 0 ? v : prevVolRef.current
     setIsMuted(v === 0)
-    if (audioRef.current) audioRef.current.volume = v
+    if (gainRef.current) gainRef.current.gain.value = v
+    else if (audioRef.current) audioRef.current.volume = v
   }
 
   const toggleMute = () => {
@@ -179,17 +225,18 @@ export const AudioMiniPlayer = ({
     if (!audio) return
     if (volume > 0) {
       prevVolRef.current = volume
-      audio.volume = 0
-      setVolume(0)
-      setIsMuted(true)
+      setVolume(0); setIsMuted(true)
+      if (gainRef.current) gainRef.current.gain.value = 0
+      else audio.volume = 0
     } else {
-      audio.volume = prevVolRef.current
-      setVolume(prevVolRef.current)
-      setIsMuted(false)
+      const v = prevVolRef.current
+      setVolume(v); setIsMuted(false)
+      if (gainRef.current) gainRef.current.gain.value = v
+      else audio.volume = v
     }
   }
 
-  // ─── Estilos inline fiéis ao CSS do HTML ──────────────────────────────────
+  // ─── Estilos ─────────────────────────────────────────────────────────────────────
   const cardStyle: React.CSSProperties = {
     width: '100%',
     background: '#141518',
@@ -228,14 +275,15 @@ export const AudioMiniPlayer = ({
     outline: 'none',
   }
 
+  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <div style={cardStyle}>
-      {/* overlay de brilho */}
       <div style={glowOverlay} />
 
-      <audio ref={audioRef} src={src} preload="metadata" />
+      {/* FIX ALT1: crossOrigin="anonymous" para permitir Web Audio API com URLs do Firebase */}
+      <audio ref={audioRef} src={src} preload="metadata" crossOrigin="anonymous" />
 
-      {/* ── TOP ROW: play | info | waveform ── */}
+      {/* ── TOP ROW ── */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '44px 1fr 120px',
@@ -245,23 +293,19 @@ export const AudioMiniPlayer = ({
         position: 'relative',
         zIndex: 1,
       }}>
-        {/* Botão play */}
         <button style={playBtnStyle} onClick={togglePlay} aria-label="Play / Pause">
           {isPlaying ? (
-            // Pause — dois retângulos idênticos ao SVG do HTML
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <rect x="6"  y="4" width="4" height="16" rx="1" />
               <rect x="14" y="4" width="4" height="16" rx="1" />
             </svg>
           ) : (
-            // Play
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginLeft: 2 }}>
               <path d="M6 4l14 8-14 8V4z" />
             </svg>
           )}
         </button>
 
-        {/* Info */}
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
           <span style={{
             fontSize: '0.9375rem', fontWeight: 500, color: '#e2e4e9',
@@ -279,7 +323,6 @@ export const AudioMiniPlayer = ({
           </span>
         </div>
 
-        {/* Waveform compacto 120×44 */}
         <div style={{ width: 120, height: 44, flexShrink: 0 }}>
           <canvas
             ref={canvasRef}
@@ -295,7 +338,6 @@ export const AudioMiniPlayer = ({
         display: 'flex', alignItems: 'center', gap: '0.75rem',
         marginBottom: '0.75rem', position: 'relative', zIndex: 1,
       }}>
-        {/* Seek track */}
         <div
           onClick={handleSeek}
           style={{
@@ -316,7 +358,6 @@ export const AudioMiniPlayer = ({
           }} />
         </div>
 
-        {/* Tempo */}
         <span style={{
           fontFamily: "'JetBrains Mono', 'Courier New', monospace",
           fontSize: '0.6875rem', color: '#6b7280',
@@ -327,13 +368,12 @@ export const AudioMiniPlayer = ({
         </span>
       </div>
 
-      {/* ── BOTTOM ROW: abrir + volume ── */}
+      {/* ── BOTTOM ROW ── */}
       <div style={{
         display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', gap: '1rem',
         position: 'relative', zIndex: 1,
       }}>
-        {/* Botão ABRIR */}
         {onOpenGallery ? (
           <button
             onClick={onOpenGallery}
@@ -348,7 +388,6 @@ export const AudioMiniPlayer = ({
             onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
             onMouseLeave={e => (e.currentTarget.style.opacity = '0.65')}
           >
-            {/* ícone ⤢ expand */}
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
             </svg>
@@ -358,21 +397,18 @@ export const AudioMiniPlayer = ({
           <span />
         )}
 
-        {/* Volume */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
           <button
             onClick={toggleMute}
             style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', lineHeight: 0, padding: 0 }}
           >
             {isMuted || volume === 0 ? (
-              // muted X
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M11 5L6 9H2v6h4l5 4V5z" />
                 <line x1="23" y1="9" x2="17" y2="15" />
                 <line x1="17" y1="9" x2="23" y2="15" />
               </svg>
             ) : (
-              // volume on
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M11 5L6 9H2v6h4l5 4V5z" />
                 <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
