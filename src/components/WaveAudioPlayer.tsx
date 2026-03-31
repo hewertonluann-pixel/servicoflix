@@ -1,19 +1,25 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import {
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  SkipBack,
-  SkipForward,
-  Music,
-} from 'lucide-react'
 
+// ─── Cores e tipos ────────────────────────────────────────────────────────────
 type VisualMode = 'bars' | 'wave' | 'circle'
 
-interface WaveAudioPlayerProps {
+interface AccentColor {
+  label: string
+  main: string
+  glow: string
+}
+
+const ACCENT_COLORS: AccentColor[] = [
+  { label: 'Ciano',   main: '#00d4ff', glow: 'rgba(0,212,255,0.5)'  },
+  { label: 'Verde',   main: '#00ff88', glow: 'rgba(0,255,136,0.4)'  },
+  { label: 'Roxo',    main: '#a855f7', glow: 'rgba(168,85,247,0.5)' },
+  { label: 'Laranja', main: '#f97316', glow: 'rgba(249,115,22,0.5)' },
+]
+
+export interface WaveAudioPlayerProps {
   src: string
   title?: string
+  subtitle?: string
   autoPlay?: boolean
   onEnded?: () => void
   onPrev?: () => void
@@ -22,19 +28,22 @@ interface WaveAudioPlayerProps {
   hasNext?: boolean
 }
 
-const ACCENT_COLORS: { label: string; r: number; g: number; b: number }[] = [
-  { label: 'Vermelho', r: 229, g: 57,  b: 53  },
-  { label: 'Roxo',    r: 156, g: 39,  b: 176 },
-  { label: 'Azul',    r: 33,  g: 150, b: 243 },
-  { label: 'Verde',   r: 76,  g: 175, b: 80  },
-  { label: 'Âmbar',  r: 255, g: 193, b: 7   },
-]
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const fmtTime = (s: number) => {
+  if (!s || !isFinite(s)) return '0:00'
+  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
+}
 
-const BAR_COUNT = 64
+const hexAlpha = (hex: string, alpha: number) => {
+  const a = Math.round(alpha * 255).toString(16).padStart(2, '0')
+  return hex + a
+}
 
+// ─── Componente ───────────────────────────────────────────────────────────────
 export const WaveAudioPlayer = ({
   src,
-  title = 'Áudio',
+  title    = 'Nenhuma faixa carregada',
+  subtitle = 'ÁUDIO DO PORTFÓLIO',
   autoPlay = false,
   onEnded,
   onPrev,
@@ -42,13 +51,15 @@ export const WaveAudioPlayer = ({
   hasPrev = false,
   hasNext = false,
 }: WaveAudioPlayerProps) => {
-  const audioRef    = useRef<HTMLAudioElement>(null)
-  const canvasRef   = useRef<HTMLCanvasElement>(null)
+  const audioRef     = useRef<HTMLAudioElement>(null)
+  const canvasRef    = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const animRef     = useRef<number>(0)
-  const audioCtxRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const barsRef     = useRef<number[]>(Array(BAR_COUNT).fill(0))
+  const animRef      = useRef<number>(0)
+  const idleTRef     = useRef(0)
+  const audioCtxRef  = useRef<AudioContext | null>(null)
+  const analyserRef  = useRef<AnalyserNode | null>(null)
+  const gainRef      = useRef<GainNode | null>(null)
+  const prevVolRef   = useRef(0.8)
 
   const [isPlaying,   setIsPlaying]   = useState(false)
   const [progress,    setProgress]    = useState(0)
@@ -57,280 +68,367 @@ export const WaveAudioPlayer = ({
   const [isMuted,     setIsMuted]     = useState(false)
   const [volume,      setVolume]      = useState(0.8)
   const [isReady,     setIsReady]     = useState(false)
+  const [isLoop,      setIsLoop]      = useState(false)
   const [mode,        setMode]        = useState<VisualMode>('bars')
   const [accentIdx,   setAccentIdx]   = useState(0)
+  const [hovering,    setHovering]    = useState(false)
 
   const accent = ACCENT_COLORS[accentIdx]
 
-  // ─── helpers ────────────────────────────────────────────────────────────
-  const fmt = (s: number) => {
-    if (!isFinite(s)) return '0:00'
-    const m = Math.floor(s / 60)
-    const sec = Math.floor(s % 60)
-    return `${m}:${sec.toString().padStart(2, '0')}`
-  }
-
-  // ─── AudioContext ────────────────────────────────────────────────────────
-  const initAudioContext = useCallback(() => {
-    if (audioCtxRef.current || !audioRef.current) return
-    const ctx      = new AudioContext()
-    const analyser = ctx.createAnalyser()
-    analyser.fftSize              = 256
-    analyser.smoothingTimeConstant = 0.85
-    ctx.createMediaElementSource(audioRef.current).connect(analyser)
-    analyser.connect(ctx.destination)
-    audioCtxRef.current = ctx
-    analyserRef.current = analyser
-  }, [])
-
-  // ─── Canvas resize observer ─────────────────────────────────────────────
-  useEffect(() => {
+  // ─── Canvas resize ──────────────────────────────────────────────────────
+  const resizeCanvas = useCallback(() => {
     const canvas    = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container) return
-    const ro = new ResizeObserver(() => {
-      canvas.width  = container.clientWidth
-      canvas.height = container.clientHeight
-    })
-    ro.observe(container)
-    canvas.width  = container.clientWidth
-    canvas.height = container.clientHeight
-    return () => ro.disconnect()
+    const dpr = window.devicePixelRatio || 1
+    const rect = container.getBoundingClientRect()
+    canvas.width  = rect.width  * dpr
+    canvas.height = rect.height * dpr
+    canvas.style.width  = '100%'
+    canvas.style.height = '100%'
+    const ctx = canvas.getContext('2d')
+    ctx?.scale(dpr, dpr)
   }, [])
 
-  // ─── Draw loop ───────────────────────────────────────────────────────────────
-  const draw = useCallback(() => {
+  useEffect(() => {
+    resizeCanvas()
+    const ro = new ResizeObserver(resizeCanvas)
+    if (containerRef.current) ro.observe(containerRef.current)
+    window.addEventListener('resize', resizeCanvas)
+    return () => { ro.disconnect(); window.removeEventListener('resize', resizeCanvas) }
+  }, [resizeCanvas])
+
+  // ─── AudioContext ────────────────────────────────────────────────────────
+  const initAudio = useCallback(() => {
+    if (audioCtxRef.current || !audioRef.current) return
+    const actx     = new AudioContext()
+    const analyser = actx.createAnalyser()
+    analyser.fftSize = 2048
+    analyser.smoothingTimeConstant = 0.82
+    const gain = actx.createGain()
+    gain.gain.value = volume
+    actx.createMediaElementSource(audioRef.current).connect(analyser)
+    analyser.connect(gain)
+    gain.connect(actx.destination)
+    audioCtxRef.current = actx
+    analyserRef.current = analyser
+    gainRef.current     = gain
+  }, [volume])
+
+  // ─── Draw: BARS ─────────────────────────────────────────────────────────
+  const drawBars = useCallback((
+    ctx2: CanvasRenderingContext2D,
+    data: Uint8Array,
+    W: number, H: number,
+    acnt: AccentColor
+  ) => {
+    const barCount = 90
+    const gap  = 2
+    const barW = (W - gap * (barCount - 1)) / barCount
+    const step = Math.floor(data.length / barCount)
+
+    // grid
+    ctx2.strokeStyle = 'rgba(255,255,255,0.025)'
+    ctx2.lineWidth = 1
+    for (let y = H; y > 0; y -= H / 5) {
+      ctx2.beginPath(); ctx2.moveTo(0, y); ctx2.lineTo(W, y); ctx2.stroke()
+    }
+
+    for (let i = 0; i < barCount; i++) {
+      const val  = data[i * step] / 255
+      const barH = val * H * 0.88
+      const x    = i * (barW + gap)
+      const y    = H - barH
+
+      const grad = ctx2.createLinearGradient(0, y, 0, H)
+      grad.addColorStop(0,   acnt.main)
+      grad.addColorStop(0.6, hexAlpha(acnt.main, 0.67))
+      grad.addColorStop(1,   hexAlpha(acnt.main, 0.09))
+      ctx2.fillStyle = grad
+      ctx2.beginPath()
+      ctx2.roundRect(x, y, barW, barH, [2, 2, 0, 0])
+      ctx2.fill()
+
+      if (barH > 5) {
+        ctx2.shadowColor = acnt.main
+        ctx2.shadowBlur  = 12
+        ctx2.fillStyle   = acnt.main
+        ctx2.beginPath()
+        ctx2.roundRect(x, y, barW, 2, 2)
+        ctx2.fill()
+        ctx2.shadowBlur = 0
+      }
+    }
+
+    // reflexo
+    ctx2.save()
+    ctx2.globalAlpha = 0.18
+    ctx2.scale(1, -1)
+    ctx2.translate(0, -H * 2)
+    for (let i = 0; i < barCount; i++) {
+      const val  = data[i * step] / 255
+      const barH = val * H * 0.88 * 0.3
+      const x    = i * (barW + gap)
+      const y    = H - barH
+      const rg   = ctx2.createLinearGradient(0, y, 0, H)
+      rg.addColorStop(0, hexAlpha(acnt.main, 0.33))
+      rg.addColorStop(1, 'transparent')
+      ctx2.fillStyle = rg
+      ctx2.beginPath()
+      ctx2.roundRect(x, y, barW, barH, [2, 2, 0, 0])
+      ctx2.fill()
+    }
+    ctx2.restore()
+  }, [])
+
+  // ─── Draw: WAVE ─────────────────────────────────────────────────────────
+  const drawWave = useCallback((
+    ctx2: CanvasRenderingContext2D,
+    data: Uint8Array,
+    W: number, H: number,
+    acnt: AccentColor
+  ) => {
+    const sliceW = W / data.length
+
+    ctx2.beginPath()
+    ctx2.strokeStyle = 'rgba(255,255,255,0.04)'
+    ctx2.lineWidth = 1
+    ctx2.moveTo(0, H / 2); ctx2.lineTo(W, H / 2); ctx2.stroke()
+
+    // fill
+    ctx2.beginPath()
+    let x = 0
+    for (let i = 0; i < data.length; i++) {
+      const y = ((data[i] / 128) * H) / 2
+      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y)
+      x += sliceW
+    }
+    ctx2.lineTo(W, H / 2)
+    const fg = ctx2.createLinearGradient(0, 0, 0, H)
+    fg.addColorStop(0,   hexAlpha(acnt.main, 0.16))
+    fg.addColorStop(0.5, hexAlpha(acnt.main, 0.02))
+    fg.addColorStop(1,   hexAlpha(acnt.main, 0.16))
+    ctx2.fillStyle = fg
+    ctx2.fill()
+
+    // line
+    ctx2.beginPath()
+    x = 0
+    for (let i = 0; i < data.length; i++) {
+      const y = ((data[i] / 128) * H) / 2
+      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y)
+      x += sliceW
+    }
+    ctx2.lineWidth   = 2
+    ctx2.strokeStyle = acnt.main
+    ctx2.shadowColor = acnt.main
+    ctx2.shadowBlur  = 14
+    ctx2.stroke()
+    ctx2.shadowBlur = 0
+  }, [])
+
+  // ─── Draw: CIRCLE ────────────────────────────────────────────────────────
+  const drawCircle = useCallback((
+    ctx2: CanvasRenderingContext2D,
+    data: Uint8Array,
+    W: number, H: number,
+    acnt: AccentColor
+  ) => {
+    const cx = W / 2, cy = H / 2
+    const R  = Math.min(W, H) * 0.3
+    const bars = 140
+    const step = Math.floor(data.length / bars)
+
+    ;([[R, 0.09], [R * 0.65, 0.05], [R * 1.15, 0.04]] as [number,number][]).forEach(([r, a]) => {
+      ctx2.beginPath()
+      ctx2.arc(cx, cy, r, 0, Math.PI * 2)
+      ctx2.strokeStyle = hexAlpha(acnt.main, a)
+      ctx2.lineWidth = 1
+      ctx2.stroke()
+    })
+
+    for (let i = 0; i < bars; i++) {
+      const val   = data[i * step] / 255
+      const angle = (i / bars) * Math.PI * 2 - Math.PI / 2
+      const len   = val * R * 0.85
+      ctx2.beginPath()
+      ctx2.moveTo(cx + Math.cos(angle) * R,       cy + Math.sin(angle) * R)
+      ctx2.lineTo(cx + Math.cos(angle) * (R+len), cy + Math.sin(angle) * (R+len))
+      ctx2.lineWidth   = 2
+      ctx2.strokeStyle = hexAlpha(acnt.main, val)
+      ctx2.shadowColor = acnt.main
+      ctx2.shadowBlur  = val * 10
+      ctx2.stroke()
+    }
+    ctx2.shadowBlur = 0
+
+    const avg = Array.from(data.slice(0, 100)).reduce((a, b) => a + b, 0) / 100 / 255
+    const pr  = 6 + avg * 16
+    const rg  = ctx2.createRadialGradient(cx, cy, 0, cx, cy, pr * 2.5)
+    rg.addColorStop(0,   acnt.main)
+    rg.addColorStop(0.4, hexAlpha(acnt.main, 0.6))
+    rg.addColorStop(1,   'transparent')
+    ctx2.beginPath()
+    ctx2.arc(cx, cy, pr * 2.5, 0, Math.PI * 2)
+    ctx2.fillStyle = rg
+    ctx2.fill()
+  }, [])
+
+  // ─── Idle animation ──────────────────────────────────────────────────────
+  const renderIdle = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const W = canvas.width
-    const H = canvas.height
-    const { r, g, b } = accent
+    const ctx2 = canvas.getContext('2d')
+    if (!ctx2) return
+    const dpr = window.devicePixelRatio || 1
+    const W = canvas.width / dpr
+    const H = canvas.height / dpr
+    ctx2.clearRect(0, 0, W, H)
 
-    // atualiza dados
-    if (analyserRef.current) {
-      const data = new Uint8Array(analyserRef.current.frequencyBinCount)
-      analyserRef.current.getByteFrequencyData(data)
-      const step = Math.floor(data.length / BAR_COUNT)
-      for (let i = 0; i < BAR_COUNT; i++) {
-        const raw = data[i * step] / 255
-        barsRef.current[i] += (raw - barsRef.current[i]) * 0.25
-      }
+    const acnt = ACCENT_COLORS[accentIdx]
+
+    if (mode === 'circle') {
+      const cx = W / 2, cy = H / 2
+      const R  = Math.min(W, H) * 0.3
+      ;([[R, 0.09], [R * 0.65, 0.05], [R * 1.15, 0.04]] as [number,number][]).forEach(([r, a]) => {
+        ctx2.beginPath()
+        ctx2.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx2.strokeStyle = hexAlpha(acnt.main, a)
+        ctx2.lineWidth = 1
+        ctx2.stroke()
+      })
+      const pr = 4 + Math.sin(idleTRef.current) * 2
+      ctx2.beginPath()
+      ctx2.arc(cx, cy, pr, 0, Math.PI * 2)
+      ctx2.fillStyle = hexAlpha(acnt.main, 0.31)
+      ctx2.fill()
     } else {
-      // idle breathing
-      const t = Date.now() / 1000
-      for (let i = 0; i < BAR_COUNT; i++) {
-        barsRef.current[i] = 0.04 + 0.02 * Math.sin(t * 1.2 + i * 0.35)
+      ctx2.beginPath()
+      ctx2.moveTo(0, H / 2)
+      for (let x = 0; x < W; x++) {
+        ctx2.lineTo(x, H / 2 + Math.sin((x / W) * Math.PI * 4 + idleTRef.current) * 2.5)
       }
+      ctx2.strokeStyle = hexAlpha(acnt.main, 0.21)
+      ctx2.lineWidth   = 1.5
+      ctx2.stroke()
     }
 
-    ctx.clearRect(0, 0, W, H)
+    idleTRef.current += 0.03
+  }, [mode, accentIdx])
 
-    if (mode === 'bars') {
-      drawBarsMode(ctx, W, H, r, g, b)
-    } else if (mode === 'wave') {
-      drawWaveMode(ctx, W, H, r, g, b)
-    } else {
-      drawCircleMode(ctx, W, H, r, g, b)
-    }
-
-    animRef.current = requestAnimationFrame(draw)
-  }, [mode, accent])
-
-  const drawBarsMode = (
-    ctx: CanvasRenderingContext2D,
-    W: number, H: number,
-    r: number, g: number, b: number
-  ) => {
-    const barW = (W - (BAR_COUNT - 1) * 2) / BAR_COUNT
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const v    = barsRef.current[i]
-      const barH = Math.max(4, v * H * 0.8)
-      const x    = i * (barW + 2)
-      const y    = (H - barH) / 2
-      const alpha = 0.35 + v * 0.65
-      const grad  = ctx.createLinearGradient(x, y, x, y + barH)
-      grad.addColorStop(0,   `rgba(${r},${g},${b},${alpha})`)
-      grad.addColorStop(0.5, `rgba(${r},${g},${b},1)`)
-      grad.addColorStop(1,   `rgba(${r},${g},${b},${alpha})`)
-      ctx.fillStyle = grad
-      const rad = Math.min(barW / 2, 4)
-      ctx.beginPath()
-      ctx.roundRect(x, y, barW, barH, rad)
-      ctx.fill()
-    }
-  }
-
-  const drawWaveMode = (
-    ctx: CanvasRenderingContext2D,
-    W: number, H: number,
-    r: number, g: number, b: number
-  ) => {
-    const midY = H / 2
-    ctx.lineWidth   = 2.5
-    ctx.strokeStyle = `rgb(${r},${g},${b})`
-    ctx.shadowColor  = `rgba(${r},${g},${b},0.6)`
-    ctx.shadowBlur   = 12
-
-    // fill area
-    const fillGrad = ctx.createLinearGradient(0, 0, 0, H)
-    fillGrad.addColorStop(0,   `rgba(${r},${g},${b},0.3)`)
-    fillGrad.addColorStop(0.5, `rgba(${r},${g},${b},0.05)`)
-    fillGrad.addColorStop(1,   `rgba(${r},${g},${b},0.3)`)
-
-    ctx.beginPath()
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const x  = (i / (BAR_COUNT - 1)) * W
-      const v  = barsRef.current[i]
-      const dy = v * (H * 0.45)
-      if (i === 0) ctx.moveTo(x, midY - dy)
-      else ctx.lineTo(x, midY - dy)
-    }
-    // volta pelo lado de baixo (espelho)
-    for (let i = BAR_COUNT - 1; i >= 0; i--) {
-      const x  = (i / (BAR_COUNT - 1)) * W
-      const v  = barsRef.current[i]
-      const dy = v * (H * 0.45)
-      ctx.lineTo(x, midY + dy)
-    }
-    ctx.closePath()
-    ctx.fillStyle = fillGrad
-    ctx.fill()
-
-    // linha superior
-    ctx.beginPath()
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const x  = (i / (BAR_COUNT - 1)) * W
-      const v  = barsRef.current[i]
-      const dy = v * (H * 0.45)
-      if (i === 0) ctx.moveTo(x, midY - dy)
-      else ctx.lineTo(x, midY - dy)
-    }
-    ctx.stroke()
-
-    ctx.shadowBlur = 0
-  }
-
-  const drawCircleMode = (
-    ctx: CanvasRenderingContext2D,
-    W: number, H: number,
-    r: number, g: number, b: number
-  ) => {
-    const cx    = W / 2
-    const cy    = H / 2
-    const baseR = Math.min(W, H) * 0.22
-
-    // círculo base
-    ctx.beginPath()
-    ctx.arc(cx, cy, baseR, 0, Math.PI * 2)
-    ctx.strokeStyle = `rgba(${r},${g},${b},0.2)`
-    ctx.lineWidth   = 1.5
-    ctx.stroke()
-
-    // barras radiais
-    const sliceAngle = (Math.PI * 2) / BAR_COUNT
-    for (let i = 0; i < BAR_COUNT; i++) {
-      const v     = barsRef.current[i]
-      const angle = i * sliceAngle - Math.PI / 2
-      const len   = v * baseR * 1.4 + 3
-      const x1    = cx + Math.cos(angle) * baseR
-      const y1    = cy + Math.sin(angle) * baseR
-      const x2    = cx + Math.cos(angle) * (baseR + len)
-      const y2    = cy + Math.sin(angle) * (baseR + len)
-
-      const alpha = 0.4 + v * 0.6
-      ctx.beginPath()
-      ctx.moveTo(x1, y1)
-      ctx.lineTo(x2, y2)
-      ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`
-      ctx.lineWidth   = 2
-      ctx.shadowColor  = `rgba(${r},${g},${b},0.5)`
-      ctx.shadowBlur   = 6
-      ctx.stroke()
-    }
-    ctx.shadowBlur = 0
-
-    // ícone central
-    ctx.beginPath()
-    ctx.arc(cx, cy, baseR * 0.55, 0, Math.PI * 2)
-    ctx.fillStyle = `rgba(${r},${g},${b},0.15)`
-    ctx.fill()
-  }
-
-  // ─── Inicia / reinicia loop ao mudar mode ou accent ──────────────────────
-  useEffect(() => {
+  // ─── Visualizer loop ─────────────────────────────────────────────────────
+  const startVisualizer = useCallback(() => {
     cancelAnimationFrame(animRef.current)
-    draw()
-    return () => cancelAnimationFrame(animRef.current)
-  }, [draw])
+    const loop = () => {
+      const canvas = canvasRef.current
+      if (!canvas || !analyserRef.current) return
+      const ctx2 = canvas.getContext('2d')
+      if (!ctx2) return
+      const dpr  = window.devicePixelRatio || 1
+      const W = canvas.width / dpr
+      const H = canvas.height / dpr
+      ctx2.clearRect(0, 0, W, H)
 
-  // ─── Cleanup ao desmontar ───────────────────────────────────────────────
+      const acnt = ACCENT_COLORS[accentIdx]
+
+      if (mode === 'wave') {
+        const data = new Uint8Array(analyserRef.current.frequencyBinCount)
+        analyserRef.current.getByteTimeDomainData(data)
+        drawWave(ctx2, data, W, H, acnt)
+      } else if (mode === 'bars') {
+        const data = new Uint8Array(analyserRef.current.frequencyBinCount)
+        analyserRef.current.getByteFrequencyData(data)
+        drawBars(ctx2, data, W, H, acnt)
+      } else {
+        const data = new Uint8Array(analyserRef.current.frequencyBinCount)
+        analyserRef.current.getByteFrequencyData(data)
+        drawCircle(ctx2, data, W, H, acnt)
+      }
+
+      animRef.current = requestAnimationFrame(loop)
+    }
+    loop()
+  }, [mode, accentIdx, drawBars, drawWave, drawCircle])
+
+  // ─── Idle loop ───────────────────────────────────────────────────────────
+  const startIdle = useCallback(() => {
+    cancelAnimationFrame(animRef.current)
+    const loop = () => {
+      renderIdle()
+      animRef.current = requestAnimationFrame(loop)
+    }
+    loop()
+  }, [renderIdle])
+
+  // inicia idle ao montar / trocar mode / accent quando não toca
+  useEffect(() => {
+    if (!isPlaying) startIdle()
+    return () => cancelAnimationFrame(animRef.current)
+  }, [mode, accentIdx, isPlaying, startIdle])
+
+  useEffect(() => {
+    if (isPlaying) startVisualizer()
+    return () => cancelAnimationFrame(animRef.current)
+  }, [isPlaying, mode, accentIdx, startVisualizer])
+
+  // ─── Cleanup ─────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current)
-      const audio = audioRef.current
-      if (audio) { audio.pause(); audio.src = '' }
       audioCtxRef.current?.close()
     }
   }, [])
 
-  // ─── Eventos do <audio> ────────────────────────────────────────────────
+  // ─── Eventos do <audio> ──────────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-    const onLoaded = () => { setDuration(audio.duration); setIsReady(true) }
-    const onTime   = () => {
+    audio.volume = volume
+    const onMeta  = () => { setDuration(audio.duration); setIsReady(true) }
+    const onTime  = () => {
       setCurrentTime(audio.currentTime)
       setProgress(audio.duration ? audio.currentTime / audio.duration : 0)
     }
-    const onEnded_ = () => { setIsPlaying(false); onEnded?.() }
-    audio.addEventListener('loadedmetadata', onLoaded)
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('ended', onEnded_)
-    audio.volume = volume
-    return () => {
-      audio.removeEventListener('loadedmetadata', onLoaded)
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('ended', onEnded_)
+    const onEnd   = () => {
+      if (isLoop) { audio.currentTime = 0; audio.play() }
+      else { setIsPlaying(false); onEnded?.() }
     }
-  }, [src])
+    audio.addEventListener('loadedmetadata', onMeta)
+    audio.addEventListener('timeupdate',     onTime)
+    audio.addEventListener('ended',          onEnd)
+    return () => {
+      audio.removeEventListener('loadedmetadata', onMeta)
+      audio.removeEventListener('timeupdate',     onTime)
+      audio.removeEventListener('ended',          onEnd)
+    }
+  }, [src, isLoop, onEnded])
 
-  // ─── autoPlay ──────────────────────────────────────────────────────────────
+  // ─── autoPlay ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!autoPlay || !isReady) return
     const play = async () => {
-      initAudioContext()
-      if (audioCtxRef.current?.state === 'suspended') {
-        await audioCtxRef.current.resume()
-      }
+      initAudio()
+      if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
       await audioRef.current?.play()
       setIsPlaying(true)
     }
     play()
-  }, [autoPlay, isReady])
+  }, [autoPlay, isReady, initAudio])
 
-  // ─── Controls ──────────────────────────────────────────────────────────────
+  // ─── Controles ───────────────────────────────────────────────────────────
   const togglePlay = async () => {
     const audio = audioRef.current
     if (!audio || !isReady) return
-    if (!audioCtxRef.current) initAudioContext()
-    if (audioCtxRef.current?.state === 'suspended') {
-      await audioCtxRef.current.resume()
-    }
-    if (isPlaying) {
-      audio.pause()
-      setIsPlaying(false)
-    } else {
-      await audio.play()
-      setIsPlaying(true)
-    }
+    initAudio()
+    if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
+    if (isPlaying) { audio.pause(); setIsPlaying(false) }
+    else           { await audio.play(); setIsPlaying(true) }
   }
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current
     if (!audio || !duration) return
-    const rect  = e.currentTarget.getBoundingClientRect()
+    const rect = e.currentTarget.getBoundingClientRect()
     audio.currentTime = ((e.clientX - rect.left) / rect.width) * duration
   }
 
@@ -338,210 +436,384 @@ export const WaveAudioPlayer = ({
     const v = parseFloat(e.target.value)
     setVolume(v)
     setIsMuted(v === 0)
-    if (audioRef.current) audioRef.current.volume = v
+    if (gainRef.current) gainRef.current.gain.value = v
+    else if (audioRef.current) audioRef.current.volume = v
   }
 
   const toggleMute = () => {
-    const audio = audioRef.current
-    if (!audio) return
-    audio.muted = !isMuted
-    setIsMuted(!isMuted)
+    if (volume > 0) {
+      prevVolRef.current = volume
+      setVolume(0); setIsMuted(true)
+      if (gainRef.current) gainRef.current.gain.value = 0
+      else if (audioRef.current) audioRef.current.volume = 0
+    } else {
+      const v = prevVolRef.current
+      setVolume(v); setIsMuted(false)
+      if (gainRef.current) gainRef.current.gain.value = v
+      else if (audioRef.current) audioRef.current.volume = v
+    }
   }
 
-  const skip = (seconds: number) => {
+  const skip = (s: number) => {
     const audio = audioRef.current
-    if (!audio) return
-    audio.currentTime = Math.max(0, Math.min(duration, audio.currentTime + seconds))
+    if (!audio || !duration) return
+    audio.currentTime = Math.max(0, Math.min(duration, audio.currentTime + s))
   }
 
+  const showOverlay = hovering || !isPlaying
+
+  // ─── Render ──────────────────────────────────────────────────────────────
   return (
-    <div className="w-full flex flex-col bg-black rounded-2xl overflow-hidden select-none">
-      <audio ref={audioRef} src={src} preload="metadata" />
+    <div
+      className="w-full flex flex-col select-none"
+      style={{ fontFamily: "'Space Grotesk', system-ui, sans-serif", background: '#0f0f0f' }}
+    >
+      <audio ref={audioRef} src={src} preload="metadata" loop={isLoop} />
 
-      {/* Canvas da visualização */}
+      {/* ── Canvas area ── */}
       <div
         ref={containerRef}
-        className="relative w-full"
-        style={{ aspectRatio: '16/9' }}
+        className="relative w-full cursor-pointer"
+        style={{ aspectRatio: '16/9', background: '#000', borderRadius: '12px 12px 0 0', overflow: 'hidden' }}
+        onClick={togglePlay}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
       >
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
-        />
+        <canvas ref={canvasRef} style={{ display: 'block', position: 'absolute', inset: 0 }} />
 
-        {/* Ícone central no modo circle quando parado */}
-        {mode === 'circle' && !isPlaying && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <Music className="w-12 h-12 text-white/20" />
-          </div>
-        )}
+        {/* Scanlines */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5,
+          background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px)',
+        }} />
 
-        {/* Botão play central (overlay) */}
+        {/* Corner decorations */}
+        {(['tl','tr','bl','br'] as const).map(c => (
+          <div key={c} style={{
+            position: 'absolute', width: 18, height: 18, pointerEvents: 'none', zIndex: 6, opacity: 0.5,
+            top:    c.startsWith('t') ? 10 : undefined,
+            bottom: c.startsWith('b') ? 56 : undefined,
+            left:   c.endsWith('l')   ? 10 : undefined,
+            right:  c.endsWith('r')   ? 10 : undefined,
+            borderTop:    c.startsWith('t') ? `1.5px solid ${accent.main}` : undefined,
+            borderBottom: c.startsWith('b') ? `1.5px solid ${accent.main}` : undefined,
+            borderLeft:   c.endsWith('l')   ? `1.5px solid ${accent.main}` : undefined,
+            borderRight:  c.endsWith('r')   ? `1.5px solid ${accent.main}` : undefined,
+          }} />
+        ))}
+
+        {/* Status badge */}
+        <div style={{
+          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 9999, padding: '4px 12px',
+          fontFamily: "'Space Mono', monospace", fontSize: '0.58rem',
+          letterSpacing: '0.1em', color: '#aaa', zIndex: 10, pointerEvents: 'none',
+          backdropFilter: 'blur(6px)',
+        }}>
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: isPlaying ? '#ff0000' : '#555',
+            boxShadow: isPlaying ? '0 0 8px rgba(255,0,0,0.7)' : 'none',
+            animation: isPlaying ? 'wave-pulse 1.4s ease-in-out infinite' : 'none',
+          }} />
+          <span>{isPlaying ? 'REPRODUZINDO' : (isReady ? 'PAUSADO' : 'AGUARDANDO ÁUDIO')}</span>
+        </div>
+
+        {/* Dark gradient overlay */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'linear-gradient(to bottom, transparent 0%, transparent 50%, rgba(0,0,0,0.5) 80%, rgba(0,0,0,0.85) 100%)',
+          opacity: showOverlay ? 1 : 0,
+          transition: 'opacity 300ms ease',
+        }} />
+
+        {/* Center play/pause button */}
         <button
-          onClick={togglePlay}
+          onClick={e => { e.stopPropagation(); togglePlay() }}
           disabled={!isReady}
-          className="absolute inset-0 flex items-center justify-center group"
+          style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: `translate(-50%,-50%) scale(${showOverlay ? 1 : 0.9})`,
+            width: 72, height: 72, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.72)', border: 'none', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: isReady ? 'pointer' : 'not-allowed',
+            opacity: showOverlay ? 1 : 0,
+            transition: 'opacity 250ms ease, transform 250ms cubic-bezier(0.16,1,0.3,1)',
+            zIndex: 20, backdropFilter: 'blur(4px)',
+          }}
         >
-          <div
-            className="w-20 h-20 rounded-full bg-black/40 backdrop-blur-md border border-white/20
-                       flex items-center justify-center
-                       opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                       disabled:cursor-not-allowed"
-          >
-            {isPlaying ? (
-              <Pause className="w-8 h-8 text-white" />
-            ) : (
-              <Play className="w-8 h-8 text-white ml-1" />
-            )}
-          </div>
+          {isPlaying ? (
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1"/>
+              <rect x="14" y="4" width="4" height="16" rx="1"/>
+            </svg>
+          ) : (
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          )}
         </button>
 
-        {/* Título no canto superior esquerdo */}
-        {title && (
-          <div className="absolute top-3 left-3 max-w-[70%] bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5 pointer-events-none">
-            <p className="text-sm font-semibold text-white truncate">{title}</p>
-          </div>
-        )}
-
-        {/* Seletor de modo — canto superior direito */}
-        <div className="absolute top-3 right-3 flex gap-1">
+        {/* Mode switcher — top right */}
+        <div style={{
+          position: 'absolute', top: 12, right: 12, zIndex: 15,
+          display: 'flex', gap: 4,
+          background: '#212121', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 9999, padding: 4,
+        }} onClick={e => e.stopPropagation()}>
           {(['bars', 'wave', 'circle'] as VisualMode[]).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors
-                ${
-                  mode === m
-                    ? 'bg-white text-black'
-                    : 'bg-black/40 text-white/60 hover:text-white'
-                }`}
+              style={{
+                background: mode === m ? `rgba(0,212,255,0.15)` : 'none',
+                border: 'none',
+                color: mode === m ? accent.main : '#aaa',
+                fontFamily: "'Space Mono', monospace",
+                fontSize: '0.62rem', fontWeight: 700,
+                letterSpacing: '0.08em',
+                padding: '5px 14px', borderRadius: 9999,
+                cursor: 'pointer',
+                boxShadow: mode === m ? `0 0 10px ${accent.glow}` : 'none',
+                textTransform: 'uppercase',
+              }}
             >
-              {m === 'bars' ? 'BARS' : m === 'wave' ? 'WAVE' : 'RADIAL'}
+              {m === 'circle' ? 'RADIAL' : m.toUpperCase()}
             </button>
           ))}
         </div>
-
-        {/* Seletor de cor — canto inferior direito */}
-        <div className="absolute bottom-3 right-3 flex gap-1.5">
-          {ACCENT_COLORS.map((c, i) => (
-            <button
-              key={i}
-              onClick={() => setAccentIdx(i)}
-              title={c.label}
-              className={`w-4 h-4 rounded-full transition-transform
-                ${ accentIdx === i ? 'scale-125 ring-2 ring-white' : 'opacity-60 hover:opacity-100' }`}
-              style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
-            />
-          ))}
-        </div>
       </div>
 
-      {/* Barra de progresso */}
-      <div className="px-4 pt-3">
-        <div
-          className="relative h-1.5 bg-white/10 rounded-full cursor-pointer group"
-          onClick={handleSeek}
-        >
+      {/* ── Controls bar ── */}
+      <div style={{
+        background: '#181818',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderTop: 'none',
+        borderRadius: '0 0 12px 12px',
+        padding: '10px 16px 12px',
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+
+        {/* Progress row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            fontFamily: "'Space Mono', monospace", fontSize: '0.65rem',
+            color: '#aaa', minWidth: 38, letterSpacing: '0.04em', flexShrink: 0,
+          }}>{fmtTime(currentTime)}</span>
+
           <div
-            className="absolute inset-y-0 left-0 rounded-full transition-all"
+            onClick={handleSeek}
             style={{
-              width: `${progress * 100}%`,
-              backgroundColor: `rgb(${accent.r},${accent.g},${accent.b})`,
+              flex: 1, height: 4, background: 'rgba(255,255,255,0.2)',
+              borderRadius: 9999, position: 'relative', cursor: 'pointer',
             }}
-          />
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ left: `calc(${progress * 100}% - 6px)` }}
-          />
-        </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-[11px] text-white/50 tabular-nums">{fmt(currentTime)}</span>
-          <span className="text-[11px] text-white/50 tabular-nums">{fmt(duration)}</span>
-        </div>
-      </div>
-
-      {/* Controles principais */}
-      <div className="flex items-center justify-between gap-3 px-4 pb-4 pt-1">
-        {/* Skip -10s */}
-        <button
-          onClick={() => skip(-10)}
-          disabled={!isReady}
-          className="text-white/50 hover:text-white transition-colors disabled:opacity-30 flex flex-col items-center gap-0.5"
-          title="-10s"
-        >
-          <SkipBack className="w-4 h-4" />
-          <span className="text-[9px] text-white/40">-10s</span>
-        </button>
-
-        {/* Prev (opcional) */}
-        {hasPrev && (
-          <button
-            onClick={onPrev}
-            className="text-white/50 hover:text-white transition-colors"
-            title="Anterior"
           >
-            <SkipBack className="w-5 h-5" />
-          </button>
-        )}
+            <div style={{
+              height: '100%', borderRadius: 9999,
+              width: `${progress * 100}%`,
+              background: accent.main,
+              boxShadow: `0 0 6px ${accent.glow}`,
+              transition: 'width 0.1s linear',
+            }} />
+          </div>
 
-        {/* Play / Pause central */}
-        <button
-          onClick={togglePlay}
-          disabled={!isReady}
-          className="w-14 h-14 rounded-full flex items-center justify-center
-                     transition-all hover:scale-105 active:scale-95 disabled:opacity-40 shadow-lg"
-          style={{ backgroundColor: `rgb(${accent.r},${accent.g},${accent.b})` }}
-        >
-          {isPlaying ? (
-            <Pause className="w-6 h-6 text-white" />
-          ) : (
-            <Play className="w-6 h-6 text-white ml-0.5" />
-          )}
-        </button>
+          <span style={{
+            fontFamily: "'Space Mono', monospace", fontSize: '0.65rem',
+            color: '#aaa', minWidth: 38, letterSpacing: '0.04em',
+            flexShrink: 0, textAlign: 'right',
+          }}>{fmtTime(duration)}</span>
+        </div>
 
-        {/* Next (opcional) */}
-        {hasNext && (
+        {/* Buttons row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+
+          {/* Play/Pause */}
           <button
-            onClick={onNext}
-            className="text-white/50 hover:text-white transition-colors"
-            title="Próximo"
+            onClick={togglePlay}
+            disabled={!isReady}
+            style={{
+              background: 'none', border: 'none', color: '#fff',
+              cursor: isReady ? 'pointer' : 'not-allowed',
+              padding: '4px 10px 4px 6px', borderRadius: 4,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: isReady ? 1 : 0.4,
+            }}
           >
-            <SkipForward className="w-5 h-5" />
-          </button>
-        )}
-
-        {/* Skip +10s */}
-        <button
-          onClick={() => skip(10)}
-          disabled={!isReady}
-          className="text-white/50 hover:text-white transition-colors disabled:opacity-30 flex flex-col items-center gap-0.5"
-          title="+10s"
-        >
-          <SkipForward className="w-4 h-4" />
-          <span className="text-[9px] text-white/40">+10s</span>
-        </button>
-
-        {/* Volume */}
-        <div className="flex items-center gap-2 ml-auto">
-          <button onClick={toggleMute} className="text-white/50 hover:text-white transition-colors">
-            {isMuted || volume === 0 ? (
-              <VolumeX className="w-4 h-4" />
+            {isPlaying ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16" rx="1"/>
+                <rect x="14" y="4" width="4" height="16" rx="1"/>
+              </svg>
             ) : (
-              <Volume2 className="w-4 h-4" />
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
             )}
           </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={isMuted ? 0 : volume}
-            onChange={handleVolume}
-            className="w-20 h-1 cursor-pointer"
-            style={{ accentColor: `rgb(${accent.r},${accent.g},${accent.b})` }}
-          />
+
+          {/* Skip -10s */}
+          <button onClick={() => skip(-10)} disabled={!isReady} style={ctrlBtnStyle(isReady)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="1 4 1 10 7 10"/>
+              <path d="M3.51 15a9 9 0 1 0 .49-3.75"/>
+              <text x="7.5" y="15.5" fontSize="5.5" fill="currentColor" stroke="none" fontWeight="bold">10</text>
+            </svg>
+          </button>
+
+          {/* Skip +10s */}
+          <button onClick={() => skip(10)} disabled={!isReady} style={ctrlBtnStyle(isReady)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15A9 9 0 1 1 20 11.25"/>
+              <text x="7.5" y="15.5" fontSize="5.5" fill="currentColor" stroke="none" fontWeight="bold">10</text>
+            </svg>
+          </button>
+
+          {/* Volume */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            <button onClick={toggleMute} style={ctrlBtnStyle(true)}>
+              {isMuted || volume === 0 ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+              ) : volume < 0.5 ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+              )}
+            </button>
+            <input
+              type="range" min={0} max={1} step={0.01}
+              value={isMuted ? 0 : volume}
+              onChange={handleVolume}
+              style={{
+                width: 64, height: 3, cursor: 'pointer',
+                WebkitAppearance: 'none', appearance: 'none',
+                background: 'rgba(255,255,255,0.25)', borderRadius: 9999, outline: 'none',
+                accentColor: accent.main,
+              }}
+            />
+          </div>
+
+          {/* Right side */}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 0 }}>
+
+            {/* Loop */}
+            <button
+              onClick={() => setIsLoop(l => !l)}
+              style={{
+                ...ctrlBtnStyle(true),
+                color: isLoop ? accent.main : '#aaa',
+              }}
+              title="Repetir"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="17 1 21 5 17 9"/>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                <polyline points="7 23 3 19 7 15"/>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+            </button>
+
+            {/* Prev / Next opcionais */}
+            {hasPrev && (
+              <button onClick={onPrev} style={ctrlBtnStyle(true)} title="Anterior">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>
+                </svg>
+              </button>
+            )}
+            {hasNext && (
+              <button onClick={onNext} style={ctrlBtnStyle(true)} title="Próximo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+                </svg>
+              </button>
+            )}
+
+            {/* Accent dots */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '0 8px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginLeft: 8,
+            }}>
+              {ACCENT_COLORS.map((c, i) => (
+                <button
+                  key={i}
+                  onClick={() => setAccentIdx(i)}
+                  title={c.label}
+                  style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    background: c.main, cursor: 'pointer',
+                    border: accentIdx === i ? '2px solid #fff' : '2px solid transparent',
+                    transform: accentIdx === i ? 'scale(1.25)' : 'scale(1)',
+                    transition: 'all 160ms',
+                    flexShrink: 0,
+                    outline: 'none',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* ── Track info (YouTube style) ── */}
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', gap: 16,
+        marginTop: 16, padding: '0 4px',
+      }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 4, flexShrink: 0,
+          background: '#212121', border: '1px solid rgba(255,255,255,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: accent.main,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="4"/>
+            <circle cx="12" cy="12" r="10" strokeDasharray="2 4"/>
+          </svg>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: '0.95rem', fontWeight: 600, color: '#f1f1f1',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{title}</div>
+          <div style={{
+            fontFamily: "'Space Mono', monospace",
+            fontSize: '0.6rem', color: '#aaa',
+            marginTop: 2, letterSpacing: '0.05em',
+          }}>{subtitle}</div>
+        </div>
+      </div>
+
+      {/* keyframes inline */}
+      <style>{`
+        @keyframes wave-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.35; }
+        }
+      `}</style>
     </div>
   )
 }
+
+// ─── helper de estilo de botão de controle ────────────────────────────────────
+const ctrlBtnStyle = (active: boolean): React.CSSProperties => ({
+  background: 'none', border: 'none',
+  color: '#aaa', cursor: active ? 'pointer' : 'not-allowed',
+  padding: '6px 8px', borderRadius: 4,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  opacity: active ? 1 : 0.3,
+  transition: 'color 160ms',
+})
