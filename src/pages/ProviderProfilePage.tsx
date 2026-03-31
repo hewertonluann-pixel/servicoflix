@@ -136,18 +136,13 @@ export const ProviderProfilePage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [reviewModalOpen, setReviewModalOpen] = useState(false)
 
-  // ── Media Viewer ──────────────────────────────────────────────────────────
   const [viewerOpen, setViewerOpen] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
   const [mediaTitles, setMediaTitles] = useState<Record<string, string>>({})
 
-  // ── AudioMiniPlayer: índice do áudio sendo pré-visualizado ────────────────
   const [activeMiniIdx, setActiveMiniIdx] = useState(0)
 
-  const openViewer = (index: number) => {
-    setViewerIndex(index)
-    setViewerOpen(true)
-  }
+  const openViewer = (index: number) => { setViewerIndex(index); setViewerOpen(true) }
   const closeViewer = () => setViewerOpen(false)
 
   const commentUser = user
@@ -162,7 +157,6 @@ export const ProviderProfilePage = () => {
     provider?.isMock ? undefined : id
   )
 
-  // ── Lista unificada de mídias (fotos + vídeos + áudios) ───────────────────
   const allItems = useMemo<MediaItem[]>(() => {
     if (!provider) return []
     const p = provider.providerProfile.media
@@ -173,12 +167,17 @@ export const ProviderProfilePage = () => {
     return [...photos, ...videos, ...audios]
   }, [provider])
 
-  // ── Contagens de comentários ──────────────────────────────────────────────
   const allMediaIds = useMemo(() => allItems.map(it => it.id), [allItems])
   const commentCounts = useMediaCommentCounts(
     provider?.isMock ? undefined : provider?.id,
     allMediaIds
   )
+
+  // ── helper: resolve o título atual de uma mídia (mediaTitles tem prioridade) ──
+  const resolveTitle = (mediaId: string, fallback: string) =>
+    mediaTitles[mediaId] && mediaTitles[mediaId].trim() !== ''
+      ? mediaTitles[mediaId]
+      : fallback
 
   useEffect(() => {
     const loadProvider = async () => {
@@ -297,15 +296,18 @@ export const ProviderProfilePage = () => {
   const showMessageBtn = !provider.isMock && !isOwnProfile
   const canComment = !provider.isMock
 
-  // Índices globais na fila allItems
   const photoStartIdx = 0
   const videoStartIdx = photos.length
   const audioStartIdx = photos.length + videos.length
 
-  // Item de áudio atualmente exibido no MiniPlayer
   const activeMiniItem = audios[activeMiniIdx]
     ? toMediaItem(audios[activeMiniIdx], 'audio', activeMiniIdx)
     : null
+
+  // Título resolvido do áudio ativo no MiniPlayer
+  const activeMiniTitle = activeMiniItem
+    ? resolveTitle(activeMiniItem.id, activeMiniItem.title)
+    : 'Nenhum arquivo carregado'
 
   return (
     <div className="min-h-screen pt-16 pb-32 lg:pb-20">
@@ -367,7 +369,6 @@ export const ProviderProfilePage = () => {
                   <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                   <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Redes Sociais</h2>
                 </div>
-
                 {user ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {socialLinks?.instagram && <SocialButton icon={Instagram} label="Instagram" url={getSocialUrl('instagram', socialLinks.instagram)} />}
@@ -447,7 +448,7 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* ── Áudios: MiniPlayer + lista de tracks ── */}
+            {/* ── Áudios ── */}
             {audios.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -455,7 +456,6 @@ export const ProviderProfilePage = () => {
                 transition={{ delay: 0.4 }}
                 className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6"
               >
-                {/* Cabeçalho da seção */}
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <div className="flex items-center gap-2">
                     <Music className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
@@ -466,28 +466,31 @@ export const ProviderProfilePage = () => {
                   </span>
                 </div>
 
-                {/* MiniPlayer do áudio ativo */}
+                {/* MiniPlayer — title sempre reflete mediaTitles */}
                 {activeMiniItem && (
                   <div className="mb-4">
                     <AudioMiniPlayer
                       key={activeMiniItem.id}
                       src={activeMiniItem.url}
-                      title={activeMiniItem.title}
-                      meta={activeMiniItem.duration
-                        ? `${Math.floor(activeMiniItem.duration / 60)}:${String(activeMiniItem.duration % 60).padStart(2, '0')} · áudio`
-                        : 'Áudio'
+                      title={activeMiniTitle}
+                      meta={
+                        activeMiniItem.duration
+                          ? `${Math.floor(activeMiniItem.duration / 60)}:${String(activeMiniItem.duration % 60).padStart(2, '0')} · áudio`
+                          : 'Áudio'
                       }
                       onOpenGallery={() => openViewer(audioStartIdx + activeMiniIdx)}
                     />
                   </div>
                 )}
 
-                {/* Lista de tracks — clique troca o MiniPlayer; ícone de comentários abre o viewer */}
+                {/* Lista de tracks — nome também usa mediaTitles */}
                 {audios.length > 1 && (
                   <div className="space-y-2">
                     {audios.map((url, i) => {
-                      const count   = commentCounts[`audio-${i}`] ?? 0
+                      const mediaId  = `audio-${i}`
+                      const count    = commentCounts[mediaId] ?? 0
                       const isActive = i === activeMiniIdx
+                      const trackTitle = resolveTitle(mediaId, `Áudio ${i + 1}`)
                       return (
                         <div
                           key={i}
@@ -503,11 +506,11 @@ export const ProviderProfilePage = () => {
                             ${ isActive ? 'bg-primary' : 'bg-primary/20' }`}>
                             <Music className={`w-4 h-4 ${ isActive ? 'text-white' : 'text-primary' }`} />
                           </div>
+                          {/* FIX: nome do track usa resolveTitle */}
                           <span className={`flex-1 text-sm font-medium truncate
                             ${ isActive ? 'text-white' : 'text-muted' }`}>
-                            Áudio {i + 1}
+                            {trackTitle}
                           </span>
-                          {/* Botão de comentários */}
                           {canComment && (
                             <button
                               onClick={e => { e.stopPropagation(); openViewer(audioStartIdx + i) }}
@@ -581,7 +584,6 @@ export const ProviderProfilePage = () => {
       {!provider.isMock && <RequestServiceModal isOpen={modalOpen} onClose={() => setModalOpen(false)} provider={{ id: provider.id, name: displayName, avatar: provider.providerAvatar, specialty: provider.providerProfile.specialty, priceFrom: provider.providerProfile.priceFrom }} />}
       {!provider.isMock && user && !isOwnProfile && <ReviewModal open={reviewModalOpen} onClose={() => setReviewModalOpen(false)} providerId={provider.id} providerName={displayName} />}
 
-      {/* ── Media Viewer unificado ── */}
       {canComment && (
         <MediaViewerModal
           isOpen={viewerOpen}
