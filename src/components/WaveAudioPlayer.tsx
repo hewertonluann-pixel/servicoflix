@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-// ─── Cores e tipos ────────────────────────────────────────────────────────────
+// ─── Cores e tipos ────────────────────────────────────────────────────
 type VisualMode = 'bars' | 'wave' | 'circle'
 
 interface AccentColor {
@@ -28,7 +28,7 @@ export interface WaveAudioPlayerProps {
   hasNext?: boolean
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────
 const fmtTime = (s: number) => {
   if (!s || !isFinite(s)) return '0:00'
   return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
@@ -39,7 +39,7 @@ const hexAlpha = (hex: string, alpha: number) => {
   return hex + a
 }
 
-// ─── Componente ───────────────────────────────────────────────────────────────
+// ─── Componente ──────────────────────────────────────────────────────────────
 export const WaveAudioPlayer = ({
   src,
   title    = 'Nenhuma faixa carregada',
@@ -59,6 +59,7 @@ export const WaveAudioPlayer = ({
   const audioCtxRef  = useRef<AudioContext | null>(null)
   const analyserRef  = useRef<AnalyserNode | null>(null)
   const gainRef      = useRef<GainNode | null>(null)
+  const sourceRef    = useRef<MediaElementAudioSourceNode | null>(null) // FIX 1: rastreia o source
   const prevVolRef   = useRef(0.8)
 
   const [isPlaying,   setIsPlaying]   = useState(false)
@@ -75,7 +76,7 @@ export const WaveAudioPlayer = ({
 
   const accent = ACCENT_COLORS[accentIdx]
 
-  // ─── Canvas resize ──────────────────────────────────────────────────────
+  // ─── Canvas resize ──────────────────────────────────────────────────
   const resizeCanvas = useCallback(() => {
     const canvas    = canvasRef.current
     const container = containerRef.current
@@ -98,24 +99,55 @@ export const WaveAudioPlayer = ({
     return () => { ro.disconnect(); window.removeEventListener('resize', resizeCanvas) }
   }, [resizeCanvas])
 
-  // ─── AudioContext ────────────────────────────────────────────────────────
+  // ─── AudioContext ────────────────────────────────────────────────────
   const initAudio = useCallback(() => {
-    if (audioCtxRef.current || !audioRef.current) return
+    if (!audioRef.current) return
+
+    // FIX 2: se já existe AudioContext mas o source ainda não foi criado
+    // (acontece quando o src muda e o audioEl é novo), recria o source
+    if (audioCtxRef.current) {
+      if (!sourceRef.current) {
+        try {
+          const source = audioCtxRef.current.createMediaElementSource(audioRef.current)
+          source.connect(analyserRef.current!)
+          sourceRef.current = source
+        } catch { /* elemento já estava conectado */ }
+      }
+      return
+    }
+
     const actx     = new AudioContext()
     const analyser = actx.createAnalyser()
     analyser.fftSize = 2048
     analyser.smoothingTimeConstant = 0.82
+
+    // FIX 3: gain.value deve ser o volume atual, não o valor de fechamento
     const gain = actx.createGain()
-    gain.gain.value = volume
-    actx.createMediaElementSource(audioRef.current).connect(analyser)
+    gain.gain.value = prevVolRef.current
+
+    const source = actx.createMediaElementSource(audioRef.current)
+    source.connect(analyser)
     analyser.connect(gain)
     gain.connect(actx.destination)
+
     audioCtxRef.current = actx
     analyserRef.current = analyser
     gainRef.current     = gain
-  }, [volume])
+    sourceRef.current   = source
+  }, [])
 
-  // ─── Draw: BARS ─────────────────────────────────────────────────────────
+  // ─── Reinicia quando o src muda ───────────────────────────────────────
+  useEffect(() => {
+    setIsReady(false)
+    setIsPlaying(false)
+    setProgress(0)
+    setCurrentTime(0)
+    setDuration(0)
+    // FIX 1 cont.: ao trocar de src o MediaElementSource anterior deixa de ser válido
+    sourceRef.current = null
+  }, [src])
+
+  // ─── Draw: BARS ───────────────────────────────────────────────────────
   const drawBars = useCallback((
     ctx2: CanvasRenderingContext2D,
     data: Uint8Array,
@@ -127,7 +159,6 @@ export const WaveAudioPlayer = ({
     const barW = (W - gap * (barCount - 1)) / barCount
     const step = Math.floor(data.length / barCount)
 
-    // grid
     ctx2.strokeStyle = 'rgba(255,255,255,0.025)'
     ctx2.lineWidth = 1
     for (let y = H; y > 0; y -= H / 5) {
@@ -160,7 +191,6 @@ export const WaveAudioPlayer = ({
       }
     }
 
-    // reflexo
     ctx2.save()
     ctx2.globalAlpha = 0.18
     ctx2.scale(1, -1)
@@ -181,7 +211,7 @@ export const WaveAudioPlayer = ({
     ctx2.restore()
   }, [])
 
-  // ─── Draw: WAVE ─────────────────────────────────────────────────────────
+  // ─── Draw: WAVE ───────────────────────────────────────────────────────
   const drawWave = useCallback((
     ctx2: CanvasRenderingContext2D,
     data: Uint8Array,
@@ -195,7 +225,6 @@ export const WaveAudioPlayer = ({
     ctx2.lineWidth = 1
     ctx2.moveTo(0, H / 2); ctx2.lineTo(W, H / 2); ctx2.stroke()
 
-    // fill
     ctx2.beginPath()
     let x = 0
     for (let i = 0; i < data.length; i++) {
@@ -211,7 +240,6 @@ export const WaveAudioPlayer = ({
     ctx2.fillStyle = fg
     ctx2.fill()
 
-    // line
     ctx2.beginPath()
     x = 0
     for (let i = 0; i < data.length; i++) {
@@ -227,7 +255,7 @@ export const WaveAudioPlayer = ({
     ctx2.shadowBlur = 0
   }, [])
 
-  // ─── Draw: CIRCLE ────────────────────────────────────────────────────────
+  // ─── Draw: CIRCLE ──────────────────────────────────────────────────────
   const drawCircle = useCallback((
     ctx2: CanvasRenderingContext2D,
     data: Uint8Array,
@@ -316,7 +344,7 @@ export const WaveAudioPlayer = ({
     idleTRef.current += 0.03
   }, [mode, accentIdx])
 
-  // ─── Visualizer loop ─────────────────────────────────────────────────────
+  // ─── Visualizer loop ────────────────────────────────────────────────────
   const startVisualizer = useCallback(() => {
     cancelAnimationFrame(animRef.current)
     const loop = () => {
@@ -350,7 +378,7 @@ export const WaveAudioPlayer = ({
     loop()
   }, [mode, accentIdx, drawBars, drawWave, drawCircle])
 
-  // ─── Idle loop ───────────────────────────────────────────────────────────
+  // ─── Idle loop ────────────────────────────────────────────────────────────
   const startIdle = useCallback(() => {
     cancelAnimationFrame(animRef.current)
     const loop = () => {
@@ -360,7 +388,6 @@ export const WaveAudioPlayer = ({
     loop()
   }, [renderIdle])
 
-  // inicia idle ao montar / trocar mode / accent quando não toca
   useEffect(() => {
     if (!isPlaying) startIdle()
     return () => cancelAnimationFrame(animRef.current)
@@ -371,7 +398,7 @@ export const WaveAudioPlayer = ({
     return () => cancelAnimationFrame(animRef.current)
   }, [isPlaying, mode, accentIdx, startVisualizer])
 
-  // ─── Cleanup ─────────────────────────────────────────────────────────────
+  // ─── Cleanup ──────────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current)
@@ -379,10 +406,11 @@ export const WaveAudioPlayer = ({
     }
   }, [])
 
-  // ─── Eventos do <audio> ──────────────────────────────────────────────────
+  // ─── Eventos do <audio> ──────────────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    // FIX 3 cont.: sincroniza volume com o estado atual
     audio.volume = volume
     const onMeta  = () => { setDuration(audio.duration); setIsReady(true) }
     const onTime  = () => {
@@ -401,9 +429,9 @@ export const WaveAudioPlayer = ({
       audio.removeEventListener('timeupdate',     onTime)
       audio.removeEventListener('ended',          onEnd)
     }
-  }, [src, isLoop, onEnded])
+  }, [src, isLoop, onEnded, volume])
 
-  // ─── autoPlay ────────────────────────────────────────────────────────────
+  // ─── autoPlay ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!autoPlay || !isReady) return
     const play = async () => {
@@ -415,12 +443,15 @@ export const WaveAudioPlayer = ({
     play()
   }, [autoPlay, isReady, initAudio])
 
-  // ─── Controles ───────────────────────────────────────────────────────────
+  // ─── Controles ──────────────────────────────────────────────────────────────
   const togglePlay = async () => {
     const audio = audioRef.current
     if (!audio || !isReady) return
     initAudio()
+    // FIX 2 cont.: garante que o AudioContext não está suspenso antes de tocar
     if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
+    // FIX 3 cont.: sincroniza gain com o volume atual antes de tocar
+    if (gainRef.current) gainRef.current.gain.value = volume
     if (isPlaying) { audio.pause(); setIsPlaying(false) }
     else           { await audio.play(); setIsPlaying(true) }
   }
@@ -435,6 +466,7 @@ export const WaveAudioPlayer = ({
   const handleVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = parseFloat(e.target.value)
     setVolume(v)
+    prevVolRef.current = v > 0 ? v : prevVolRef.current
     setIsMuted(v === 0)
     if (gainRef.current) gainRef.current.gain.value = v
     else if (audioRef.current) audioRef.current.volume = v
@@ -462,7 +494,7 @@ export const WaveAudioPlayer = ({
 
   const showOverlay = hovering || !isPlaying
 
-  // ─── Render ──────────────────────────────────────────────────────────────
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
       className="w-full flex flex-col select-none"
@@ -726,7 +758,6 @@ export const WaveAudioPlayer = ({
               </svg>
             </button>
 
-            {/* Prev / Next opcionais */}
             {hasPrev && (
               <button onClick={onPrev} style={ctrlBtnStyle(true)} title="Anterior">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -808,7 +839,8 @@ export const WaveAudioPlayer = ({
   )
 }
 
-// ─── helper de estilo de botão de controle ────────────────────────────────────
+// ─── helper de estilo de botão de controle ────────────────────────────────────────
+
 const ctrlBtnStyle = (active: boolean): React.CSSProperties => ({
   background: 'none', border: 'none',
   color: '#aaa', cursor: active ? 'pointer' : 'not-allowed',
