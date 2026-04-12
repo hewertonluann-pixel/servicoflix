@@ -26,21 +26,10 @@ import { InstallPage } from '@/pages/InstallPage'
 import { UsernameProfilePage } from '@/pages/UsernameProfilePage'
 import { CidadePage } from '@/pages/CidadePage'
 import { usePresence } from '@/hooks/usePresence'
-import { useFCM } from '@/hooks/useFCM'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Loader2 } from 'lucide-react'
 
-/**
- * SlugResolver
- *
- * Componente intermediário que recebe um /:slug genérico e decide:
- *   - Se o slug bate com uma cidade ativa no Firestore → renderiza CidadePage
- *   - Caso contrário → renderiza UsernameProfilePage (comportamento anterior)
- *
- * A resolução é feita UMA única vez por slug, com cache em memória
- * para evitar consultas repetidas ao Firestore.
- */
 const slugCache: Record<string, 'cidade' | 'username'> = {}
 
 const SlugResolver = () => {
@@ -52,14 +41,8 @@ const SlugResolver = () => {
 
   useEffect(() => {
     if (!slug) { navigate('/'); return }
-
     const lower = slug.toLowerCase()
-
-    // Já resolvido antes (cache)
-    if (slugCache[lower]) {
-      setTipo(slugCache[lower])
-      return
-    }
+    if (slugCache[lower]) { setTipo(slugCache[lower]); return }
 
     const resolve = async () => {
       try {
@@ -77,11 +60,9 @@ const SlugResolver = () => {
         setTipo('username')
       }
     }
-
     resolve()
   }, [slug])
 
-  // Aguarda resolução
   if (tipo === null) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -103,65 +84,36 @@ function App() {
                      location.pathname.startsWith('/debug') ||
                      location.pathname.startsWith('/fix')
   usePresence()
-  useFCM() // ← registra token FCM e escuta mensagens em foreground
+  // FCM e auth são gerenciados pelo AuthContext em main.tsx
 
   return (
     <div className="min-h-screen bg-background text-white font-sans">
       {!hideNavbar && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
-
-        {/* Perfil público de prestador */}
         <Route path="/profissional/:id" element={<ProviderProfilePage />} />
         <Route path="/prestador/:id" element={<ProviderProfilePage />} />
-
-        {/* Área do prestador */}
         <Route path="/meu-perfil" element={<ProviderDashboardPage />} />
         <Route path="/meu-perfil/editar" element={<EditProviderProfilePage />} />
         <Route path="/meu-perfil/artes" element={<ProviderPublicidadePage />} />
         <Route path="/prestador/solicitacoes" element={<ProviderRequestsPage />} />
-
-        {/* Área do cliente */}
         <Route path="/meu-perfil-cliente" element={<ClientProfilePage />} />
         <Route path="/minha-conta" element={<MyAccountPage />} />
-
-        {/* Configurações */}
         <Route path="/configuracoes" element={<SettingsPage />} />
-
-        {/* Onboarding */}
         <Route path="/tornar-se-prestador" element={<BecomeProviderPage />} />
-
-        {/* Compra de créditos */}
         <Route path="/comprar" element={<CompraPage />} />
-
-        {/* Busca */}
         <Route path="/buscar" element={<SearchPage />} />
-
-        {/* Auth */}
         <Route path="/entrar" element={<SimpleLoginPage />} />
-
-        {/* Chat */}
         <Route path="/chats" element={<ChatsPage />} />
         <Route path="/chat/:chatId" element={<ChatPage />} />
         <Route path="/chat" element={<ChatPage />} />
-
-        {/* Instalação PWA */}
         <Route path="/instalar" element={<InstallPage />} />
-
-        {/* Admin */}
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/aprovacoes" element={<AdminApprovalPage />} />
         <Route path="/admin/publicidade" element={<PublicidadePage />} />
         <Route path="/admin/relatorios" element={<AdminRelatoriosPage />} />
-
-        {/* Utilitários (ocultos da navbar) */}
         <Route path="/debug" element={<DebugProvidersPage />} />
         <Route path="/fix" element={<FixProvidersPage />} />
-
-        {/*
-          Rota genérica — deve ser a Última.
-          SlugResolver decide se é uma página de cidade (SEO) ou perfil de usuário.
-        */}
         <Route path="/:slug" element={<SlugResolver />} />
       </Routes>
     </div>
