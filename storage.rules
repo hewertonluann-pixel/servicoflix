@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Avatares de usuários ──────────────────────────────────────────────────
+    // Caminho: avatars/{userId}/avatar
+    match /avatars/{userId}/{fileName} {
+      // Qualquer pessoa autenticada pode LER avatares (exibir foto de perfil)
+      allow read: if request.auth != null;
+
+      // Apenas o próprio usuário pode fazer UPLOAD/DELETAR o seu avatar
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024       // máx 5 MB
+                   && request.resource.contentType.matches('image/.*'); // só imagens
+    }
+
+    // ── Mídias do Chat ────────────────────────────────────────────────────────
+    // Caminho: chats/{chatId}/{fileName}
+    match /chats/{chatId}/{fileName} {
+      // Apenas usuários autenticados podem ler/escrever mídias de chat
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 20 * 1024 * 1024; // máx 20 MB
+    }
+
+    // ── Portfólio de prestadores ──────────────────────────────────────────────
+    // Caminho: providers/{userId}/portfolio/{fileName}
+    match /providers/{userId}/portfolio/{fileName} {
+      // Qualquer um autenticado pode ver o portfólio
+      allow read: if request.auth != null;
+
+      // Apenas o próprio prestador pode fazer upload
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 20 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Bloqueia tudo que não se encaixa nas regras acima ─────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

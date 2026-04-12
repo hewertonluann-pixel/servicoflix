@@ -11,6 +11,7 @@
         "node_modules",
         ".git",
         "firebase-debug.log",
+        "firebase-debug.log",
         "firebase-debug.*.log",
         "*.local"
       ]
@@ -29,5 +30,8 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }
