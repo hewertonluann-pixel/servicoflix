@@ -26,6 +26,7 @@ import { InstallPage } from '@/pages/InstallPage'
 import { UsernameProfilePage } from '@/pages/UsernameProfilePage'
 import { CidadePage } from '@/pages/CidadePage'
 import { usePresence } from '@/hooks/usePresence'
+import { useFCM } from '@/hooks/useFCM'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Loader2 } from 'lucide-react'
@@ -102,6 +103,7 @@ function App() {
                      location.pathname.startsWith('/debug') ||
                      location.pathname.startsWith('/fix')
   usePresence()
+  useFCM() // ← registra token FCM e escuta mensagens em foreground
 
   return (
     <div className="min-h-screen bg-background text-white font-sans">
