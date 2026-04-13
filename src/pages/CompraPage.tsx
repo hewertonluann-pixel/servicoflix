@@ -4,11 +4,8 @@ import { Zap, RefreshCw, CheckCircle, ArrowLeft, ShoppingCart, Info, Eye, Trendi
 import { useNavigate } from 'react-router-dom'
 import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { getFunctions, httpsCallable } from 'firebase/functions'
 
-// ⚠️ Substitua pela URL real da sua Cloud Function após deploy
-// Ex: https://southamerica-east1-SEU_PROJETO.cloudfunctions.net/createCheckoutSession
-const CHECKOUT_FUNCTION_URL = 'https://southamerica-east1-SEU_PROJETO.cloudfunctions.net/createCheckoutSession'
+const CHECKOUT_FUNCTION_URL = 'https://southamerica-east1-prontto-60341.cloudfunctions.net/createCheckoutSession'
 
 // Price IDs reais do painel Stripe
 const PRICE_IDS = {
