@@ -8,14 +8,14 @@ const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 
 // Price IDs reais do seu painel Stripe — ajuste se necessário
 const VALID_PRICE_IDS = new Set([
-  'price_1TELvUEW46ts4yeZGUhuQvqJ', // R$ 29,90 — 30 dias
+  'price_1TELvUEW46ts4yeZGUhuQvqJ', // R$ 29,90 — 30 dias 
   'price_1TELx3EW46ts4yeZzW1RUOGM', // R$ 49,90 — 60 dias
   'price_1TELxtEW46ts4yeZQyVS9zHa', // R$ 69,90 — 90 dias
-  'price_mensal_real',               // ⚠️ SUBSTITUA pelo Price ID real da assinatura mensal
+  'price_1TEV5OEW46ts4yeZ6YjmgEkC', //  Price ID da assinatura mensal
 ])
 
 const SUBSCRIPTION_PRICE_IDS = new Set([
-  'price_mensal_real', // ⚠️ SUBSTITUA pelo Price ID real da assinatura mensal
+  'price_1TEV5OEW46ts4yeZ6YjmgEkC', //  Price ID da assinatura mensal
 ])
 
 export const createCheckoutSession = onRequest(
