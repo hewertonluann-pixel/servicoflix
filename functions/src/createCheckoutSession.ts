@@ -6,16 +6,16 @@ import Stripe from 'stripe'
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 
-// Price IDs reais do seu painel Stripe — ajuste se necessário
+// Price IDs reais do painel Stripe
 const VALID_PRICE_IDS = new Set([
-  'price_1TELvUEW46ts4yeZGUhuQvqJ', // R$ 29,90 — 30 dias 
+  'price_1TELvUEW46ts4yeZGUhuQvqJ', // R$ 29,90 — 30 dias
   'price_1TELx3EW46ts4yeZzW1RUOGM', // R$ 49,90 — 60 dias
   'price_1TELxtEW46ts4yeZQyVS9zHa', // R$ 69,90 — 90 dias
-  'price_1TEV5OEW46ts4yeZ6YjmgEkC', //  Price ID da assinatura mensal
+  'price_1TEV5OEW46ts4yeZ6YjmgEkC', // R$ 19,90 — assinatura mensal
 ])
 
 const SUBSCRIPTION_PRICE_IDS = new Set([
-  'price_1TEV5OEW46ts4yeZ6YjmgEkC', //  Price ID da assinatura mensal
+  'price_1TEV5OEW46ts4yeZ6YjmgEkC', // R$ 19,90 — assinatura mensal
 ])
 
 export const createCheckoutSession = onRequest(
@@ -32,7 +32,6 @@ export const createCheckoutSession = onRequest(
 
     const { userId, priceId, successUrl, cancelUrl } = req.body
 
-    // Validações
     if (!userId || typeof userId !== 'string') {
       res.status(400).json({ error: 'userId obrigatório' })
       return
@@ -46,7 +45,6 @@ export const createCheckoutSession = onRequest(
       return
     }
 
-    // Verifica se usuário existe e é prestador
     const userSnap = await admin.firestore().collection('users').doc(userId).get()
     if (!userSnap.exists) {
       res.status(404).json({ error: 'Usuário não encontrado' })
@@ -64,17 +62,8 @@ export const createCheckoutSession = onRequest(
     try {
       const session = await stripe.checkout.sessions.create({
         mode: isSubscription ? 'subscription' : 'payment',
-        line_items: [
-          {
-            price: priceId,
-            quantity: 1,
-          },
-        ],
-        metadata: {
-          userId,
-          priceId,
-        },
-        // Para assinaturas, o metadata também precisa ir no subscription
+        line_items: [{ price: priceId, quantity: 1 }],
+        metadata: { userId, priceId },
         ...(isSubscription && {
           subscription_data: {
             metadata: { userId, priceId },

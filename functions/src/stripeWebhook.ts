@@ -17,9 +17,8 @@ const PRICE_TO_DIAS: Record<string, number> = {
 }
 
 // Price IDs de assinatura mensal
-// ⚠️ SUBSTITUA 'price_mensal_real' pelo Price ID real da assinatura no painel Stripe
 const SUBSCRIPTION_PRICE_IDS = new Set([
-  'price_mensal_real',
+  'price_1TEV5OEW46ts4yeZ6YjmgEkC', // R$ 19,90 — assinatura mensal
 ])
 
 export const stripeWebhook = onRequest(
@@ -28,13 +27,11 @@ export const stripeWebhook = onRequest(
     secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET],
   },
   async (req, res) => {
-    // Apenas POST
     if (req.method !== 'POST') {
       res.status(405).send('Method Not Allowed')
       return
     }
 
-    // Validar assinatura do Stripe
     const stripe = new Stripe(STRIPE_SECRET_KEY.value())
     const sig = req.headers['stripe-signature']
 
@@ -111,7 +108,6 @@ export const stripeWebhook = onRequest(
       const currentExpiry: admin.firestore.Timestamp | null =
         data.providerProfile?.scoreExpiresAt || null
 
-      // Se ainda tem dias restantes, soma em cima do prazo atual
       const baseDate =
         currentExpiry && currentExpiry.toMillis() > Date.now()
           ? currentExpiry.toDate()

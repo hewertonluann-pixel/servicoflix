@@ -7,9 +7,8 @@ import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
 const CHECKOUT_FUNCTION_URL = 'https://southamerica-east1-prontto-60341.cloudfunctions.net/createCheckoutSession'
 
-// Price IDs reais do painel Stripe
 const PRICE_IDS = {
-  assinatura: 'price_mensal_real',               // ⚠️ Substitua pelo Price ID real da assinatura
+  assinatura: 'price_1TEV5OEW46ts4yeZ6YjmgEkC', // R$ 19,90 — assinatura mensal
   creditos30: 'price_1TELvUEW46ts4yeZGUhuQvqJ',  // R$ 29,90 — 30 dias
 }
 
