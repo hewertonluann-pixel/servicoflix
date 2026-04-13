@@ -28,6 +28,52 @@ interface Props {
 
 type View = 'media' | 'comments'
 
+/** Redimensiona + comprime uma imagem via canvas.
+ *  Retorna um File WebP/JPEG com no máximo `maxSide` px no lado maior. */
+async function resizeImageForShare(
+  sourceUrl: string,
+  title: string,
+  maxSide = 1080,
+  quality = 0.82,
+): Promise<File> {
+  // 1 — baixa o blob original
+  const res = await fetch(sourceUrl)
+  const blob = await res.blob()
+
+  // 2 — decodifica em ImageBitmap (sem criar um <img> no DOM)
+  const bitmap = await createImageBitmap(blob)
+
+  // 3 — calcula dimensões mantendo aspect ratio
+  const { width: w, height: h } = bitmap
+  const scale = Math.min(1, maxSide / Math.max(w, h))
+  const tw = Math.round(w * scale)
+  const th = Math.round(h * scale)
+
+  // 4 — desenha no canvas
+  const canvas = document.createElement('canvas')
+  canvas.width  = tw
+  canvas.height = th
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(bitmap, 0, 0, tw, th)
+  bitmap.close()
+
+  // 5 — exporta: prefere WebP, cai para JPEG se não suportado
+  const supportsWebP = canvas.toDataURL('image/webp').startsWith('data:image/webp')
+  const mimeType = supportsWebP ? 'image/webp' : 'image/jpeg'
+  const ext      = supportsWebP ? 'webp' : 'jpg'
+
+  return new Promise<File>((resolve, reject) => {
+    canvas.toBlob(
+      (outBlob) => {
+        if (!outBlob) { reject(new Error('canvas.toBlob falhou')); return }
+        resolve(new File([outBlob], `${title}.${ext}`, { type: mimeType }))
+      },
+      mimeType,
+      quality,
+    )
+  })
+}
+
 const TypeIcon = ({ type, className }: { type: MediaItem['type'], className?: string }) => {
   if (type === 'photo') return <ImageIcon className={className} />
   if (type === 'video') return <Play className={className} />
@@ -52,6 +98,7 @@ export const MediaViewerModal = ({
   const [fullscreen, setFullscreen] = useState(false)
   const [headerVisible, setHeaderVisible] = useState(true)
   const [view, setView] = useState<View>('media')
+  const [sharing, setSharing] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -177,10 +224,45 @@ export const MediaViewerModal = ({
     return mediaTitles[it.id] ?? it.title ?? `${it.type === 'photo' ? 'Foto' : it.type === 'video' ? 'Vídeo' : 'Áudio'}`
   }
 
+  // ── Compartilhamento inteligente ──────────────────────────────────────────
   const handleShare = async () => {
-    if (navigator.share && item) {
+    if (!item || sharing) return
+    const title = getTitle(item)
+
+    // ── Foto: tenta Web Share API Level 2 (com arquivo) ──────────────────
+    if (item.type === 'photo' && navigator.canShare) {
+      setSharing(true)
       try {
-        await navigator.share({ title: getTitle(item), url: item.url })
+        const file = await resizeImageForShare(item.url, title)
+
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title,
+            text: `Confira este trabalho no ServiçoFlix!`,
+          })
+          return
+        }
+      } catch (err) {
+        // Se resize/share falhar, cai para o fallback abaixo
+        console.warn('[handleShare] file share falhou, usando fallback:', err)
+      } finally {
+        setSharing(false)
+      }
+    }
+
+    // ── Fallback: share apenas URL (vídeo, áudio, ou browsers sem suporte) ─
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url: item.url })
+      } catch { /* cancelado pelo usuário */ }
+    } else {
+      // Desktop sem Web Share API: copia URL para a área de transferência
+      try {
+        await navigator.clipboard.writeText(item.url)
+        // Feedback visual via título temporário — não requer um toast separado
+        const btn = document.activeElement as HTMLElement | null
+        btn?.blur()
       } catch { /* ignorado */ }
     }
   }
@@ -213,11 +295,6 @@ export const MediaViewerModal = ({
             onMouseMove={fullscreen ? resetHideTimer : undefined}
           >
 
-            {/* ════════════════════════════════════════════════════
-                MOBILE — dois painéis animados (media | comments)
-                Desktop — layout original lado a lado
-            ════════════════════════════════════════════════════ */}
-
             {/* ── Header ───────────────────────────────────────────────── */}
             <div
               className={`flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-black/80 backdrop-blur-sm shrink-0 transition-all duration-300 ${
@@ -226,7 +303,6 @@ export const MediaViewerModal = ({
                   : 'relative'
               }`}
             >
-              {/* Botão voltar (mobile comentários) */}
               {view === 'comments' && (
                 <button
                   onClick={() => setView('media')}
@@ -236,7 +312,6 @@ export const MediaViewerModal = ({
                 </button>
               )}
 
-              {/* Navegação anterior (modo media) */}
               {items.length > 1 && view === 'media' && (
                 <button onClick={prev} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white">
                   <ChevronLeft className="w-5 h-5" />
@@ -313,7 +388,6 @@ export const MediaViewerModal = ({
                     transition={{ type: 'tween', duration: 0.28 }}
                     className="absolute inset-0 flex flex-col"
                   >
-                    {/* Área da foto — tela quase cheia */}
                     <div className="flex-1 flex items-center justify-center bg-black relative">
                       <AnimatePresence mode="wait">
                         <motion.div
@@ -353,7 +427,6 @@ export const MediaViewerModal = ({
                         </motion.div>
                       </AnimatePresence>
 
-                      {/* Setas laterais mobile */}
                       {items.length > 1 && (
                         <>
                           <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 rounded-full flex items-center justify-center text-white">
@@ -366,7 +439,6 @@ export const MediaViewerModal = ({
                       )}
                     </div>
 
-                    {/* Thumbnails mobile */}
                     {items.length > 1 && (
                       <div className="shrink-0 flex gap-2 px-3 py-2 bg-black/60 overflow-x-auto">
                         {items.map((it, i) => (
@@ -391,7 +463,7 @@ export const MediaViewerModal = ({
                       </div>
                     )}
 
-                    {/* Barra de ações inferior — estilo Instagram */}
+                    {/* Barra de ações inferior */}
                     <div className="shrink-0 flex items-center justify-around px-6 py-3 bg-black/80 border-t border-white/10">
                       <button className="flex items-center gap-2 text-white/80 hover:text-red-400 transition-colors">
                         <Heart className="w-6 h-6" />
@@ -405,9 +477,14 @@ export const MediaViewerModal = ({
                       </button>
                       <button
                         onClick={handleShare}
-                        className="flex items-center gap-2 text-white/80 hover:text-primary transition-colors"
+                        disabled={sharing}
+                        className="flex items-center gap-2 text-white/80 hover:text-primary transition-colors disabled:opacity-50"
+                        title={sharing ? 'Preparando imagem…' : 'Compartilhar'}
                       >
-                        <Share2 className="w-6 h-6" />
+                        {sharing
+                          ? <Loader2 className="w-6 h-6 animate-spin" />
+                          : <Share2 className="w-6 h-6" />
+                        }
                       </button>
                     </div>
                   </motion.div>
@@ -423,7 +500,6 @@ export const MediaViewerModal = ({
                     transition={{ type: 'tween', duration: 0.28 }}
                     className="absolute inset-0 flex flex-col bg-background"
                   >
-                    {/* Miniatura da foto no topo */}
                     {item.type === 'photo' && (
                       <div
                         className="shrink-0 w-full h-24 overflow-hidden cursor-pointer relative"
@@ -437,7 +513,6 @@ export const MediaViewerModal = ({
                       </div>
                     )}
 
-                    {/* Seção de comentários — scroll livre, input fixo */}
                     <div className="flex-1 min-h-0">
                       <CommentSection
                         key={item.id}
@@ -456,7 +531,6 @@ export const MediaViewerModal = ({
             {/* ── DESKTOP: layout original lado a lado ──────────────────── */}
             <div className={`hidden md:flex min-h-0 ${ fullscreen ? 'flex-1' : 'flex-row flex-1' }`}>
 
-              {/* Seta esquerda desktop */}
               {items.length > 1 && (
                 <button
                   onClick={prev}
@@ -468,7 +542,6 @@ export const MediaViewerModal = ({
                 </button>
               )}
 
-              {/* Painel mídia desktop */}
               <div className={`flex items-center justify-center bg-black relative min-h-0 ${ fullscreen ? 'w-full h-full' : 'flex-1' }`}>
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -527,7 +600,6 @@ export const MediaViewerModal = ({
                 )}
               </div>
 
-              {/* Seta direita desktop */}
               {items.length > 1 && (
                 <button
                   onClick={next}
@@ -541,12 +613,25 @@ export const MediaViewerModal = ({
                 </button>
               )}
 
-              {/* Painel comentários desktop (oculto em fullscreen) */}
+              {/* Painel comentários desktop + botão compartilhar */}
               {!fullscreen && (
                 <div className="w-80 lg:w-96 flex flex-col border-l border-white/10 bg-background shrink-0">
                   <div className="px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
                     <MessageSquare className="w-4 h-4 text-primary" />
-                    <span className="text-white text-sm font-bold">Comentários</span>
+                    <span className="text-white text-sm font-bold flex-1">Comentários</span>
+                    {/* Botão compartilhar desktop */}
+                    <button
+                      onClick={handleShare}
+                      disabled={sharing}
+                      className="flex items-center gap-1.5 text-xs text-white/60 hover:text-primary transition-colors disabled:opacity-50"
+                      title={sharing ? 'Preparando…' : 'Compartilhar'}
+                    >
+                      {sharing
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Share2 className="w-3.5 h-3.5" />
+                      }
+                      <span>{sharing ? 'Preparando…' : 'Compartilhar'}</span>
+                    </button>
                   </div>
                   <div className="flex-1 overflow-hidden p-3">
                     <CommentSection
@@ -560,7 +645,6 @@ export const MediaViewerModal = ({
                 </div>
               )}
 
-              {/* Thumbnails desktop */}
               {items.length > 1 && !fullscreen && (
                 <div className="absolute bottom-0 left-0 right-80 lg:right-96 shrink-0 flex gap-2 px-4 py-2 bg-black/60 border-t border-white/10 overflow-x-auto">
                   {items.map((it, i) => (
