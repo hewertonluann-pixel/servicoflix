@@ -8,6 +8,9 @@ interface Props {
   providers: Provider[]
 }
 
+const TEXT_SHADOW = { textShadow: '0 2px 12px rgba(0,0,0,0.85), 0 1px 4px rgba(0,0,0,0.9)' }
+const TEXT_SHADOW_SM = { textShadow: '0 1px 8px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.9)' }
+
 export const HeroBillboard = ({ providers }: Props) => {
   const featured = providers.filter(p => p.isFeatured)
   const [current, setCurrent] = useState(0)
@@ -39,8 +42,11 @@ export const HeroBillboard = ({ providers }: Props) => {
             alt={provider.name}
             className="w-full h-full object-cover"
           />
-          {/* Gradientes */}
+          {/* Gradiente principal (hero) */}
           <div className="absolute inset-0 bg-gradient-hero" />
+          {/* Gradiente lateral esquerdo reforçado — garante legibilidade do texto */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-transparent" />
+          {/* Gradiente inferior */}
           <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-background to-transparent" />
         </motion.div>
       </AnimatePresence>
@@ -63,6 +69,7 @@ export const HeroBillboard = ({ providers }: Props) => {
                   className="inline-flex items-center gap-2 bg-primary/20 border border-primary/40 text-primary text-xs font-semibold px-3 py-1 rounded-full mb-4"
                   animate={{ opacity: [1, 0.6, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
+                  style={TEXT_SHADOW_SM}
                 >
                   <span className="w-2 h-2 bg-primary rounded-full" />
                   Disponível agora
@@ -70,15 +77,26 @@ export const HeroBillboard = ({ providers }: Props) => {
               )}
 
               {/* Nome */}
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-3 leading-tight">
+              <h1
+                className="text-4xl sm:text-5xl lg:text-6xl font-black mb-3 leading-tight"
+                style={TEXT_SHADOW}
+              >
                 {provider.name}
               </h1>
 
               {/* Especialidade */}
-              <p className="text-primary font-semibold text-lg mb-4">{provider.specialty}</p>
+              <p
+                className="text-primary font-semibold text-lg mb-4"
+                style={TEXT_SHADOW_SM}
+              >
+                {provider.specialty}
+              </p>
 
               {/* Infos */}
-              <div className="flex flex-wrap items-center gap-4 mb-6 text-sm text-muted">
+              <div
+                className="flex flex-wrap items-center gap-4 mb-6 text-sm text-muted"
+                style={TEXT_SHADOW_SM}
+              >
                 <span className="flex items-center gap-1">
                   <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                   <span className="text-white font-bold">{provider.rating}</span>
@@ -95,7 +113,10 @@ export const HeroBillboard = ({ providers }: Props) => {
               </div>
 
               {/* Bio */}
-              <p className="text-muted text-sm leading-relaxed mb-8 max-w-md">
+              <p
+                className="text-muted text-sm leading-relaxed mb-8 max-w-md"
+                style={TEXT_SHADOW_SM}
+              >
                 {provider.bio}
               </p>
 
@@ -123,7 +144,10 @@ export const HeroBillboard = ({ providers }: Props) => {
               </div>
 
               {/* Preço base */}
-              <p className="mt-4 text-sm text-muted">
+              <p
+                className="mt-4 text-sm text-muted"
+                style={TEXT_SHADOW_SM}
+              >
                 A partir de <span className="text-white font-bold">R$ {provider.priceFrom}</span>
               </p>
             </motion.div>
