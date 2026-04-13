@@ -4,7 +4,7 @@ import {
   X, ChevronLeft, ChevronRight,
   Image as ImageIcon, Play, Music,
   MessageSquare, Pencil, Check, Loader2,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Heart, Share2, ArrowLeft,
 } from 'lucide-react'
 import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -25,6 +25,8 @@ interface Props {
   mediaTitles?: Record<string, string>
   onTitleSaved?: (mediaId: string, newTitle: string) => void
 }
+
+type View = 'media' | 'comments'
 
 const TypeIcon = ({ type, className }: { type: MediaItem['type'], className?: string }) => {
   if (type === 'photo') return <ImageIcon className={className} />
@@ -49,6 +51,7 @@ export const MediaViewerModal = ({
   const [savingTitle, setSavingTitle] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [headerVisible, setHeaderVisible] = useState(true)
+  const [view, setView] = useState<View>('media')
   const titleInputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,17 +59,17 @@ export const MediaViewerModal = ({
   const item = items[idx] ?? null
 
   useEffect(() => {
-    if (isOpen) setIdx(initialIndex)
+    if (isOpen) { setIdx(initialIndex); setView('media') }
   }, [isOpen, initialIndex])
 
   useEffect(() => { setEditingTitle(false) }, [idx])
+  useEffect(() => { if (view === 'media') setEditingTitle(false) }, [view])
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
-  // ── Sync com evento nativo de fullscreen (ESC do browser, etc.) ──────────
   useEffect(() => {
     const onFsChange = () => {
       const isFull = !!document.fullscreenElement
@@ -77,7 +80,6 @@ export const MediaViewerModal = ({
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
 
-  // ── Sai do fullscreen ao fechar o modal ───────────────────────────────
   useEffect(() => {
     if (!isOpen && document.fullscreenElement) {
       document.exitFullscreen().catch(() => {})
@@ -89,7 +91,6 @@ export const MediaViewerModal = ({
   const next = useCallback(() =>
     setIdx(i => (i < items.length - 1 ? i + 1 : 0)), [items.length])
 
-  // ── Auto-hide do header no fullscreen ────────────────────────────────
   const resetHideTimer = useCallback(() => {
     setHeaderVisible(true)
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
@@ -107,41 +108,38 @@ export const MediaViewerModal = ({
     return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }
   }, [fullscreen, resetHideTimer])
 
-  // ── Teclado ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return
     const handler = (e: KeyboardEvent) => {
       if (editingTitle) return
       if (e.key === 'Escape') {
+        if (view === 'comments') { setView('media'); return }
         if (fullscreen) toggleFullscreen()
         else onClose()
       }
-      if (e.key === 'ArrowLeft')  prev()
-      if (e.key === 'ArrowRight') next()
-      if (e.key === 'f' || e.key === 'F') toggleFullscreen()
+      if (view === 'media') {
+        if (e.key === 'ArrowLeft')  prev()
+        if (e.key === 'ArrowRight') next()
+        if (e.key === 'f' || e.key === 'F') toggleFullscreen()
+      }
       if (fullscreen) resetHideTimer()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, idx, editingTitle, fullscreen])
+  }, [isOpen, idx, editingTitle, fullscreen, view])
 
-  // ── Toggle Fullscreen ─────────────────────────────────────────────────
   const toggleFullscreen = async () => {
     const el = containerRef.current
     if (!el) return
     try {
-      if (!document.fullscreenElement) {
-        await el.requestFullscreen()
-      } else {
-        await document.exitFullscreen()
-      }
+      if (!document.fullscreenElement) await el.requestFullscreen()
+      else await document.exitFullscreen()
     } catch {
       setFullscreen(f => !f)
     }
   }
 
-  // ── Edição de título ────────────────────────────────────────────────────
   const startEdit = () => {
     setTitleDraft(getTitle(item))
     setEditingTitle(true)
@@ -179,6 +177,14 @@ export const MediaViewerModal = ({
     return mediaTitles[it.id] ?? it.title ?? `${it.type === 'photo' ? 'Foto' : it.type === 'video' ? 'Vídeo' : 'Áudio'}`
   }
 
+  const handleShare = async () => {
+    if (navigator.share && item) {
+      try {
+        await navigator.share({ title: getTitle(item), url: item.url })
+      } catch { /* ignorado */ }
+    }
+  }
+
   if (!isOpen || !item) return null
 
   return (
@@ -202,10 +208,16 @@ export const MediaViewerModal = ({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.97 }}
             transition={{ duration: 0.18 }}
-            className="flex flex-col w-full h-full bg-black"
+            className="flex flex-col w-full h-full bg-black overflow-hidden"
             onClick={e => e.stopPropagation()}
             onMouseMove={fullscreen ? resetHideTimer : undefined}
           >
+
+            {/* ════════════════════════════════════════════════════
+                MOBILE — dois painéis animados (media | comments)
+                Desktop — layout original lado a lado
+            ════════════════════════════════════════════════════ */}
+
             {/* ── Header ───────────────────────────────────────────────── */}
             <div
               className={`flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-black/80 backdrop-blur-sm shrink-0 transition-all duration-300 ${
@@ -214,7 +226,18 @@ export const MediaViewerModal = ({
                   : 'relative'
               }`}
             >
-              {items.length > 1 && (
+              {/* Botão voltar (mobile comentários) */}
+              {view === 'comments' && (
+                <button
+                  onClick={() => setView('media')}
+                  className="md:hidden w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Navegação anterior (modo media) */}
+              {items.length > 1 && view === 'media' && (
                 <button onClick={prev} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white">
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -234,10 +257,12 @@ export const MediaViewerModal = ({
                     maxLength={60}
                   />
                 ) : (
-                  <span className="text-white text-sm font-semibold truncate">{getTitle(item)}</span>
+                  <span className="text-white text-sm font-semibold truncate">
+                    {view === 'comments' ? 'Comentários' : getTitle(item)}
+                  </span>
                 )}
 
-                {isOwner && !editingTitle && (
+                {isOwner && !editingTitle && view === 'media' && (
                   <button onClick={startEdit} className="shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-white/10 transition-colors text-muted hover:text-primary" title="Editar título">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -249,46 +274,202 @@ export const MediaViewerModal = ({
                 )}
               </div>
 
-              {items.length > 1 && (
+              {items.length > 1 && view === 'media' && (
                 <span className="text-xs text-muted shrink-0">{idx + 1}/{items.length}</span>
               )}
 
-              {items.length > 1 && (
+              {items.length > 1 && view === 'media' && (
                 <button onClick={next} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white">
                   <ChevronRight className="w-5 h-5" />
                 </button>
               )}
 
-              <button
-                onClick={toggleFullscreen}
-                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white"
-                title={fullscreen ? 'Sair do fullscreen (F)' : 'Fullscreen (F)'}
-              >
-                {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </button>
+              {view === 'media' && (
+                <button
+                  onClick={toggleFullscreen}
+                  className="shrink-0 w-8 h-8 hidden md:flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white"
+                  title={fullscreen ? 'Sair do fullscreen (F)' : 'Fullscreen (F)'}
+                >
+                  {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+              )}
 
               <button onClick={onClose} className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* ── Corpo: mídia + comentários ───────────────────────────────── */}
-            <div className={`flex min-h-0 ${fullscreen ? 'flex-1' : 'flex flex-col md:flex-row flex-1'}`}>
+            {/* ── MOBILE: painel animado ─────────────────────────────────── */}
+            <div className="md:hidden flex-1 flex flex-col min-h-0 relative overflow-hidden">
+              <AnimatePresence initial={false} mode="wait">
+
+                {/* PAINEL MÍDIA */}
+                {view === 'media' && (
+                  <motion.div
+                    key="mobile-media"
+                    initial={{ x: 0, opacity: 1 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: '-100%', opacity: 0 }}
+                    transition={{ type: 'tween', duration: 0.28 }}
+                    className="absolute inset-0 flex flex-col"
+                  >
+                    {/* Área da foto — tela quase cheia */}
+                    <div className="flex-1 flex items-center justify-center bg-black relative">
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={item.id}
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.15 }}
+                          className="w-full h-full flex items-center justify-center p-2"
+                        >
+                          {item.type === 'photo' && (
+                            <img
+                              src={item.url}
+                              alt={getTitle(item)}
+                              className="max-w-full max-h-full object-contain rounded-lg"
+                            />
+                          )}
+                          {item.type === 'video' && (
+                            isValidYouTubeUrl(item.url)
+                              ? <div className="w-full max-w-lg"><YouTubeEmbed videoUrl={item.url} title={getTitle(item)} /></div>
+                              : <video src={item.url} controls className="max-w-full max-h-full rounded-lg" poster={item.thumbnailUrl} />
+                          )}
+                          {item.type === 'audio' && (
+                            <div className="w-full max-w-sm px-2">
+                              <WaveAudioPlayer
+                                key={item.id}
+                                src={item.url}
+                                title={getTitle(item)}
+                                subtitle={item.id}
+                                onNext={items.length > 1 ? next : undefined}
+                                onPrev={items.length > 1 ? prev : undefined}
+                                hasNext={items.length > 1}
+                                hasPrev={items.length > 1}
+                              />
+                            </div>
+                          )}
+                        </motion.div>
+                      </AnimatePresence>
+
+                      {/* Setas laterais mobile */}
+                      {items.length > 1 && (
+                        <>
+                          <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 rounded-full flex items-center justify-center text-white">
+                            <ChevronLeft className="w-5 h-5" />
+                          </button>
+                          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-black/50 rounded-full flex items-center justify-center text-white">
+                            <ChevronRight className="w-5 h-5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Thumbnails mobile */}
+                    {items.length > 1 && (
+                      <div className="shrink-0 flex gap-2 px-3 py-2 bg-black/60 overflow-x-auto">
+                        {items.map((it, i) => (
+                          <button
+                            key={it.id}
+                            onClick={() => setIdx(i)}
+                            className={`shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
+                              i === idx ? 'border-primary scale-105' : 'border-transparent opacity-50'
+                            }`}
+                          >
+                            {it.type === 'photo' ? (
+                              <img src={it.url} alt="" className="w-full h-full object-cover" />
+                            ) : it.type === 'video' && it.thumbnailUrl ? (
+                              <img src={it.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-surface flex items-center justify-center">
+                                <TypeIcon type={it.type} className="w-4 h-4 text-muted" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Barra de ações inferior — estilo Instagram */}
+                    <div className="shrink-0 flex items-center justify-around px-6 py-3 bg-black/80 border-t border-white/10">
+                      <button className="flex items-center gap-2 text-white/80 hover:text-red-400 transition-colors">
+                        <Heart className="w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={() => setView('comments')}
+                        className="flex items-center gap-2 text-white/80 hover:text-primary transition-colors"
+                      >
+                        <MessageSquare className="w-6 h-6" />
+                        <span className="text-sm font-medium">Comentar</span>
+                      </button>
+                      <button
+                        onClick={handleShare}
+                        className="flex items-center gap-2 text-white/80 hover:text-primary transition-colors"
+                      >
+                        <Share2 className="w-6 h-6" />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* PAINEL COMENTÁRIOS */}
+                {view === 'comments' && (
+                  <motion.div
+                    key="mobile-comments"
+                    initial={{ x: '100%', opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: '100%', opacity: 0 }}
+                    transition={{ type: 'tween', duration: 0.28 }}
+                    className="absolute inset-0 flex flex-col bg-background"
+                  >
+                    {/* Miniatura da foto no topo */}
+                    {item.type === 'photo' && (
+                      <div
+                        className="shrink-0 w-full h-24 overflow-hidden cursor-pointer relative"
+                        onClick={() => setView('media')}
+                      >
+                        <img src={item.url} alt={getTitle(item)} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-1">
+                          <ArrowLeft className="w-4 h-4 text-white/70" />
+                          <span className="text-xs text-white/70">Voltar para a foto</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Seção de comentários — scroll livre, input fixo */}
+                    <div className="flex-1 min-h-0">
+                      <CommentSection
+                        key={item.id}
+                        providerId={providerId}
+                        mediaId={item.id}
+                        currentUser={currentUser ?? null}
+                        compact
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+              </AnimatePresence>
+            </div>
+
+            {/* ── DESKTOP: layout original lado a lado ──────────────────── */}
+            <div className={`hidden md:flex min-h-0 ${ fullscreen ? 'flex-1' : 'flex-row flex-1' }`}>
 
               {/* Seta esquerda desktop */}
               {items.length > 1 && (
                 <button
                   onClick={prev}
-                  className={`hidden md:flex absolute left-2 z-10 w-11 h-11 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full items-center justify-center text-white transition-all ${
-                    fullscreen ? 'top-1/2 -translate-y-1/2' : 'top-1/2 -translate-y-1/2'
-                  } ${fullscreen && !headerVisible ? 'opacity-0 hover:opacity-100' : ''}`}
+                  className={`hidden md:flex absolute left-2 z-10 w-11 h-11 bg-black/50 backdrop-blur-sm hover:bg-black/70 rounded-full items-center justify-center text-white transition-all top-1/2 -translate-y-1/2 ${
+                    fullscreen && !headerVisible ? 'opacity-0 hover:opacity-100' : ''
+                  }`}
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
               )}
 
-              {/* ── Painel mídia ─────────────────────────────────────────────── */}
-              <div className={`flex items-center justify-center bg-black relative min-h-[40vh] md:min-h-0 ${fullscreen ? 'w-full h-full' : 'flex-1'}`}>
+              {/* Painel mídia desktop */}
+              <div className={`flex items-center justify-center bg-black relative min-h-0 ${ fullscreen ? 'w-full h-full' : 'flex-1' }`}>
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={item.id}
@@ -298,7 +479,6 @@ export const MediaViewerModal = ({
                     transition={{ duration: 0.15 }}
                     className="w-full h-full flex items-center justify-center p-4"
                   >
-                    {/* FOTO */}
                     {item.type === 'photo' && (
                       <img
                         src={item.url}
@@ -311,8 +491,6 @@ export const MediaViewerModal = ({
                         onDoubleClick={toggleFullscreen}
                       />
                     )}
-
-                    {/* VÍDEO */}
                     {item.type === 'video' && (
                       isValidYouTubeUrl(item.url)
                         ? <div className={fullscreen ? 'w-full max-w-5xl' : 'w-full max-w-2xl'}>
@@ -325,8 +503,6 @@ export const MediaViewerModal = ({
                             poster={item.thumbnailUrl}
                           />
                     )}
-
-                    {/* ÁUDIO — WaveAudioPlayer */}
                     {item.type === 'audio' && (
                       <div className="w-full max-w-2xl px-2">
                         <WaveAudioPlayer
@@ -365,9 +541,9 @@ export const MediaViewerModal = ({
                 </button>
               )}
 
-              {/* ── Painel comentários (oculto em fullscreen) ─────────────────── */}
+              {/* Painel comentários desktop (oculto em fullscreen) */}
               {!fullscreen && (
-                <div className="w-full md:w-80 lg:w-96 flex flex-col border-t md:border-t-0 md:border-l border-white/10 bg-background shrink-0">
+                <div className="w-80 lg:w-96 flex flex-col border-l border-white/10 bg-background shrink-0">
                   <div className="px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
                     <MessageSquare className="w-4 h-4 text-primary" />
                     <span className="text-white text-sm font-bold">Comentários</span>
@@ -383,32 +559,33 @@ export const MediaViewerModal = ({
                   </div>
                 </div>
               )}
+
+              {/* Thumbnails desktop */}
+              {items.length > 1 && !fullscreen && (
+                <div className="absolute bottom-0 left-0 right-80 lg:right-96 shrink-0 flex gap-2 px-4 py-2 bg-black/60 border-t border-white/10 overflow-x-auto">
+                  {items.map((it, i) => (
+                    <button
+                      key={it.id}
+                      onClick={() => setIdx(i)}
+                      className={`shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                        i === idx ? 'border-primary scale-105' : 'border-transparent opacity-50 hover:opacity-90'
+                      }`}
+                    >
+                      {it.type === 'photo' ? (
+                        <img src={it.url} alt="" className="w-full h-full object-cover" />
+                      ) : it.type === 'video' && it.thumbnailUrl ? (
+                        <img src={it.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-surface flex items-center justify-center">
+                          <TypeIcon type={it.type} className="w-5 h-5 text-muted" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* ── Tira de thumbnails (oculta em fullscreen) ───────────────────── */}
-            {items.length > 1 && !fullscreen && (
-              <div className="shrink-0 flex gap-2 px-4 py-2 bg-black/60 border-t border-white/10 overflow-x-auto">
-                {items.map((it, i) => (
-                  <button
-                    key={it.id}
-                    onClick={() => setIdx(i)}
-                    className={`shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
-                      i === idx ? 'border-primary scale-105' : 'border-transparent opacity-50 hover:opacity-90'
-                    }`}
-                  >
-                    {it.type === 'photo' ? (
-                      <img src={it.url} alt="" className="w-full h-full object-cover" />
-                    ) : it.type === 'video' && it.thumbnailUrl ? (
-                      <img src={it.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-surface flex items-center justify-center">
-                        <TypeIcon type={it.type} className="w-5 h-5 text-muted" />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
           </motion.div>
         </motion.div>
       )}
