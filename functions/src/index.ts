@@ -96,6 +96,11 @@ export const dailyScoreDecrement = onSchedule(
 )
 
 /**
+ * CHECKOUT SESSION — cria sessão de pagamento Stripe com userId no metadata
+ */
+export { createCheckoutSession } from './createCheckoutSession'
+
+/**
  * WEBHOOK STRIPE — chamado pelo Stripe ao confirmar pagamento
  *
  * Evento: checkout.session.completed

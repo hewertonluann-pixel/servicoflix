@@ -17,8 +17,9 @@ const PRICE_TO_DIAS: Record<string, number> = {
 }
 
 // Price IDs de assinatura mensal
+// ⚠️ SUBSTITUA 'price_mensal_real' pelo Price ID real da assinatura no painel Stripe
 const SUBSCRIPTION_PRICE_IDS = new Set([
-  'price_mensal', // R$ 39,90/mês — assinatura recorrente
+  'price_mensal_real',
 ])
 
 export const stripeWebhook = onRequest(
@@ -58,6 +59,7 @@ export const stripeWebhook = onRequest(
 
     logger.info('[stripeWebhook] Evento recebido:', event.type)
 
+    // ── checkout.session.completed ──
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session
       const userId: string | undefined = session.metadata?.userId
@@ -130,6 +132,7 @@ export const stripeWebhook = onRequest(
       )
     }
 
+    // ── customer.subscription.deleted ──
     if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object as Stripe.Subscription
       const userId: string | undefined = subscription.metadata?.userId

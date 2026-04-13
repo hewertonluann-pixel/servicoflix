@@ -1,13 +1,19 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Zap, RefreshCw, CheckCircle, ArrowLeft, ShoppingCart, Info, Eye, TrendingUp, Clock } from 'lucide-react'
+import { Zap, RefreshCw, CheckCircle, ArrowLeft, ShoppingCart, Info, Eye, TrendingUp, Clock, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { usePrestadorStatus } from '@/hooks/usePrestadorStatus'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+import { getFunctions, httpsCallable } from 'firebase/functions'
 
-const STRIPE_LINKS = {
-  assinatura: 'https://buy.stripe.com/00w4gzglj7yfa2g3LfbfO02',
-  creditos:   'https://buy.stripe.com/9B66oHedbf0H1vKchLbfO03',
+// ⚠️ Substitua pela URL real da sua Cloud Function após deploy
+// Ex: https://southamerica-east1-SEU_PROJETO.cloudfunctions.net/createCheckoutSession
+const CHECKOUT_FUNCTION_URL = 'https://southamerica-east1-SEU_PROJETO.cloudfunctions.net/createCheckoutSession'
+
+// Price IDs reais do painel Stripe
+const PRICE_IDS = {
+  assinatura: 'price_mensal_real',               // ⚠️ Substitua pelo Price ID real da assinatura
+  creditos30: 'price_1TELvUEW46ts4yeZGUhuQvqJ',  // R$ 29,90 — 30 dias
 }
 
 export function CompraPage() {
@@ -16,6 +22,8 @@ export function CompraPage() {
   const navigate = useNavigate()
   const [hoveredPlan, setHoveredPlan] = useState<'assinatura' | 'creditos' | null>(null)
   const [showExplainer, setShowExplainer] = useState(false)
+  const [loading, setLoading] = useState<'assinatura' | 'creditos' | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
 
   if (!user || !isProvider) {
     return (
@@ -23,6 +31,38 @@ export function CompraPage() {
         <p className="text-muted">Acesso restrito a prestadores.</p>
       </div>
     )
+  }
+
+  async function handleComprar(plano: 'assinatura' | 'creditos') {
+    setErro(null)
+    setLoading(plano)
+    try {
+      const priceId = plano === 'assinatura' ? PRICE_IDS.assinatura : PRICE_IDS.creditos30
+      const origin = window.location.origin
+
+      const resp = await fetch(CHECKOUT_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user!.uid,
+          priceId,
+          successUrl: `${origin}/compra/sucesso?plano=${plano}`,
+          cancelUrl: `${origin}/compra`,
+        }),
+      })
+
+      if (!resp.ok) {
+        const data = await resp.json()
+        throw new Error(data.error || 'Erro ao criar sessão de pagamento')
+      }
+
+      const { url } = await resp.json()
+      window.location.href = url
+    } catch (err: any) {
+      setErro(err.message || 'Erro inesperado. Tente novamente.')
+    } finally {
+      setLoading(null)
+    }
   }
 
   const titulo = estaExpirado ? 'Reativar Acesso' : 'Adquirir Créditos'
@@ -68,6 +108,13 @@ export function CompraPage() {
           )}
         </div>
 
+        {/* Erro */}
+        {erro && (
+          <div className="mb-6 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm text-center">
+            {erro}
+          </div>
+        )}
+
         {/* ── Como funcionam os créditos ── */}
         <div className="mb-8 bg-surface border border-border rounded-2xl overflow-hidden">
           <button
@@ -89,7 +136,6 @@ export function CompraPage() {
               transition={{ duration: 0.2 }}
               className="px-5 pb-5 border-t border-border"
             >
-              {/* Conceito do raio */}
               <div className="mt-4 flex items-start gap-4 p-4 bg-primary/5 border border-primary/20 rounded-xl">
                 <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center shrink-0">
                   <Zap className="w-5 h-5 text-primary" fill="currentColor" />
@@ -100,7 +146,6 @@ export function CompraPage() {
                 </div>
               </div>
 
-              {/* Como funciona na prática */}
               <div className="mt-4 grid sm:grid-cols-3 gap-3">
                 <div className="flex flex-col items-center text-center p-4 bg-background rounded-xl border border-border">
                   <Eye className="w-6 h-6 text-blue-400 mb-2" />
@@ -119,7 +164,6 @@ export function CompraPage() {
                 </div>
               </div>
 
-              {/* Assinatura vs créditos */}
               <div className="mt-4 p-4 bg-background rounded-xl border border-border">
                 <p className="text-xs font-bold text-white mb-3">Assinatura vs Créditos avulsos</p>
                 <div className="space-y-2">
@@ -174,15 +218,17 @@ export function CompraPage() {
               ))}
             </ul>
 
-            <a
-              href={STRIPE_LINKS.assinatura}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-4 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-all text-sm"
+            <button
+              onClick={() => handleComprar('assinatura')}
+              disabled={loading !== null}
+              className="w-full flex items-center justify-center gap-2 py-4 bg-primary text-background font-bold rounded-xl hover:bg-primary/90 transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <RefreshCw className="w-4 h-4" />
-              Ativar Assinatura Mensal
-            </a>
+              {loading === 'assinatura' ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Aguarde...</>
+              ) : (
+                <><RefreshCw className="w-4 h-4" /> Ativar Assinatura Mensal</>
+              )}
+            </button>
           </motion.div>
 
           {/* ── CRÉDITOS 30 DIAS ── */}
@@ -215,15 +261,17 @@ export function CompraPage() {
               ))}
             </ul>
 
-            <a
-              href={STRIPE_LINKS.creditos}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-4 bg-yellow-500/20 border-2 border-yellow-500/40 text-yellow-400 font-bold rounded-xl hover:bg-yellow-500/30 transition-all text-sm"
+            <button
+              onClick={() => handleComprar('creditos')}
+              disabled={loading !== null}
+              className="w-full flex items-center justify-center gap-2 py-4 bg-yellow-500/20 border-2 border-yellow-500/40 text-yellow-400 font-bold rounded-xl hover:bg-yellow-500/30 transition-all text-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Zap className="w-4 h-4" fill="currentColor" />
-              Comprar 30 Dias ⚡
-            </a>
+              {loading === 'creditos' ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Aguarde...</>
+              ) : (
+                <><Zap className="w-4 h-4" fill="currentColor" /> Comprar 30 Dias ⚡</>
+              )}
+            </button>
           </motion.div>
 
         </div>
@@ -239,7 +287,7 @@ export function CompraPage() {
         {/* Dúvidas */}
         <p className="mt-6 text-center text-xs text-muted">
           Dúvidas? Fale conosco via{' '}
-          <a href="https://wa.me/SEU_NUMERO" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+          <a href="https://wa.me/5538999999999" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             WhatsApp
           </a>
         </p>
