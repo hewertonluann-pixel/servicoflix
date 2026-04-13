@@ -36,11 +36,15 @@ export function CompraPage() {
       const priceId = plano === 'assinatura' ? PRICE_IDS.assinatura : PRICE_IDS.creditos30
       const origin = window.location.origin
 
+      // user.id é o campo correto no tipo User do projeto (não user.uid)
+      const userId = user?.id
+      if (!userId) throw new Error('Usuário não identificado. Faça login novamente.')
+
       const resp = await fetch(CHECKOUT_FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user!.uid,
+          userId,
           priceId,
           successUrl: `${origin}/compra/sucesso?plano=${plano}`,
           cancelUrl: `${origin}/compra`,
