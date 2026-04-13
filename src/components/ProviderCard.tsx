@@ -142,7 +142,7 @@ export const ProviderCard = ({ provider, index = 0 }: Props) => {
                     whileHover={provider.isMock ? {} : { scale: 1.02 }}
                     whileTap={provider.isMock ? {} : { scale: 0.98 }}
                   >
-                    {provider.isMock ? '— Perfil de Exemplo —' : <><Zap className="w-3 h-3" fill="currentColor" /> Contratar</>}
+                    {provider.isMock ? '— Perfil de Exemplo —' : <><Zap className="w-3 h-3" fill="currentColor" /> Ver perfil</>}
                   </motion.button>
                 </div>
               </motion.div>
