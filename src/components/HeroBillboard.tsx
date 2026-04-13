@@ -108,7 +108,7 @@ export const HeroBillboard = ({ providers }: Props) => {
                     whileTap={{ scale: 0.97 }}
                   >
                     <Play className="w-5 h-5" fill="currentColor" />
-                    Contratar Agora
+                    Ver agora
                   </motion.button>
                 </Link>
                 <Link to={`/profissional/${provider.id}`}>
