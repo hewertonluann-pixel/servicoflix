@@ -10,8 +10,18 @@ service firebase.storage {
     }
 
     // ── Avatares de usuários ──────────────────────────────────────────────────
-    // Caminho: avatars/{userId}/avatar
+    // Caminho: avatars/{userId}/{fileName}
     match /avatars/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && (request.auth.uid == userId || isAdmin())
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Avatares de prestadores ─────────────────────────────────────────────
+    // Caminho: provider-avatars/{userId}/{fileName}
+    match /provider-avatars/{userId}/{fileName} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
                    && (request.auth.uid == userId || isAdmin())
