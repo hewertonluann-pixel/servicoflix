@@ -12,10 +12,7 @@ service firebase.storage {
     // ── Avatares de usuários ──────────────────────────────────────────────────
     // Caminho: avatars/{userId}/avatar
     match /avatars/{userId}/{fileName} {
-      // Qualquer pessoa autenticada pode LER avatares (exibir foto de perfil)
       allow read: if request.auth != null;
-
-      // Próprio usuário OU admin podem fazer upload/deletar
       allow write: if request.auth != null
                    && (request.auth.uid == userId || isAdmin())
                    && request.resource.size < 5 * 1024 * 1024
@@ -25,10 +22,7 @@ service firebase.storage {
     // ── Fotos de capa de prestadores ──────────────────────────────────────────
     // Caminho: covers/{userId}/{fileName}
     match /covers/{userId}/{fileName} {
-      // Qualquer autenticado pode ler
       allow read: if request.auth != null;
-
-      // Próprio prestador OU admin podem fazer upload/deletar
       allow write: if request.auth != null
                    && (request.auth.uid == userId || isAdmin())
                    && request.resource.size < 5 * 1024 * 1024
@@ -43,12 +37,20 @@ service firebase.storage {
                    && request.resource.size < 20 * 1024 * 1024;
     }
 
-    // ── Portfólio de prestadores ──────────────────────────────────────────────
+    // ── Portfólio de prestadores (caminho legado) ─────────────────────────────
     // Caminho: providers/{userId}/portfolio/{fileName}
     match /providers/{userId}/portfolio/{fileName} {
       allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && (request.auth.uid == userId || isAdmin())
+                   && request.resource.size < 20 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
 
-      // Próprio prestador OU admin podem fazer upload
+    // ── Galeria/Portfólio de prestadores ─────────────────────────────────────
+    // Caminho: portfolio/{userId}/photos/{fileName}
+    match /portfolio/{userId}/photos/{fileName} {
+      allow read: if request.auth != null;
       allow write: if request.auth != null
                    && (request.auth.uid == userId || isAdmin())
                    && request.resource.size < 20 * 1024 * 1024
