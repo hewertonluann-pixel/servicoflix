@@ -22,6 +22,19 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // ── Fotos de capa de prestadores ──────────────────────────────────────────
+    // Caminho: covers/{userId}/{fileName}
+    match /covers/{userId}/{fileName} {
+      // Qualquer autenticado pode ler
+      allow read: if request.auth != null;
+
+      // Próprio prestador OU admin podem fazer upload/deletar
+      allow write: if request.auth != null
+                   && (request.auth.uid == userId || isAdmin())
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
     // ── Mídias do Chat ────────────────────────────────────────────────────────
     // Caminho: chats/{chatId}/{fileName}
     match /chats/{chatId}/{fileName} {
