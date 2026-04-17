@@ -6,6 +6,7 @@ import { useCityFilter } from '@/components/CitySelectorNav'
 import { HeroBillboard } from '@/components/HeroBillboard'
 import { CategoryRow } from '@/components/CategoryRow'
 import { CategoryGrid } from '@/components/CategoryGrid'
+import { ChipsCategoryScroll } from '@/components/ChipsCategoryScroll'
 import { FilterBar, Filters } from '@/components/FilterBar'
 import { Footer } from '@/components/Footer'
 import { mockProviders, mocksByCategory, MockProvider } from '@/data/mock'
@@ -227,15 +228,25 @@ export const HomePage = () => {
     : categories
 
   return (
-    <main>
+    <main className="pb-20 md:pb-0">
       <HeroBillboard providers={allForHero} />
 
-      <div className="relative z-10 -mt-8">
-        <FilterBar
-          onFilterChange={setFilters}
-          categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
-          initialFilters={filters}
-        />
+      <div className="relative z-10 md:-mt-8">
+        {/* FilterBar: apenas desktop */}
+        <div className="hidden md:block">
+          <FilterBar
+            onFilterChange={setFilters}
+            categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
+            initialFilters={filters}
+          />
+        </div>
+
+        {/* Chips de categoria: apenas mobile */}
+        <div className="md:hidden pt-4">
+          <ChipsCategoryScroll
+            categories={categoriesToShow.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
+          />
+        </div>
 
         {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
           <div className="px-4 sm:px-8 mb-4">
@@ -255,7 +266,10 @@ export const HomePage = () => {
           <CategoryRow title="🟢 Disponíveis Agora" providers={onlineProviders} badge="ao vivo" />
         )}
 
-        <CategoryGrid categories={categoriesToShow.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
+        {/* CategoryGrid: apenas desktop */}
+        <div className="hidden md:block">
+          <CategoryGrid categories={categoriesToShow.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
+        </div>
 
         {categoriesToShow.map(cat => {
           const providers = getMerged(cat.id)
