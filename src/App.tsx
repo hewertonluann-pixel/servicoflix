@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CompraPage } from '@/pages/CompraPage'
 import { Routes, Route, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { Navbar } from '@/components/Navbar'
+import { BottomNav } from '@/components/BottomNav'
 import { HomePage } from '@/pages/HomePage'
 import { ProviderProfilePage } from '@/pages/ProviderProfilePage'
 import { ProviderDashboardPage } from '@/pages/ProviderDashboardPage'
@@ -84,7 +85,6 @@ function App() {
                      location.pathname.startsWith('/debug') ||
                      location.pathname.startsWith('/fix')
   usePresence()
-  // FCM e auth são gerenciados pelo AuthContext em main.tsx
 
   return (
     <div className="min-h-screen bg-background text-white font-sans">
@@ -116,6 +116,7 @@ function App() {
         <Route path="/fix" element={<FixProvidersPage />} />
         <Route path="/:slug" element={<SlugResolver />} />
       </Routes>
+      {!hideNavbar && <BottomNav />}
     </div>
   )
 }
