@@ -173,7 +173,6 @@ export const ProviderProfilePage = () => {
     allMediaIds
   )
 
-  // ── helper: resolve o título atual de uma mídia (mediaTitles tem prioridade) ──
   const resolveTitle = (mediaId: string, fallback: string) =>
     mediaTitles[mediaId] && mediaTitles[mediaId].trim() !== ''
       ? mediaTitles[mediaId]
@@ -304,7 +303,6 @@ export const ProviderProfilePage = () => {
     ? toMediaItem(audios[activeMiniIdx], 'audio', activeMiniIdx)
     : null
 
-  // Título resolvido do áudio ativo no MiniPlayer
   const activeMiniTitle = activeMiniItem
     ? resolveTitle(activeMiniItem.id, activeMiniItem.title)
     : 'Nenhum arquivo carregado'
@@ -328,7 +326,6 @@ export const ProviderProfilePage = () => {
         <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           <div className="w-full lg:col-span-2 space-y-4 sm:space-y-6">
 
-            {/* Card principal */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center sm:items-start">
                 <UserAvatar src={provider.providerAvatar} name={displayName} size={112} className="border-4 border-background rounded-xl sm:rounded-2xl shrink-0" />
@@ -356,13 +353,11 @@ export const ProviderProfilePage = () => {
               </div>
             </motion.div>
 
-            {/* Sobre */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
               <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white mb-3 sm:mb-4">Sobre</h2>
               <p className="text-muted text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{provider.providerProfile.bio}</p>
             </motion.div>
 
-            {/* Redes Sociais */}
             {hasSocialLinks && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center gap-2 mb-3 sm:mb-4">
@@ -391,7 +386,6 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* ── Galeria de Fotos ── */}
             {photos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -419,7 +413,6 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* ── Vídeos ── */}
             {videos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
@@ -448,7 +441,6 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* ── Áudios ── */}
             {audios.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -466,7 +458,6 @@ export const ProviderProfilePage = () => {
                   </span>
                 </div>
 
-                {/* MiniPlayer — title sempre reflete mediaTitles */}
                 {activeMiniItem && (
                   <div className="mb-4">
                     <AudioMiniPlayer
@@ -483,7 +474,6 @@ export const ProviderProfilePage = () => {
                   </div>
                 )}
 
-                {/* Lista de tracks — nome também usa mediaTitles */}
                 {audios.length > 1 && (
                   <div className="space-y-2">
                     {audios.map((url, i) => {
@@ -506,7 +496,6 @@ export const ProviderProfilePage = () => {
                             ${ isActive ? 'bg-primary' : 'bg-primary/20' }`}>
                             <Music className={`w-4 h-4 ${ isActive ? 'text-white' : 'text-primary' }`} />
                           </div>
-                          {/* FIX: nome do track usa resolveTitle */}
                           <span className={`flex-1 text-sm font-medium truncate
                             ${ isActive ? 'text-white' : 'text-muted' }`}>
                             {trackTitle}
@@ -528,7 +517,6 @@ export const ProviderProfilePage = () => {
               </motion.div>
             )}
 
-            {/* ── Avaliações ── */}
             {!provider.isMock && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -547,7 +535,6 @@ export const ProviderProfilePage = () => {
 
           </div>
 
-          {/* Sidebar desktop */}
           <div className="hidden lg:block w-full space-y-6">
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-surface border border-border rounded-2xl p-6 sticky top-20">
               <div className="text-center mb-6"><p className="text-muted text-sm mb-1">A partir de</p><p className="text-3xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-lg text-muted font-normal">/serviço</span></p></div>
@@ -567,7 +554,6 @@ export const ProviderProfilePage = () => {
         </div>
       </div>
 
-      {/* Barra inferior mobile */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border p-3 sm:p-4 z-40">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-3"><p className="text-muted text-xs mb-0.5">A partir de</p><p className="text-xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-sm text-muted font-normal">/serviço</span></p></div>
@@ -577,10 +563,18 @@ export const ProviderProfilePage = () => {
             </button>
             {showMessageBtn && <button onClick={handleOpenChat} className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target"><MessageCircle className="w-4 h-4 inline mr-1.5" />{user ? 'Mensagem' : 'Entrar'}</button>}
           </div>
+          {user && !isOwnProfile && !provider.isMock && (
+            <button
+              onClick={() => setReviewModalOpen(true)}
+              className="w-full mt-2 bg-surface border border-border text-muted font-bold py-3 rounded-xl hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              <Star className="w-4 h-4" fill="none" />
+              {reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar prestador'}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Modais */}
       {!provider.isMock && <RequestServiceModal isOpen={modalOpen} onClose={() => setModalOpen(false)} provider={{ id: provider.id, name: displayName, avatar: provider.providerAvatar, specialty: provider.providerProfile.specialty, priceFrom: provider.providerProfile.priceFrom }} />}
       {!provider.isMock && user && !isOwnProfile && <ReviewModal open={reviewModalOpen} onClose={() => setReviewModalOpen(false)} providerId={provider.id} providerName={displayName} />}
 
