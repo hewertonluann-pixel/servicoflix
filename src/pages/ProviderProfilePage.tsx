@@ -364,11 +364,11 @@ export const ProviderProfilePage = () => {
             >
               {/* Preço */}
               <div className="flex-1 min-w-0">
+                <p className="text-muted text-[10px] leading-none mt-0.5">A partir de</p>
                 <p className="text-white font-black text-base leading-none">
                   R$ {provider.providerProfile.priceFrom}
                   <span className="text-muted font-normal text-xs">/serviço</span>
                 </p>
-                <p className="text-muted text-[10px] leading-none mt-0.5">A partir de</p>
               </div>
 
               {/* Botões */}
