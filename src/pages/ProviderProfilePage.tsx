@@ -111,7 +111,7 @@ const toMediaItem = (url: string, type: 'photo' | 'video' | 'audio', index: numb
   id: `${type}-${index}`,
   type,
   url,
-  title: `${type === 'photo' ? 'Foto' : type === 'video' ? 'Vídeo' : 'Áudio'} ${index + 1}`,
+  title: `${type === 'photo' ? 'Foto' : type === 'video' ? 'V\u00eddeo' : '\u00c1udio'} ${index + 1}`,
   uploadedAt: '',
   order: index,
 })
@@ -180,7 +180,7 @@ export const ProviderProfilePage = () => {
 
   useEffect(() => {
     const loadProvider = async () => {
-      if (!id) { setError('ID não fornecido'); setLoading(false); return }
+      if (!id) { setError('ID n\u00e3o fornecido'); setLoading(false); return }
       setLoading(true); setError('')
 
       if (id.startsWith('mock-')) {
@@ -207,7 +207,7 @@ export const ProviderProfilePage = () => {
             }
           })
         } else {
-          setError('Perfil de exemplo não encontrado')
+          setError('Perfil de exemplo n\u00e3o encontrado')
         }
         setLoading(false); return
       }
@@ -218,7 +218,7 @@ export const ProviderProfilePage = () => {
         if (docSnap.exists()) {
           const data = docSnap.data()
           if (!data.providerProfile) {
-            setError('Este usuário não é um prestador de serviços')
+            setError('Este usu\u00e1rio n\u00e3o \u00e9 um prestador de servi\u00e7os')
             setLoading(false); return
           }
           const professionalName = data.providerProfile.professionalName || data.name || 'Sem nome'
@@ -231,7 +231,7 @@ export const ProviderProfilePage = () => {
             email: data.email || '', isMock: false,
             providerProfile: {
               professionalName, specialty: data.providerProfile.specialty || 'Profissional',
-              bio: data.providerProfile.bio || 'Sem descrição',
+              bio: data.providerProfile.bio || 'Sem descri\u00e7\u00e3o',
               city: data.providerProfile.city || 'Diamantina',
               neighborhood: data.providerProfile.neighborhood || 'Centro',
               priceFrom: data.providerProfile.priceFrom || 100,
@@ -249,7 +249,7 @@ export const ProviderProfilePage = () => {
             }
           })
         } else {
-          setError('Perfil não encontrado')
+          setError('Perfil n\u00e3o encontrado')
         }
       } catch { setError('Erro ao carregar perfil') }
       finally { setLoading(false) }
@@ -274,8 +274,8 @@ export const ProviderProfilePage = () => {
     <div className="min-h-screen pt-16 pb-20 flex items-center justify-center">
       <div className="text-center max-w-md mx-auto px-4">
         <div className="w-20 h-20 bg-surface rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-10 h-10 text-muted" /></div>
-        <h2 className="text-2xl font-black text-white mb-2">Perfil não encontrado</h2>
-        <p className="text-muted mb-2 text-sm">{error || 'Este perfil não existe ou foi removido'}</p>
+        <h2 className="text-2xl font-black text-white mb-2">Perfil n\u00e3o encontrado</h2>
+        <p className="text-muted mb-2 text-sm">{error || 'Este perfil n\u00e3o existe ou foi removido'}</p>
         {id && <p className="text-xs text-muted/60 mb-6 font-mono bg-surface px-3 py-2 rounded border border-border inline-block">ID: {id}</p>}
         <div className="flex gap-3 justify-center">
           <button onClick={() => navigate('/')} className="px-6 py-3 bg-primary text-background font-bold rounded-xl hover:bg-primary-dark transition-colors">Voltar para Home</button>
@@ -294,6 +294,7 @@ export const ProviderProfilePage = () => {
   const isOwnProfile = user?.id === provider.id
   const showMessageBtn = !provider.isMock && !isOwnProfile
   const canComment = !provider.isMock
+  const showReviewBtn = user && !isOwnProfile && !provider.isMock
 
   const photoStartIdx = 0
   const videoStartIdx = photos.length
@@ -308,10 +309,10 @@ export const ProviderProfilePage = () => {
     : 'Nenhum arquivo carregado'
 
   return (
-    <div className="min-h-screen pt-16 pb-32 lg:pb-20">
+    <div className="min-h-screen pt-16 pb-20 lg:pb-20">
       {provider.isMock && (
         <div className="fixed top-16 left-0 right-0 z-50 bg-gradient-to-r from-red-500/90 to-orange-500/90 backdrop-blur-sm py-2 px-4 text-center">
-          <div className="flex items-center justify-center gap-2 text-white text-sm font-bold"><Sparkles className="w-4 h-4" />PERFIL DE EXEMPLO - Dados fictícios para demonstração<Sparkles className="w-4 h-4" /></div>
+          <div className="flex items-center justify-center gap-2 text-white text-sm font-bold"><Sparkles className="w-4 h-4" />PERFIL DE EXEMPLO - Dados fict\u00edcios para demonstra\u00e7\u00e3o<Sparkles className="w-4 h-4" /></div>
         </div>
       )}
 
@@ -343,7 +344,7 @@ export const ProviderProfilePage = () => {
                     {provider.providerProfile.verified && <div className="sm:hidden flex items-center justify-center gap-1 bg-primary/20 border border-primary/30 text-primary px-3 py-1.5 rounded-full text-xs font-semibold"><CheckCircle className="w-3.5 h-3.5" />Verificado</div>}
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted mb-4">
-                    <div className="flex items-center justify-center sm:justify-start gap-1"><Star className="w-4 h-4 text-yellow-400" fill="currentColor" /><span className="text-white font-semibold">{reviewCount > 0 ? averageRating.toFixed(1) : provider.providerProfile.rating}</span><span>({reviewCount > 0 ? reviewCount : provider.providerProfile.reviewCount} avaliações)</span></div>
+                    <div className="flex items-center justify-center sm:justify-start gap-1"><Star className="w-4 h-4 text-yellow-400" fill="currentColor" /><span className="text-white font-semibold">{reviewCount > 0 ? averageRating.toFixed(1) : provider.providerProfile.rating}</span><span>({reviewCount > 0 ? reviewCount : provider.providerProfile.reviewCount} avalia\u00e7\u00f5es)</span></div>
                     <div className="flex items-center justify-center sm:justify-start gap-1"><MapPin className="w-4 h-4" />{provider.providerProfile.city}, {provider.providerProfile.neighborhood}</div>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
@@ -380,7 +381,7 @@ export const ProviderProfilePage = () => {
                     className="w-full flex items-center justify-center gap-3 py-4 border border-dashed border-border rounded-xl text-muted hover:border-primary hover:text-primary transition-all group"
                   >
                     <Lock className="w-4 h-4 group-hover:text-primary transition-colors" />
-                    <span className="text-sm font-medium">Faça login para ver os contatos</span>
+                    <span className="text-sm font-medium">Fa\u00e7a login para ver os contatos</span>
                   </button>
                 )}
               </motion.div>
@@ -416,8 +417,8 @@ export const ProviderProfilePage = () => {
             {videos.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className="flex items-center gap-2"><VideoIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Vídeos</h2></div>
-                  <span className="text-[10px] sm:text-xs text-muted">{videos.length} vídeo{videos.length > 1 ? 's' : ''}</span>
+                  <div className="flex items-center gap-2"><VideoIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">V\u00eddeos</h2></div>
+                  <span className="text-[10px] sm:text-xs text-muted">{videos.length} v\u00eddeo{videos.length > 1 ? 's' : ''}</span>
                 </div>
                 <VideoCarousel>
                   {videos.map((url, i) => {
@@ -425,7 +426,7 @@ export const ProviderProfilePage = () => {
                     return (
                       <div key={i} className="flex-none w-[240px] sm:w-[280px] lg:w-[320px] snap-start relative group cursor-pointer" onClick={() => openViewer(videoStartIdx + i)}>
                         {isValidYouTubeUrl(url)
-                          ? <YouTubeEmbed videoUrl={url} title={`Vídeo ${i + 1}`} showThumbnail />
+                          ? <YouTubeEmbed videoUrl={url} title={`V\u00eddeo ${i + 1}`} showThumbnail />
                           : <div className="aspect-video rounded-lg overflow-hidden bg-background"><video src={url} className="w-full h-full object-cover" /></div>
                         }
                         <CommentBadge count={count} />
@@ -451,10 +452,10 @@ export const ProviderProfilePage = () => {
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <div className="flex items-center gap-2">
                     <Music className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Áudios</h2>
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">\u00c1udios</h2>
                   </div>
                   <span className="text-[10px] sm:text-xs text-muted">
-                    {audios.length} áudio{audios.length > 1 ? 's' : ''}
+                    {audios.length} \u00e1udio{audios.length > 1 ? 's' : ''}
                   </span>
                 </div>
 
@@ -466,8 +467,8 @@ export const ProviderProfilePage = () => {
                       title={activeMiniTitle}
                       meta={
                         activeMiniItem.duration
-                          ? `${Math.floor(activeMiniItem.duration / 60)}:${String(activeMiniItem.duration % 60).padStart(2, '0')} · áudio`
-                          : 'Áudio'
+                          ? `${Math.floor(activeMiniItem.duration / 60)}:${String(activeMiniItem.duration % 60).padStart(2, '0')} \u00b7 \u00e1udio`
+                          : '\u00c1udio'
                       }
                       onOpenGallery={() => openViewer(audioStartIdx + activeMiniIdx)}
                     />
@@ -480,7 +481,7 @@ export const ProviderProfilePage = () => {
                       const mediaId  = `audio-${i}`
                       const count    = commentCounts[mediaId] ?? 0
                       const isActive = i === activeMiniIdx
-                      const trackTitle = resolveTitle(mediaId, `Áudio ${i + 1}`)
+                      const trackTitle = resolveTitle(mediaId, `\u00c1udio ${i + 1}`)
                       return (
                         <div
                           key={i}
@@ -520,14 +521,14 @@ export const ProviderProfilePage = () => {
             {!provider.isMock && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-surface border border-border rounded-xl sm:rounded-2xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
-                  <div className="flex items-center gap-2"><Star className="w-4 h-4 sm:w-5 sm:h-5 text-primary" fill="currentColor" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Avaliações</h2></div>
-                  {user && !isOwnProfile && <button onClick={() => setReviewModalOpen(true)} className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"><Star className="w-3.5 h-3.5" fill="currentColor" />{reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar'}</button>}
+                  <div className="flex items-center gap-2"><Star className="w-4 h-4 sm:w-5 sm:h-5 text-primary" fill="currentColor" /><h2 className="text-base sm:text-lg lg:text-xl font-bold text-white">Avalia\u00e7\u00f5es</h2></div>
+                  {user && !isOwnProfile && <button onClick={() => setReviewModalOpen(true)} className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"><Star className="w-3.5 h-3.5" fill="currentColor" />{reviews.some(r => r.clientId === user.id) ? 'Editar avalia\u00e7\u00e3o' : 'Avaliar'}</button>}
                 </div>
                 {reviewCount > 0 && <div className="mb-6 pb-6 border-b border-border"><RatingDistribution average={averageRating} total={reviewCount} distribution={distribution} /></div>}
                 {loadingReviews
                   ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
                   : reviews.length === 0
-                    ? (<div className="text-center py-8"><Star className="w-10 h-10 text-muted mx-auto mb-3" /><p className="text-white font-semibold text-sm">Nenhuma avaliação ainda</p><p className="text-muted text-xs mt-1">Seja o primeiro a avaliar este prestador</p>{user && !isOwnProfile && <button onClick={() => setReviewModalOpen(true)} className="mt-4 px-5 py-2.5 bg-primary text-background text-sm font-bold rounded-xl hover:bg-primary-dark transition-colors">Avaliar agora</button>}</div>)
+                    ? (<div className="text-center py-8"><Star className="w-10 h-10 text-muted mx-auto mb-3" /><p className="text-white font-semibold text-sm">Nenhuma avalia\u00e7\u00e3o ainda</p><p className="text-muted text-xs mt-1">Seja o primeiro a avaliar este prestador</p>{user && !isOwnProfile && <button onClick={() => setReviewModalOpen(true)} className="mt-4 px-5 py-2.5 bg-primary text-background text-sm font-bold rounded-xl hover:bg-primary-dark transition-colors">Avaliar agora</button>}</div>)
                     : <div className="space-y-3">{reviews.map(review => <ReviewCard key={review.id} review={review} isProviderOwner={false} />)}</div>
                 }
               </motion.div>
@@ -535,43 +536,75 @@ export const ProviderProfilePage = () => {
 
           </div>
 
+          {/* Desktop sidebar — inalterado */}
           <div className="hidden lg:block w-full space-y-6">
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-surface border border-border rounded-2xl p-6 sticky top-20">
-              <div className="text-center mb-6"><p className="text-muted text-sm mb-1">A partir de</p><p className="text-3xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-lg text-muted font-normal">/serviço</span></p></div>
+              <div className="text-center mb-6"><p className="text-muted text-sm mb-1">A partir de</p><p className="text-3xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-lg text-muted font-normal">/servi\u00e7o</span></p></div>
               <div className="space-y-3 mb-6">
                 <button onClick={() => !provider.isMock && setModalOpen(true)} disabled={provider.isMock || isOwnProfile} className="w-full bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors touch-target disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Calendar className="w-5 h-5 inline mr-2" />{provider.isMock ? 'Perfil de Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar Serviço'}
+                  <Calendar className="w-5 h-5 inline mr-2" />{provider.isMock ? 'Perfil de Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar Servi\u00e7o'}
                 </button>
                 {showMessageBtn && <button onClick={handleOpenChat} className="w-full bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors touch-target"><MessageCircle className="w-5 h-5 inline mr-2" />{user ? 'Enviar Mensagem' : 'Entrar para Mensagem'}</button>}
-                {user && !isOwnProfile && !provider.isMock && <button onClick={() => setReviewModalOpen(true)} className="w-full bg-surface border border-border text-muted font-bold py-3.5 rounded-xl hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"><Star className="w-4 h-4" fill="none" />{reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar prestador'}</button>}
+                {user && !isOwnProfile && !provider.isMock && <button onClick={() => setReviewModalOpen(true)} className="w-full bg-surface border border-border text-muted font-bold py-3.5 rounded-xl hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"><Star className="w-4 h-4" fill="none" />{reviews.some(r => r.clientId === user.id) ? 'Editar avalia\u00e7\u00e3o' : 'Avaliar prestador'}</button>}
               </div>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center gap-3 text-muted"><Clock className="w-5 h-5 text-primary shrink-0" /><div><p className="text-white font-semibold">Tempo de resposta</p><p>{provider.providerProfile.responseTime}</p></div></div>
-                <div className="flex items-center gap-3 text-muted"><CheckCircle className="w-5 h-5 text-primary shrink-0" /><div><p className="text-white font-semibold">Trabalhos concluídos</p><p>{provider.providerProfile.completedJobs}+</p></div></div>
+                <div className="flex items-center gap-3 text-muted"><CheckCircle className="w-5 h-5 text-primary shrink-0" /><div><p className="text-white font-semibold">Trabalhos conclu\u00eddos</p><p>{provider.providerProfile.completedJobs}+</p></div></div>
               </div>
             </motion.div>
           </div>
         </div>
       </div>
 
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border p-3 sm:p-4 z-40">
-        <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-3"><p className="text-muted text-xs mb-0.5">A partir de</p><p className="text-xl font-black text-white">R$ {provider.providerProfile.priceFrom}<span className="text-sm text-muted font-normal">/serviço</span></p></div>
-          <div className={`flex gap-2 sm:gap-3 ${!showMessageBtn ? 'justify-center' : ''}`}>
-            <button onClick={() => !provider.isMock && !isOwnProfile && setModalOpen(true)} disabled={provider.isMock || isOwnProfile} className={`${showMessageBtn ? 'flex-1' : 'w-48'} bg-primary text-background font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-colors text-sm touch-target disabled:opacity-50`}>
-              <Calendar className="w-4 h-4 inline mr-1.5" />{provider.isMock ? 'Exemplo' : isOwnProfile ? 'Seu perfil' : 'Solicitar'}
-            </button>
-            {showMessageBtn && <button onClick={handleOpenChat} className="flex-1 bg-surface border-2 border-primary text-primary font-bold py-3.5 rounded-xl hover:bg-primary/10 transition-colors text-sm touch-target"><MessageCircle className="w-4 h-4 inline mr-1.5" />{user ? 'Mensagem' : 'Entrar'}</button>}
+      {/*
+        BARRA INFERIOR MOBILE — Op\u00e7\u00e3o A
+        Linha \u00fanica compacta: pre\u00e7o inline \u00e0 esquerda + bot\u00f5es compactos \u00e0 direita.
+        "Solicitar" removido do mobile (o chat cobre esse fluxo).
+        Altura ~56px vs ~160px anterior.
+      */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-lg border-t border-border z-40">
+        <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center gap-3">
+          {/* Pre\u00e7o inline */}
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-black text-base leading-none">
+              R$ {provider.providerProfile.priceFrom}
+              <span className="text-muted font-normal text-xs">/servi\u00e7o</span>
+            </p>
+            <p className="text-muted text-[10px] leading-none mt-0.5">A partir de</p>
           </div>
-          {user && !isOwnProfile && !provider.isMock && (
-            <button
-              onClick={() => setReviewModalOpen(true)}
-              className="w-full mt-2 bg-surface border border-border text-muted font-bold py-3 rounded-xl hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2 text-sm"
-            >
-              <Star className="w-4 h-4" fill="none" />
-              {reviews.some(r => r.clientId === user.id) ? 'Editar avaliação' : 'Avaliar prestador'}
-            </button>
-          )}
+
+          {/* Bot\u00f5es compactos \u00e0 direita */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Bot\u00e3o Mensagem */}
+            {showMessageBtn && (
+              <button
+                onClick={handleOpenChat}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-primary text-background font-bold rounded-xl text-sm hover:bg-primary-dark transition-colors touch-target"
+              >
+                <MessageCircle className="w-4 h-4" />
+                {user ? 'Mensagem' : 'Entrar'}
+              </button>
+            )}
+
+            {/* Bot\u00e3o Avaliar — \u00edcone compacto */}
+            {showReviewBtn && (
+              <button
+                onClick={() => setReviewModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-surface border border-border text-muted font-bold rounded-xl text-sm hover:border-primary hover:text-primary transition-colors touch-target"
+                aria-label="Avaliar prestador"
+              >
+                <Star className="w-4 h-4" />
+                <span className="hidden sm:inline">{reviews.some(r => r.clientId === user?.id) ? 'Editar' : 'Avaliar'}</span>
+              </button>
+            )}
+
+            {/* Estado: pr\u00f3prio perfil */}
+            {isOwnProfile && (
+              <span className="px-4 py-2.5 bg-surface border border-border text-muted rounded-xl text-sm font-semibold">
+                Seu perfil
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
