@@ -19,8 +19,9 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == uid;
     }
 
+    // ✅ Corrigido: participants é array — usar hasAny() em vez de `in`
     function isParticipant(chatData) {
-      return isAuth() && request.auth.uid in chatData.participants;
+      return isAuth() && chatData.participants.hasAny([request.auth.uid]);
     }
 
     function notChanging(field) {
@@ -45,32 +46,23 @@ service cloud.firestore {
       allow update: if isOwner(providerId) || isAdmin();
       allow delete: if isAdmin();
 
-      // ── /providers/{providerId}/portfolio/{mediaId}/comments/{commentId} ──
       match /portfolio/{mediaId}/comments/{commentId} {
-        // Qualquer um pode ler comentários (galeria é pública)
         allow read: if true;
 
-        // Apenas usuários autenticados podem comentar
-        // O userId do comentário deve ser o do usuário logado
         allow create: if isAuth() &&
           request.resource.data.userId == request.auth.uid &&
           request.resource.data.text is string &&
           request.resource.data.text.size() >= 1 &&
           request.resource.data.text.size() <= 500;
 
-        // Apenas o dono do comentário pode editar o texto
-        // Likes/likedBy podem ser atualizados por qualquer autenticado
         allow update: if isAuth() && (
-          // Dono pode editar texto
           (resource.data.userId == request.auth.uid) ||
-          // Qualquer autenticado pode curtir (apenas campos likes e likedBy)
           (
             request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['likes', 'likedBy'])
           )
         );
 
-        // Dono do comentário ou admin ou dono do portfólio pode deletar
         allow delete: if isAdmin() ||
           resource.data.userId == request.auth.uid ||
           isOwner(providerId);
@@ -86,9 +78,8 @@ service cloud.firestore {
     }
 
     // ────────────────────────────────────────
-    // /requests/{requestId}  ← nome antigo usado no console
-    // /serviceRequests/{requestId}  ← nome usado no código
-    // Ambos mapeados com as mesmas regras
+    // /requests/{requestId}
+    // /serviceRequests/{requestId}
     // ────────────────────────────────────────
     match /requests/{requestId} {
       allow read: if isAdmin() ||
@@ -153,47 +144,44 @@ service cloud.firestore {
     // /chats/{chatId}
     // ────────────────────────────────────────
     match /chats/{chatId} {
-      // Admin vê tudo; participantes vêem apenas seu chat
       allow read: if isAdmin() || isParticipant(resource.data);
 
-      // Criar: usuário autenticado deve estar na lista de participants (exatamente 2)
       allow create: if isAuth() &&
-        request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants.hasAny([request.auth.uid]) &&
         request.resource.data.participants.size() == 2;
 
-      // Atualizar: participante pode atualizar (ex: unreadCount, lastMessage)
-      // A lista de participants é imutável após a criação
       allow update: if isAdmin() ||
         (isParticipant(resource.data) && notChanging('participants'));
 
-    allow delete: if isAdmin() || isParticipant(resource.data);
+      allow delete: if isAdmin() || isParticipant(resource.data);
+
       // ── /chats/{chatId}/messages/{messageId} ──
       match /messages/{messageId} {
-        // Apenas participantes do chat pai lêem mensagens
+        // ✅ Corrigido: hasAny() para verificar array de participants
         allow read: if isAdmin() ||
-          (isAuth() && request.auth.uid in
-            get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+          (isAuth() &&
+            get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+              .hasAny([request.auth.uid]));
 
-        // Enviar mensagem: participante + senderId = auth.uid + texto válido (1–2000 chars)
         allow create: if isAuth() &&
-          request.auth.uid in
-            get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+            .hasAny([request.auth.uid]) &&
           request.resource.data.senderId == request.auth.uid &&
           request.resource.data.text is string &&
           request.resource.data.text.size() >= 1 &&
           request.resource.data.text.size() <= 2000;
 
-        // Mensagens são imutáveis (sem edição ou deleção por clientes)
         allow update: if isAdmin();
-              allow delete: if isAdmin() ||
-                        (isAuth() && request.auth.uid in
-                         get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+
+        allow delete: if isAdmin() ||
+          (isAuth() &&
+            get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+              .hasAny([request.auth.uid]));
       }
     }
 
     // ────────────────────────────────────────
-    // Qualquer outra coleção — apenas admin acessa
-    // (substitui o wildcard permissivo anterior)
+    // Qualquer outra coleção — apenas admin
     // ────────────────────────────────────────
     match /{document=**} {
       allow read, write: if isAdmin();
