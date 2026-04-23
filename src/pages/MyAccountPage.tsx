@@ -53,6 +53,10 @@ const statusConfig = {
   rejected:    { label: 'Recusado',     color: 'text-gray-400 bg-gray-400/10 border-gray-400/20',   icon: XCircle },
 }
 
+// Gera URL de avatar com iniciais via UI Avatars (sem mockup externo)
+const avatarFallback = (name: string) =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a2e&color=a78bfa&bold=true&size=80`
+
 export const MyAccountPage = () => {
   const { user, isProvider, isClient } = useSimpleAuth()
   const navigate = useNavigate()
@@ -62,7 +66,6 @@ export const MyAccountPage = () => {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // Modal de avaliação
   const [reviewModal, setReviewModal] = useState<ReviewModal | null>(null)
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
@@ -85,13 +88,14 @@ export const MyAccountPage = () => {
         for (const d of snap.docs) {
           const req = { id: d.id, ...d.data() } as ServiceRequest
 
-          if (!req.providerName && req.providerId) {
+          // Busca dados do prestador se nome ou avatar estiverem ausentes
+          if ((!req.providerName || !req.providerAvatar) && req.providerId) {
             try {
               const provSnap = await getDoc(doc(db, 'users', req.providerId))
               if (provSnap.exists()) {
                 const pd = provSnap.data()
-                req.providerName = pd.providerProfile?.professionalName || pd.name || 'Prestador'
-                req.providerAvatar = pd.providerProfile?.avatar || pd.avatar || ''
+                req.providerName = req.providerName || pd.providerProfile?.professionalName || pd.name || 'Prestador'
+                req.providerAvatar = req.providerAvatar || pd.providerProfile?.avatar || pd.avatar || ''
               }
             } catch {}
           }
@@ -232,7 +236,6 @@ export const MyAccountPage = () => {
     )
   }
 
-  // Cards de atalho condicionais
   const shortcutCards = [
     isClient && {
       to: '/meu-perfil-cliente',
@@ -412,9 +415,9 @@ export const MyAccountPage = () => {
                   className="bg-surface border border-border rounded-xl p-4 sm:p-6 hover:border-primary/40 transition-colors"
                 >
                   <div className="flex flex-col sm:flex-row gap-4">
-                    {/* Avatar */}
+                    {/* Avatar — foto real do Firestore, fallback com iniciais */}
                     <img
-                      src={req.providerAvatar || `https://i.pravatar.cc/80?u=${req.providerId}`}
+                      src={req.providerAvatar || avatarFallback(req.providerName || 'Prestador')}
                       alt={req.providerName}
                       className="w-14 h-14 rounded-xl object-cover shrink-0"
                     />
@@ -536,9 +539,10 @@ export const MyAccountPage = () => {
                 </button>
               </div>
 
+              {/* Prestador no modal — foto real, fallback com iniciais */}
               <div className="flex items-center gap-3 mb-6 p-3 bg-background rounded-xl">
                 <img
-                  src={reviewModal.providerAvatar || `https://i.pravatar.cc/60?u=${reviewModal.providerId}`}
+                  src={reviewModal.providerAvatar || avatarFallback(reviewModal.providerName)}
                   alt={reviewModal.providerName}
                   className="w-12 h-12 rounded-full object-cover"
                 />
