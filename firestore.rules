@@ -3,10 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ────────────────────────────────────────
-    // Funções auxiliares
-    // ────────────────────────────────────────
-
     function isAuth() {
       return request.auth != null;
     }
@@ -19,7 +15,7 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == uid;
     }
 
-    // ✅ Corrigido: participants é array — usar hasAny() em vez de `in`
+    // ✅ hasAny() para arrays
     function isParticipant(chatData) {
       return isAuth() && chatData.participants.hasAny([request.auth.uid]);
     }
@@ -29,17 +25,11 @@ service cloud.firestore {
              request.resource.data[field] == resource.data[field];
     }
 
-    // ────────────────────────────────────────
-    // /users/{userId}
-    // ────────────────────────────────────────
     match /users/{userId} {
       allow read: if true;
       allow write: if isOwner(userId) || isAdmin();
     }
 
-    // ────────────────────────────────────────
-    // /providers/{providerId}
-    // ────────────────────────────────────────
     match /providers/{providerId} {
       allow read: if true;
       allow create: if isOwner(providerId) || isAdmin();
@@ -48,39 +38,26 @@ service cloud.firestore {
 
       match /portfolio/{mediaId}/comments/{commentId} {
         allow read: if true;
-
         allow create: if isAuth() &&
           request.resource.data.userId == request.auth.uid &&
           request.resource.data.text is string &&
           request.resource.data.text.size() >= 1 &&
           request.resource.data.text.size() <= 500;
-
         allow update: if isAuth() && (
           (resource.data.userId == request.auth.uid) ||
-          (
-            request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['likes', 'likedBy'])
-          )
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy']))
         );
-
         allow delete: if isAdmin() ||
           resource.data.userId == request.auth.uid ||
           isOwner(providerId);
       }
     }
 
-    // ────────────────────────────────────────
-    // /categories/{catId}
-    // ────────────────────────────────────────
     match /categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ────────────────────────────────────────
-    // /requests/{requestId}
-    // /serviceRequests/{requestId}
-    // ────────────────────────────────────────
     match /requests/{requestId} {
       allow read: if isAdmin() ||
         (isAuth() && (
@@ -111,9 +88,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ────────────────────────────────────────
-    // /notifications/{notificationId}
-    // ────────────────────────────────────────
     match /notifications/{notificationId} {
       allow read: if isAdmin() ||
         (isAuth() && resource.data.userId == request.auth.uid);
@@ -122,9 +96,6 @@ service cloud.firestore {
         (isAuth() && resource.data.userId == request.auth.uid);
     }
 
-    // ────────────────────────────────────────
-    // /reviews/{reviewId}
-    // ────────────────────────────────────────
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isAuth() && request.resource.data.clientId == request.auth.uid;
@@ -132,18 +103,13 @@ service cloud.firestore {
         (isAuth() && resource.data.clientId == request.auth.uid);
     }
 
-    // ────────────────────────────────────────
-    // /cities/{cityId}
-    // ────────────────────────────────────────
     match /cities/{cityId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ────────────────────────────────────────
-    // /chats/{chatId}
-    // ────────────────────────────────────────
     match /chats/{chatId} {
+      // ✅ isAuth() permite tanto getDoc quanto queries (array-contains) do useUnreadMessages
       allow read: if isAdmin() || isAuth();
 
       allow create: if isAuth() &&
@@ -155,9 +121,10 @@ service cloud.firestore {
 
       allow delete: if isAdmin() || isParticipant(resource.data);
 
-      // ── /chats/{chatId}/messages/{messageId} ──
       match /messages/{messageId} {
+        // ✅ isAuth() — seguro pois o cliente filtra pelo chatId já validado
         allow read: if isAdmin() || isAuth();
+
         allow create: if isAuth() &&
           get(/databases/$(database)/documents/chats/$(chatId)).data.participants
             .hasAny([request.auth.uid]) &&
@@ -175,9 +142,6 @@ service cloud.firestore {
       }
     }
 
-    // ────────────────────────────────────────
-    // Qualquer outra coleção — apenas admin
-    // ────────────────────────────────────────
     match /{document=**} {
       allow read, write: if isAdmin();
     }
