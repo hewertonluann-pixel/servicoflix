@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Clock, CheckCircle, XCircle, AlertCircle, Calendar,
   DollarSign, Star, MessageCircle, FileText, TrendingUp,
-  Loader2, MapPin, X, Send
+  Loader2, MapPin, X, Send, User, Briefcase, Settings, Sparkles, ChevronRight
 } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   collection, query, where, getDocs, doc,
   updateDoc, addDoc, getDoc, Timestamp, orderBy, serverTimestamp
@@ -33,7 +33,7 @@ interface ServiceRequest {
   address?: { neighborhood?: string; city?: string }
   createdAt: Timestamp
   updatedAt?: Timestamp
-  reviewId?: string // preenchido após avaliação
+  reviewId?: string
 }
 
 interface ReviewModal {
@@ -54,7 +54,7 @@ const statusConfig = {
 }
 
 export const MyAccountPage = () => {
-  const { user } = useSimpleAuth()
+  const { user, isProvider, isClient } = useSimpleAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<Tab>('requests')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -69,7 +69,6 @@ export const MyAccountPage = () => {
   const [reviewText, setReviewText] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
 
-  // Carrega solicitações do cliente no Firestore
   useEffect(() => {
     const load = async () => {
       if (!user?.id) return
@@ -86,7 +85,6 @@ export const MyAccountPage = () => {
         for (const d of snap.docs) {
           const req = { id: d.id, ...d.data() } as ServiceRequest
 
-          // Busca nome/avatar do prestador se não estiver no documento
           if (!req.providerName && req.providerId) {
             try {
               const provSnap = await getDoc(doc(db, 'users', req.providerId))
@@ -165,7 +163,6 @@ export const MyAccountPage = () => {
     if (!reviewModal || rating === 0 || !user?.id) return
     setSubmittingReview(true)
     try {
-      // Salva review
       const reviewRef = await addDoc(collection(db, 'reviews'), {
         clientId: user.id,
         clientName: user.name,
@@ -178,12 +175,10 @@ export const MyAccountPage = () => {
         createdAt: serverTimestamp(),
       })
 
-      // Marca a solicitação como avaliada
       await updateDoc(doc(db, 'serviceRequests', reviewModal.requestId), {
         reviewId: reviewRef.id,
       })
 
-      // Atualiza média do prestador
       const allReviewsSnap = await getDocs(
         query(collection(db, 'reviews'), where('providerId', '==', reviewModal.providerId))
       )
@@ -195,7 +190,6 @@ export const MyAccountPage = () => {
         'providerProfile.reviewCount': ratings.length,
       }).catch(() => {})
 
-      // Atualiza estado local
       setRequests(prev =>
         prev.map(r => r.id === reviewModal.requestId ? { ...r, reviewId: reviewRef.id } : r)
       )
@@ -238,14 +232,83 @@ export const MyAccountPage = () => {
     )
   }
 
+  // Cards de atalho condicionais
+  const shortcutCards = [
+    isClient && {
+      to: '/meu-perfil-cliente',
+      icon: User,
+      label: 'Perfil Cliente',
+      desc: 'Editar dados e endereço',
+      color: 'text-blue-400',
+      border: 'border-blue-500/20 hover:border-blue-400/50',
+      bg: 'bg-blue-500/10',
+    },
+    isProvider && {
+      to: '/meu-perfil',
+      icon: Briefcase,
+      label: 'Painel Prestador',
+      desc: 'Métricas, serviços e créditos',
+      color: 'text-primary',
+      border: 'border-primary/20 hover:border-primary/50',
+      bg: 'bg-primary/10',
+    },
+    !isProvider && {
+      to: '/tornar-se-prestador',
+      icon: Sparkles,
+      label: 'Ser Prestador',
+      desc: 'Ofereça seus serviços',
+      color: 'text-yellow-400',
+      border: 'border-yellow-500/20 hover:border-yellow-400/50',
+      bg: 'bg-yellow-500/10',
+    },
+    {
+      to: '/configuracoes',
+      icon: Settings,
+      label: 'Configurações',
+      desc: 'Preferências da conta',
+      color: 'text-muted',
+      border: 'border-border hover:border-white/30',
+      bg: 'bg-surface',
+    },
+  ].filter(Boolean) as {
+    to: string; icon: any; label: string; desc: string;
+    color: string; border: string; bg: string
+  }[]
+
   return (
     <div className="min-h-screen pt-16 pb-20 bg-background">
       <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8">
 
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-black text-white mb-1">Minha Conta</h1>
-          <p className="text-muted text-sm">Suas solicitações e histórico de serviços</p>
+          <p className="text-muted text-sm">Gerencie seus perfis e acompanhe suas solicitações</p>
+        </div>
+
+        {/* ── Hub de Atalhos ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+          {shortcutCards.map((card, i) => (
+            <motion.div
+              key={card.to}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06 }}
+            >
+              <Link
+                to={card.to}
+                className={`flex flex-col gap-2 p-4 rounded-xl border ${card.border} ${card.bg} transition-all group`}
+              >
+                <div className="flex items-center justify-between">
+                  <card.icon className={`w-5 h-5 ${card.color}`} />
+                  <ChevronRight className="w-4 h-4 text-muted group-hover:text-white transition-colors" />
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${card.color}`}>{card.label}</p>
+                  <p className="text-[11px] text-muted leading-tight">{card.desc}</p>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
         </div>
 
         {/* Stats */}
@@ -395,7 +458,6 @@ export const MyAccountPage = () => {
 
                       {/* Ações */}
                       <div className="flex flex-wrap gap-2">
-                        {/* Chat — disponivel enquanto não cancelado/rejeitado */}
                         {!['cancelled', 'rejected'].includes(req.status) && (
                           <button
                             onClick={() => handleOpenChat(req)}
@@ -409,7 +471,6 @@ export const MyAccountPage = () => {
                           </button>
                         )}
 
-                        {/* Cancelar — apenas pending */}
                         {req.status === 'pending' && (
                           <button
                             onClick={() => handleCancel(req.id)}
@@ -421,7 +482,6 @@ export const MyAccountPage = () => {
                           </button>
                         )}
 
-                        {/* Avaliar — apenas completed sem review */}
                         {isCompleted && !alreadyReviewed && (
                           <button
                             onClick={() => openReviewModal(req)}
@@ -432,7 +492,6 @@ export const MyAccountPage = () => {
                           </button>
                         )}
 
-                        {/* Já avaliado */}
                         {isCompleted && alreadyReviewed && (
                           <span className="flex items-center gap-1.5 px-3 py-2 text-xs text-green-400">
                             <CheckCircle className="w-3.5 h-3.5" />
@@ -470,7 +529,6 @@ export const MyAccountPage = () => {
               onClick={e => e.stopPropagation()}
               className="bg-surface border border-border rounded-2xl p-6 w-full max-w-md"
             >
-              {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-black text-white">Avaliar Serviço</h2>
                 <button onClick={() => setReviewModal(null)} className="p-1.5 text-muted hover:text-white transition-colors">
@@ -478,7 +536,6 @@ export const MyAccountPage = () => {
                 </button>
               </div>
 
-              {/* Prestador */}
               <div className="flex items-center gap-3 mb-6 p-3 bg-background rounded-xl">
                 <img
                   src={reviewModal.providerAvatar || `https://i.pravatar.cc/60?u=${reviewModal.providerId}`}
@@ -491,7 +548,6 @@ export const MyAccountPage = () => {
                 </div>
               </div>
 
-              {/* Estrelas */}
               <div className="mb-5">
                 <p className="text-sm text-muted mb-3">Como foi o serviço?</p>
                 <div className="flex items-center gap-2 justify-center">
@@ -520,7 +576,6 @@ export const MyAccountPage = () => {
                 )}
               </div>
 
-              {/* Texto */}
               <div className="mb-6">
                 <textarea
                   value={reviewText}
@@ -533,7 +588,6 @@ export const MyAccountPage = () => {
                 <p className="text-[11px] text-muted text-right mt-1">{reviewText.length}/500</p>
               </div>
 
-              {/* Enviar */}
               <button
                 onClick={handleSubmitReview}
                 disabled={rating === 0 || submittingReview}
