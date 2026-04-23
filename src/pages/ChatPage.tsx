@@ -31,7 +31,7 @@ export const ChatPage = () => {
 
   const withUserId = searchParams.get('with')
 
-  const [chatId, setChatId] = useState<string | null>(chatIdParam || null)
+  const [chatId, setChatId] = useState<string | null>(null)
   const [otherUser, setOtherUser] = useState<ChatParticipantInfo & { id: string; isProvider?: boolean } | null>(null)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
