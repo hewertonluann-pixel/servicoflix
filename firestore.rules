@@ -144,7 +144,7 @@ service cloud.firestore {
     // /chats/{chatId}
     // ────────────────────────────────────────
     match /chats/{chatId} {
-      allow read: if isAdmin() || isParticipant(resource.data);
+      allow read: if isAdmin() || isAuth();
 
       allow create: if isAuth() &&
         request.resource.data.participants.hasAny([request.auth.uid]) &&
