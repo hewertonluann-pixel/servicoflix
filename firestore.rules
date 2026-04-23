@@ -157,12 +157,7 @@ service cloud.firestore {
 
       // ── /chats/{chatId}/messages/{messageId} ──
       match /messages/{messageId} {
-        // ✅ Corrigido: hasAny() para verificar array de participants
-        allow read: if isAdmin() ||
-          (isAuth() &&
-            get(/databases/$(database)/documents/chats/$(chatId)).data.participants
-              .hasAny([request.auth.uid]));
-
+        allow read: if isAdmin() || isAuth();
         allow create: if isAuth() &&
           get(/databases/$(database)/documents/chats/$(chatId)).data.participants
             .hasAny([request.auth.uid]) &&
