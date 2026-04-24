@@ -1,13 +1,5 @@
 /**
  * notifications.ts — Cloud Functions de notificação
- *
- * Lógica:
- *   - Usuário COM fcmToken → envia Push via FCM
- *   - Usuário SEM fcmToken (ou token inválido) → envia e-mail
- *
- * Triggers:
- *   1. onNovaSolicitacao  — nova doc em /solicitacoes
- *   2. onNovaMensagemChat — nova doc em /chats/{chatId}/messages/{messageId}
  */
 import * as admin from 'firebase-admin';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
@@ -21,11 +13,7 @@ import {
 } from './mailer';
 
 const APP_URL = 'https://servicoflix.com.br';
-const FUNCTION_REGION = 'southamerica-east1';
-// Região do banco Firestore (nam5 = multi-região EUA, onde o banco foi criado)
 const DB_REGION = 'nam5';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function getUserData(userId: string) {
   const snap = await admin.firestore().doc(`users/${userId}`).get();
@@ -74,8 +62,6 @@ async function sendPush(
   }
 }
 
-// ── Trigger 1: Nova Solicitação de Serviço ────────────────────────────────────
-
 export const onNovaSolicitacao = onDocumentCreated(
   {
     document: 'solicitacoes/{solicitacaoId}',
@@ -85,22 +71,17 @@ export const onNovaSolicitacao = onDocumentCreated(
   async (event) => {
     const data = event.data?.data();
     if (!data) return;
-
     const { prestadorId, clienteNome, servico } = data;
     if (!prestadorId) return;
-
     const prestador = await getUserData(prestadorId);
     if (!prestador) return;
-
     const title = '🔔 Nova solicitação de serviço!';
     const body = `${clienteNome} quer contratar: ${servico}`;
     const pushUrl = `${APP_URL}/solicitacoes`;
-
     if (prestador.fcmToken) {
       const sent = await sendPush(prestadorId, prestador.fcmToken, title, body, { url: pushUrl });
       if (sent) return;
     }
-
     if (prestador.email) {
       await sendEmail({
         to: prestador.email,
@@ -116,8 +97,6 @@ export const onNovaSolicitacao = onDocumentCreated(
   }
 );
 
-// ── Trigger 2: Nova Mensagem no Chat ──────────────────────────────────────────
-
 export const onNovaMensagemChat = onDocumentCreated(
   {
     document: 'chats/{chatId}/messages/{messageId}',
@@ -125,31 +104,55 @@ export const onNovaMensagemChat = onDocumentCreated(
     secrets: [MAIL_USER, MAIL_PASS],
   },
   async (event) => {
+    logger.info('[Chat] Trigger disparado', { chatId: event.params.chatId, messageId: event.params.messageId });
+
     const msg = event.data?.data();
-    if (!msg) return;
+    logger.info('[Chat] Dados da mensagem:', JSON.stringify(msg));
+
+    if (!msg) {
+      logger.warn('[Chat] msg é null/undefined — abortando');
+      return;
+    }
 
     const { senderId, text } = msg;
-    if (!senderId || !text) return;
+    logger.info(`[Chat] senderId=${senderId} text=${text}`);
+
+    if (!senderId || !text) {
+      logger.warn(`[Chat] senderId ou text vazio — abortando. senderId=${senderId} text=${text}`);
+      return;
+    }
 
     const chatSnap = await admin
       .firestore()
       .doc(`chats/${event.params.chatId}`)
       .get();
 
-    if (!chatSnap.exists) return;
+    if (!chatSnap.exists) {
+      logger.warn(`[Chat] Chat ${event.params.chatId} não encontrado`);
+      return;
+    }
 
     const chatData = chatSnap.data() as Record<string, any>;
     const participants: string[] = chatData.participants || [];
+    logger.info('[Chat] Participantes:', JSON.stringify(participants));
 
     const receiverId = participants.find((p) => p !== senderId);
-    if (!receiverId) return;
+    if (!receiverId) {
+      logger.warn('[Chat] receiverId não encontrado');
+      return;
+    }
 
     const [destinatario, remetente] = await Promise.all([
       getUserData(receiverId),
       getUserData(senderId),
     ]);
 
-    if (!destinatario) return;
+    if (!destinatario) {
+      logger.warn(`[Chat] Destinatário ${receiverId} não encontrado no Firestore`);
+      return;
+    }
+
+    logger.info(`[Chat] fcmToken destinatário: ${destinatario.fcmToken ? 'presente' : 'ausente'}`);
 
     const remetenteNome =
       remetente?.name ||
@@ -166,6 +169,7 @@ export const onNovaMensagemChat = onDocumentCreated(
     }
 
     if (destinatario.email) {
+      logger.info(`[Chat] Enviando e-mail para ${destinatario.email}`);
       await sendEmail({
         to: destinatario.email,
         subject: `💬 ${remetenteNome} enviou uma mensagem`,
