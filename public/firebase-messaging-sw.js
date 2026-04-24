@@ -1,33 +1,32 @@
 // Service Worker para Firebase Cloud Messaging (background notifications)
-// Versão: usa Firebase compat para compatibilidade com SW
-
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
-// A config será injetada pelo frontend via postMessage ou definida aqui
-// Se usar variáveis de ambiente no SW, use o vite-plugin-pwa com injectManifest
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'FIREBASE_CONFIG') {
-    firebase.initializeApp(event.data.config);
-    const messaging = firebase.messaging();
-
-    messaging.onBackgroundMessage((payload) => {
-      const { title, body, icon } = payload.notification || {};
-      self.registration.showNotification(title || 'Servicoflix', {
-        body: body || 'Você tem uma nova notificação.',
-        icon: icon || '/icons/icon-192x192.png',
-        badge: '/icons/icon-72x72.png',
-        data: payload.data || {},
-        actions: [
-          { action: 'open', title: 'Abrir' },
-          { action: 'dismiss', title: 'Dispensar' },
-        ],
-      });
-    });
-  }
+firebase.initializeApp({
+  apiKey: "AIzaSyBcMChkC1ZqVy6hhvDpvVBT3mTH-f17zd4",
+  authDomain: "prontto-60341.firebaseapp.com",
+  projectId: "prontto-60341",
+  storageBucket: "prontto-60341.appspot.com",
+  messagingSenderId: "788762949792",
+  appId: "1:788762949792:web:842ae1dac6f1b8229571c5",
 });
 
-// Clique na notificação: abre o app na rota correta
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  const { title, body, icon } = payload.notification || {};
+  self.registration.showNotification(title || 'Servicoflix', {
+    body: body || 'Você tem uma nova notificação.',
+    icon: icon || '/icon-192.png',
+    badge: '/icon-192.png',
+    data: payload.data || {},
+    actions: [
+      { action: 'open', title: 'Abrir' },
+      { action: 'dismiss', title: 'Dispensar' },
+    ],
+  });
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
