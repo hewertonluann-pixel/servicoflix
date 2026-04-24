@@ -13,7 +13,8 @@ import {
 } from './mailer';
 
 const APP_URL = 'https://servicoflix.com.br';
-const DB_REGION = 'nam5';
+const FUNCTION_REGION = 'southamerica-east1'; // região onde a função roda
+const DB_REGION = 'nam5';                     // região do banco Firestore
 
 async function getUserData(userId: string) {
   const snap = await admin.firestore().doc(`users/${userId}`).get();
@@ -65,7 +66,8 @@ async function sendPush(
 export const onNovaSolicitacao = onDocumentCreated(
   {
     document: 'solicitacoes/{solicitacaoId}',
-    region: DB_REGION,
+    region: FUNCTION_REGION,
+    triggerRegion: DB_REGION,
     secrets: [MAIL_USER, MAIL_PASS],
   },
   async (event) => {
@@ -100,7 +102,8 @@ export const onNovaSolicitacao = onDocumentCreated(
 export const onNovaMensagemChat = onDocumentCreated(
   {
     document: 'chats/{chatId}/messages/{messageId}',
-    region: DB_REGION,
+    region: FUNCTION_REGION,
+    triggerRegion: DB_REGION,
     secrets: [MAIL_USER, MAIL_PASS],
   },
   async (event) => {
