@@ -21,7 +21,9 @@ import {
 } from './mailer';
 
 const APP_URL = 'https://servicoflix.com.br';
-const REGION = 'southamerica-east1';
+const FUNCTION_REGION = 'southamerica-east1';
+// Região do banco Firestore (nam5 = multi-região EUA, onde o banco foi criado)
+const DB_REGION = 'nam5';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,7 +79,7 @@ async function sendPush(
 export const onNovaSolicitacao = onDocumentCreated(
   {
     document: 'solicitacoes/{solicitacaoId}',
-    region: REGION,
+    region: DB_REGION,
     secrets: [MAIL_USER, MAIL_PASS],
   },
   async (event) => {
@@ -118,18 +120,17 @@ export const onNovaSolicitacao = onDocumentCreated(
 
 export const onNovaMensagemChat = onDocumentCreated(
   {
-    document: 'chats/{chatId}/messages/{messageId}', // ✅ path correto
-    region: REGION,
+    document: 'chats/{chatId}/messages/{messageId}',
+    region: DB_REGION,
     secrets: [MAIL_USER, MAIL_PASS],
   },
   async (event) => {
     const msg = event.data?.data();
     if (!msg) return;
 
-    const { senderId, text } = msg; // ✅ campos corretos
+    const { senderId, text } = msg;
     if (!senderId || !text) return;
 
-    // Busca participantes no documento pai do chat
     const chatSnap = await admin
       .firestore()
       .doc(`chats/${event.params.chatId}`)
@@ -140,7 +141,6 @@ export const onNovaMensagemChat = onDocumentCreated(
     const chatData = chatSnap.data() as Record<string, any>;
     const participants: string[] = chatData.participants || [];
 
-    // Destinatário é o participante que NÃO enviou a mensagem
     const receiverId = participants.find((p) => p !== senderId);
     if (!receiverId) return;
 
