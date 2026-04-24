@@ -7,7 +7,7 @@
  *
  * Triggers:
  *   1. onNovaSolicitacao  — nova doc em /solicitacoes
- *   2. onNovaMensagemChat — nova doc em /chats/{chatId}/mensagens
+ *   2. onNovaMensagemChat — nova doc em /chats/{chatId}/messages/{messageId}
  */
 import * as admin from 'firebase-admin';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
@@ -30,10 +30,6 @@ async function getUserData(userId: string) {
   return snap.exists ? (snap.data() as Record<string, any>) : null;
 }
 
-/**
- * Envia push FCM. Retorna true se enviou com sucesso.
- * Se o token for inválido/expirado, remove-o do Firestore e retorna false.
- */
 async function sendPush(
   userId: string,
   token: string,
@@ -50,8 +46,8 @@ async function sendPush(
         notification: {
           title,
           body,
-          icon: `${APP_URL}/icons/icon-192x192.png`,
-          badge: `${APP_URL}/icons/icon-72x72.png`,
+          icon: `${APP_URL}/icon-192.png`,
+          badge: `${APP_URL}/icon-192.png`,
         },
         fcmOptions: { link: data?.url || APP_URL },
       },
@@ -64,7 +60,7 @@ async function sendPush(
       'messaging/invalid-registration-token',
     ];
     if (invalidTokenCodes.includes(error?.code)) {
-      logger.warn(`[Push] Token inválido para ${userId} — removendo do Firestore.`);
+      logger.warn(`[Push] Token inválido para ${userId} — removendo.`);
       await admin.firestore().doc(`users/${userId}`).update({
         fcmToken: null,
         fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -76,7 +72,7 @@ async function sendPush(
   }
 }
 
-// ── Trigger 1: Nova Solicitação de Serviço ─────────────────────────────────────
+// ── Trigger 1: Nova Solicitação de Serviço ────────────────────────────────────
 
 export const onNovaSolicitacao = onDocumentCreated(
   {
@@ -89,28 +85,20 @@ export const onNovaSolicitacao = onDocumentCreated(
     if (!data) return;
 
     const { prestadorId, clienteNome, servico } = data;
-    if (!prestadorId) {
-      logger.warn('[onNovaSolicitacao] Sem prestadorId na solicitação.');
-      return;
-    }
+    if (!prestadorId) return;
 
     const prestador = await getUserData(prestadorId);
-    if (!prestador) {
-      logger.warn(`[onNovaSolicitacao] Prestador ${prestadorId} não encontrado.`);
-      return;
-    }
+    if (!prestador) return;
 
     const title = '🔔 Nova solicitação de serviço!';
     const body = `${clienteNome} quer contratar: ${servico}`;
     const pushUrl = `${APP_URL}/solicitacoes`;
 
-    // Tenta push; se falhar (token inválido), cai no e-mail
     if (prestador.fcmToken) {
       const sent = await sendPush(prestadorId, prestador.fcmToken, title, body, { url: pushUrl });
       if (sent) return;
     }
 
-    // Fallback: e-mail
     if (prestador.email) {
       await sendEmail({
         to: prestador.email,
@@ -122,7 +110,6 @@ export const onNovaSolicitacao = onDocumentCreated(
           appUrl: APP_URL,
         }),
       });
-      logger.info(`[onNovaSolicitacao] E-mail enviado para ${prestador.email}`);
     }
   }
 );
@@ -131,7 +118,7 @@ export const onNovaSolicitacao = onDocumentCreated(
 
 export const onNovaMensagemChat = onDocumentCreated(
   {
-    document: 'chats/{chatId}/mensagens/{msgId}',
+    document: 'chats/{chatId}/messages/{messageId}', // ✅ path correto
     region: REGION,
     secrets: [MAIL_USER, MAIL_PASS],
   },
@@ -139,30 +126,42 @@ export const onNovaMensagemChat = onDocumentCreated(
     const msg = event.data?.data();
     if (!msg) return;
 
-    const { paraId, deId, texto } = msg;
-    if (!paraId || !deId || paraId === deId) return;
+    const { senderId, text } = msg; // ✅ campos corretos
+    if (!senderId || !text) return;
+
+    // Busca participantes no documento pai do chat
+    const chatSnap = await admin
+      .firestore()
+      .doc(`chats/${event.params.chatId}`)
+      .get();
+
+    if (!chatSnap.exists) return;
+
+    const chatData = chatSnap.data() as Record<string, any>;
+    const participants: string[] = chatData.participants || [];
+
+    // Destinatário é o participante que NÃO enviou a mensagem
+    const receiverId = participants.find((p) => p !== senderId);
+    if (!receiverId) return;
 
     const [destinatario, remetente] = await Promise.all([
-      getUserData(paraId),
-      getUserData(deId),
+      getUserData(receiverId),
+      getUserData(senderId),
     ]);
 
-    if (!destinatario) {
-      logger.warn(`[onNovaMensagemChat] Destinatário ${paraId} não encontrado.`);
-      return;
-    }
+    if (!destinatario) return;
 
     const remetenteNome =
-      remetente?.displayName ||
+      remetente?.name ||
       remetente?.providerProfile?.professionalName ||
       'Alguém';
-    const previewTexto = (texto as string)?.slice(0, 120) || '(mídia)';
+    const previewTexto = (text as string)?.slice(0, 120) || '(mídia)';
     const title = '💬 Nova mensagem no Servicoflix';
     const body = `${remetenteNome}: ${previewTexto}`;
     const chatUrl = `${APP_URL}/chat/${event.params.chatId}`;
 
     if (destinatario.fcmToken) {
-      const sent = await sendPush(paraId, destinatario.fcmToken, title, body, { url: chatUrl });
+      const sent = await sendPush(receiverId, destinatario.fcmToken, title, body, { url: chatUrl });
       if (sent) return;
     }
 
@@ -171,13 +170,12 @@ export const onNovaMensagemChat = onDocumentCreated(
         to: destinatario.email,
         subject: `💬 ${remetenteNome} enviou uma mensagem`,
         html: templateNovaMensagem({
-          destinatarioNome: destinatario.displayName || 'Usuário',
+          destinatarioNome: destinatario.name || 'Usuário',
           remetenteNome,
           previewTexto,
           chatUrl,
         }),
       });
-      logger.info(`[onNovaMensagemChat] E-mail enviado para ${destinatario.email}`);
     }
   }
 );
