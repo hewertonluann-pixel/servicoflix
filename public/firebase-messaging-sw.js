@@ -1,4 +1,7 @@
 // Service Worker para Firebase Cloud Messaging (background notifications)
+// Config hardcoded — o SW não tem acesso às variáveis de ambiente do Vite.
+// O fcm.ts usa navigator.serviceWorker.ready para garantir que este SW
+// está ativo antes de chamar getToken(), evitando tokens inválidos no mobile.
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
@@ -13,6 +16,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Exibe a notificação quando o app está em background ou fechado
 messaging.onBackgroundMessage((payload) => {
   const { title, body, icon } = payload.notification || {};
   self.registration.showNotification(title || 'Servicoflix', {
@@ -27,6 +31,7 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
+// Ao clicar na notificação, abre ou foca a aba do app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
