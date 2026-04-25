@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { createOrGetChat } from '@/lib/chatUtils'
+import { SimpleLoginPage } from '@/pages/SimpleLoginPage'
 
 type RequestStatus = 'pending' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'rejected'
 type Tab = 'requests' | 'history'
@@ -58,7 +59,7 @@ const avatarFallback = (name: string) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=1a1a2e&color=a78bfa&bold=true&size=80`
 
 export const MyAccountPage = () => {
-  const { user, isProvider, isClient } = useSimpleAuth()
+  const { user, loading: authLoading, isProvider, isClient } = useSimpleAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<Tab>('requests')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -213,6 +214,20 @@ export const MyAccountPage = () => {
       ' às ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   }
 
+  // Aguarda o Firebase resolver o estado de autenticação
+  if (authLoading) {
+    return (
+      <div className="min-h-screen pt-16 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
+  }
+
+  // Usuário não autenticado — exibe a tela de login (mobile e desktop)
+  if (!user) {
+    return <SimpleLoginPage />
+  }
+
   const activeRequests = requests.filter(r => !['completed', 'cancelled', 'rejected'].includes(r.status))
   const historyRequests = requests.filter(r => ['completed', 'cancelled', 'rejected'].includes(r.status))
 
@@ -226,14 +241,6 @@ export const MyAccountPage = () => {
       .reduce((s, r) => s + (r.budgetProposed || 0), 0),
     pending: activeRequests.filter(r => r.status === 'pending').length,
     active: activeRequests.length,
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen pt-16 flex items-center justify-center">
-        <p className="text-muted">Faça login para ver sua conta.</p>
-      </div>
-    )
   }
 
   const shortcutCards = [
