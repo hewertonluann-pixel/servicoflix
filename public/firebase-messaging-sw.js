@@ -16,14 +16,23 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Exibe a notificação quando o app está em background ou fechado
+// Exibe a notificação quando o app está em background ou fechado.
+// O backend envia apenas data payload (sem bloco notification),
+// por isso o SW é o único responsável por exibir a notificação visual.
+// Isso elimina a duplicidade causada pela exibição automática do FCM.
 messaging.onBackgroundMessage((payload) => {
-  const { title, body, icon } = payload.notification || {};
+  const { title, body, icon, url } = payload.data || {};
+
+  // Extrai o chatId da URL para usar como tag (evita empilhar cópias do mesmo chat)
+  const chatId = url ? url.split('/chat/')[1] || 'geral' : 'geral';
+
   self.registration.showNotification(title || 'Servicoflix', {
     body: body || 'Você tem uma nova notificação.',
     icon: icon || '/icon-192.png',
     badge: '/icon-192.png',
-    data: payload.data || {},
+    tag: `chat-${chatId}`,
+    renotify: false,
+    data: { url: url || '/' },
     actions: [
       { action: 'open', title: 'Abrir' },
       { action: 'dismiss', title: 'Dispensar' },
