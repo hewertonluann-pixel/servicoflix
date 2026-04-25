@@ -2,6 +2,9 @@
  * fcm.ts — Gerenciamento de token FCM no frontend
  * Registra o token do dispositivo no Firestore ao fazer login.
  * Limpa o token ao fazer logout.
+ *
+ * CORREÇÃO: usa navigator.serviceWorker.ready (garante SW ativo)
+ * e remove o postMessage desnecessário — o SW já tem a config hardcoded.
  */
 import { getMessaging, getToken, onMessage, MessagePayload } from 'firebase/messaging';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -11,25 +14,19 @@ import app from './firebase';
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 /**
- * Inicializa o Service Worker e envia a config do Firebase para ele.
+ * Inicializa o Service Worker e aguarda ele estar ATIVO antes de continuar.
+ * navigator.serviceWorker.ready só resolve quando há um SW em estado 'activated'.
+ * Isso evita o bug onde registration.active era null no mobile.
  */
 async function initServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null;
 
-  const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-  await navigator.serviceWorker.ready;
+  // Registra o SW (no-op se já estiver registrado)
+  await navigator.serviceWorker.register('/firebase-messaging-sw.js');
 
-  // Envia a config do Firebase para o SW via postMessage
-  const config = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  };
+  // Aguarda o SW estar completamente ativo — garante registration.active !== null
+  const registration = await navigator.serviceWorker.ready;
 
-  registration.active?.postMessage({ type: 'FIREBASE_CONFIG', config });
   return registration;
 }
 
