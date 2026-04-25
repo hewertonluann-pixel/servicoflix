@@ -24,7 +24,7 @@ messaging.onBackgroundMessage((payload) => {
   const { title, body, icon, url } = payload.data || {};
 
   // Extrai o chatId da URL para usar como tag (evita empilhar cópias do mesmo chat)
-  const chatId = url ? url.split('/chat/')[1] || 'geral' : 'geral';
+  const chatId = url ? (url.split('/chat/')[1] || 'geral') : 'geral';
 
   self.registration.showNotification(title || 'Servicoflix', {
     body: body || 'Você tem uma nova notificação.',
