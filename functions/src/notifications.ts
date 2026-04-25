@@ -1,8 +1,10 @@
 /**
  * notifications.ts — Cloud Functions de notificação
  *
- * IMPORTANTE: O trigger do Firestore é gerenciado manualmente via gcloud
- * porque o banco está em nam5 e a função em southamerica-east1.
+ * IMPORTANTE: O banco Firestore está em nam5 (us-central).
+ * A função DEVE estar em us-central1 para que os triggers do Firestore
+ * funcionem corretamente. Triggers entre regiões diferentes são ignorados
+ * silenciosamente pelo Firebase.
  */
 import * as admin from 'firebase-admin';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
@@ -16,7 +18,7 @@ import {
 } from './mailer';
 
 const APP_URL = 'https://servicoflix.com.br';
-const REGION = 'southamerica-east1';
+const REGION = 'us-central1'; // nam5 = us-central — triggers Firestore exigem mesma região
 
 async function getUserData(userId: string) {
   const snap = await admin.firestore().doc(`users/${userId}`).get();
