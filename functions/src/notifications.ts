@@ -25,6 +25,12 @@ async function getUserData(userId: string) {
   return snap.exists ? (snap.data() as Record<string, any>) : null;
 }
 
+/**
+ * Envia push usando apenas data payload (sem bloco notification).
+ * Isso evita duplicidade: o FCM não exibe notificação automática e
+ * o Service Worker (firebase-messaging-sw.js) fica como único
+ * responsável pela exibição visual via showNotification().
+ */
 async function sendPush(
   userId: string,
   token: string,
@@ -35,15 +41,14 @@ async function sendPush(
   try {
     await admin.messaging().send({
       token,
-      notification: { title, body },
-      data: data || {},
+      // Sem bloco notification nem webpush.notification — evita exibição automática duplicada.
+      data: {
+        ...(data || {}),
+        title,
+        body,
+        icon: `${APP_URL}/icon-192.png`,
+      },
       webpush: {
-        notification: {
-          title,
-          body,
-          icon: `${APP_URL}/icon-192.png`,
-          badge: `${APP_URL}/icon-192.png`,
-        },
         fcmOptions: { link: data?.url || APP_URL },
       },
     });
@@ -76,23 +81,31 @@ export const onNovaSolicitacao = onDocumentCreated(
   async (event) => {
     const data = event.data?.data();
     if (!data) return;
+
     const { prestadorId, clienteNome, servico } = data;
     if (!prestadorId) return;
+
     const prestador = await getUserData(prestadorId);
     if (!prestador) return;
+
     const title = '🔔 Nova solicitação de serviço!';
     const body = `${clienteNome} quer contratar: ${servico}`;
     const pushUrl = `${APP_URL}/solicitacoes`;
+
     if (prestador.fcmToken) {
       const sent = await sendPush(prestadorId, prestador.fcmToken, title, body, { url: pushUrl });
       if (sent) return;
     }
+
     if (prestador.email) {
       await sendEmail({
         to: prestador.email,
         subject: '🔔 Nova solicitação de serviço no Servicoflix',
         html: templateNovaSolicitacao({
-          prestadorNome: prestador.displayName || prestador.providerProfile?.professionalName || 'Prestador',
+          prestadorNome:
+            prestador.displayName ||
+            prestador.providerProfile?.professionalName ||
+            'Prestador',
           clienteNome,
           servico,
           appUrl: APP_URL,
@@ -109,11 +122,13 @@ export const onNovaMensagemChat = onDocumentCreated(
     secrets: [MAIL_USER, MAIL_PASS],
   },
   async (event) => {
-    logger.info('[Chat] Trigger disparado', { chatId: event.params.chatId, messageId: event.params.messageId });
+    logger.info('[Chat] Trigger disparado', {
+      chatId: event.params.chatId,
+      messageId: event.params.messageId,
+    });
 
     const msg = event.data?.data();
     logger.info('[Chat] Dados da mensagem:', JSON.stringify(msg));
-
     if (!msg) {
       logger.warn('[Chat] msg é null/undefined — abortando');
       return;
@@ -121,9 +136,10 @@ export const onNovaMensagemChat = onDocumentCreated(
 
     const { senderId, text } = msg;
     logger.info(`[Chat] senderId=${senderId} text=${text}`);
-
     if (!senderId || !text) {
-      logger.warn(`[Chat] senderId ou text vazio — abortando. senderId=${senderId} text=${text}`);
+      logger.warn(
+        `[Chat] senderId ou text vazio — abortando. senderId=${senderId} text=${text}`
+      );
       return;
     }
 
@@ -131,7 +147,6 @@ export const onNovaMensagemChat = onDocumentCreated(
       .firestore()
       .doc(`chats/${event.params.chatId}`)
       .get();
-
     if (!chatSnap.exists) {
       logger.warn(`[Chat] Chat ${event.params.chatId} não encontrado`);
       return;
@@ -157,7 +172,9 @@ export const onNovaMensagemChat = onDocumentCreated(
       return;
     }
 
-    logger.info(`[Chat] fcmToken destinatário: ${destinatario.fcmToken ? 'presente' : 'ausente'}`);
+    logger.info(
+      `[Chat] fcmToken destinatário: ${destinatario.fcmToken ? 'presente' : 'ausente'}`
+    );
 
     const remetenteNome =
       remetente?.name ||
@@ -169,7 +186,9 @@ export const onNovaMensagemChat = onDocumentCreated(
     const chatUrl = `${APP_URL}/chat/${event.params.chatId}`;
 
     if (destinatario.fcmToken) {
-      const sent = await sendPush(receiverId, destinatario.fcmToken, title, body, { url: chatUrl });
+      const sent = await sendPush(receiverId, destinatario.fcmToken, title, body, {
+        url: chatUrl,
+      });
       if (sent) return;
     }
 
