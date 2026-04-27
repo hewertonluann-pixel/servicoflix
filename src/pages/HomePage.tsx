@@ -31,8 +31,13 @@ const isProviderActive = (data: any): boolean => {
   if (data.id === OWNER_UID) return true
   // Assinatura mensal ativa
   if (p.subscriptionStatus === 'active') return true
-  // diasScore fica na raiz do documento users (não dentro de providerProfile)
-  const diasScore = data.diasScore
+  // diasScore pode estar na raiz do documento OU dentro de providerProfile
+  const diasScore =
+    typeof data.diasScore === 'number'
+      ? data.diasScore
+      : typeof p.diasScore === 'number'
+        ? p.diasScore
+        : undefined
   if (typeof diasScore === 'number' && diasScore > 0) return true
   // Compatibilidade: scoreExpiresAt dentro de providerProfile
   const scoreExpiry = p.scoreExpiresAt
