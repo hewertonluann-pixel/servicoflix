@@ -20,7 +20,7 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<Filters>(initialFilters || {
     categories: [],
-    priceRange: { min: 0, max: 1000 },
+    priceRange: { min: 0, max: 9999 },
     searchRadius: 50,
     onlyVerified: false,
     minRating: 0,
@@ -43,7 +43,7 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
   const clearFilters = () => {
     const defaultFilters: Filters = {
       categories: [],
-      priceRange: { min: 0, max: 1000 },
+      priceRange: { min: 0, max: 9999 },
       searchRadius: 50,
       onlyVerified: false,
       minRating: 0,
@@ -54,7 +54,7 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
 
   const activeFiltersCount = [
     filters.categories.length > 0,
-    filters.priceRange.min > 0 || filters.priceRange.max < 1000,
+    filters.priceRange.min > 0 || filters.priceRange.max < 9999,
     filters.searchRadius < 50,
     filters.onlyVerified,
     filters.minRating > 0,
