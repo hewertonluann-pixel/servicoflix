@@ -24,6 +24,26 @@ interface MockSettings {
   [categoryId: string]: boolean
 }
 
+/**
+ * Resolve o categoryId do prestador comparando os valores que ele
+ * salvou (texto livre, slug ou ID) com a lista de categorias do Firestore.
+ * Idêntica à função do SearchPage.
+ */
+const resolveCategoryId = (
+  raw: string,
+  categoryMap: Map<string, string>
+): string => {
+  const lower = raw.toLowerCase().trim()
+  // Correspondência exata pelo ID (ex: 'msica')
+  if (categoryMap.has(lower)) return lower
+  // Correspondência pelo nome da categoria (ex: 'música' → 'msica')
+  for (const [id, name] of categoryMap.entries()) {
+    if (name.toLowerCase().trim() === lower) return id
+    if (name.toLowerCase().includes(lower) || lower.includes(name.toLowerCase())) return id
+  }
+  return lower
+}
+
 // ✅ Retorna true se o prestador tem acesso ativo (diasScore > 0 OU assinatura ativa)
 const isProviderActive = (data: any): boolean => {
   const p = data.providerProfile || {}
@@ -48,28 +68,47 @@ const isProviderActive = (data: any): boolean => {
   return false
 }
 
-const docToProvider = (id: string, data: any): MockProvider => ({
-  id,
-  name: data.providerProfile?.professionalName || data.name || 'Sem nome',
-  avatar: data.providerProfile?.avatar || data.avatar || '',
-  coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
-  specialty: data.providerProfile?.specialty || 'Profissional',
-  category: (data.providerProfile?.categories?.[0] || data.providerProfile?.category || 'outros').toLowerCase(),
-  rating: data.providerProfile?.rating || 5.0,
-  reviewCount: data.providerProfile?.reviewCount || 0,
-  priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
-  city: data.providerProfile?.city || '',
-  neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
-  isOnline: data.providerProfile?.isOnline === true,
-  isTopRated: data.providerProfile?.verified || false,
-  isFeatured: data.providerProfile?.featured || id === OWNER_UID,
-  bio: data.providerProfile?.bio || '',
-  skills: data.providerProfile?.skills || [],
-  completedJobs: data.providerProfile?.completedJobs || 0,
-  responseTime: data.providerProfile?.responseTime || '< 24h',
-  whatsapp: data.providerProfile?.whatsapp || '',
-  isMock: false,
-})
+const docToProvider = (
+  id: string,
+  data: any,
+  categoryMap: Map<string, string>
+): MockProvider => {
+  const rawCategory =
+    data.providerProfile?.categoryId ||
+    data.providerProfile?.categories?.[0] ||
+    data.providerProfile?.category ||
+    'outros'
+
+  const avatar =
+    data.providerProfile?.avatar ||
+    data.providerProfile?.photoURL ||
+    data.avatar ||
+    data.photoURL ||
+    `https://i.pravatar.cc/150?u=${id}`
+
+  return {
+    id,
+    name: data.providerProfile?.professionalName || data.name || 'Sem nome',
+    avatar,
+    coverImage: data.providerProfile?.coverImage || 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&q=80',
+    specialty: data.providerProfile?.specialty || 'Profissional',
+    category: resolveCategoryId(rawCategory, categoryMap),
+    rating: data.providerProfile?.rating || 5.0,
+    reviewCount: data.providerProfile?.reviewCount || 0,
+    priceFrom: parseFloat(data.providerProfile?.priceFrom) || 50,
+    city: data.providerProfile?.city || '',
+    neighborhood: data.providerProfile?.neighborhood || data.providerProfile?.city || '',
+    isOnline: data.providerProfile?.isOnline === true,
+    isTopRated: data.providerProfile?.verified || false,
+    isFeatured: data.providerProfile?.featured || id === OWNER_UID,
+    bio: data.providerProfile?.bio || '',
+    skills: data.providerProfile?.skills || [],
+    completedJobs: data.providerProfile?.completedJobs || 0,
+    responseTime: data.providerProfile?.responseTime || '< 24h',
+    whatsapp: data.providerProfile?.whatsapp || '',
+    isMock: false,
+  }
+}
 
 export const HomePage = () => {
   const { user } = useSimpleAuth()
@@ -104,6 +143,20 @@ export const HomePage = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        // Carrega categorias PRIMEIRO para montar o mapa id -> name
+        const catSnap = await getDocs(collection(db, 'categories'))
+        const cats: Category[] = catSnap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Category))
+          .filter(c => c.active)
+          .sort((a, b) => a.name.localeCompare(b.name))
+
+        setCategories(cats)
+
+        // Mapa: ID do doc → nome da categoria (ex: 'msica' → 'Música')
+        const categoryMap = new Map<string, string>(
+          cats.map(c => [c.id, c.name])
+        )
+
         const usersSnap = await getDocs(collection(db, 'users'))
         const providers: MockProvider[] = []
 
@@ -122,20 +175,11 @@ export const HomePage = () => {
           const ativo = isOwner || isProviderActive({ ...data, id: d.id })
 
           if ((isOwner || isApproved) && ativo) {
-            const provider = docToProvider(d.id, data)
-            providers.push(provider)
+            providers.push(docToProvider(d.id, data, categoryMap))
           }
         })
 
         setRealProviders(providers)
-
-        const catSnap = await getDocs(collection(db, 'categories'))
-        const cats: Category[] = catSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as Category))
-          .filter(c => c.active)
-          .sort((a, b) => a.name.localeCompare(b.name))
-
-        setCategories(cats)
       } catch (err) {
         console.warn('Erro ao carregar dados:', err)
       } finally {
@@ -319,7 +363,7 @@ export const HomePage = () => {
 
         {categories.length === 0 && (
           <>
-            <CategoryRow title="🎵 Música" providers={getMerged('musica')} />
+            <CategoryRow title="🎵 Música" providers={getMerged('msica')} />
             <CategoryRow title="🧹 Limpeza e Organização" providers={getMerged('limpeza')} />
             <CategoryRow title="🏠 Reformas e Reparos" providers={getMerged('reformas')} />
             <CategoryRow title="📚 Educação" providers={getMerged('educacao')} />
