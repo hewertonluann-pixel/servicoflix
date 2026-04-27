@@ -270,7 +270,7 @@ export const HomePage = () => {
 
       <div className="relative z-10 md:-mt-8">
         {/* FilterBar: apenas desktop */}
-        <div className="hidden md:block">
+        <div className="">
           <FilterBar
             onFilterChange={setFilters}
             categories={categories.map(c => ({ id: c.id, name: c.name, icon: c.icon }))}
@@ -304,7 +304,7 @@ export const HomePage = () => {
         )}
 
         {/* CategoryGrid: apenas desktop */}
-        <div className="hidden md:block">
+        <div className="">
           <CategoryGrid categories={categoriesToShow.map(c => ({ id: c.id, name: c.name, icon: c.icon }))} />
         </div>
 
