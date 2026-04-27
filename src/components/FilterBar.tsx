@@ -62,8 +62,8 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
 
   return (
     <>
-      {/* Botão de filtros */}
-      <div className="px-4 sm:px-8 py-4">
+      {/* FAB Filtros - mobile */}       <button         onClick={() => setShowFilters(!showFilters)}         className="sm:hidden fixed bottom-20 right-4 z-40 flex items-center gap-2 px-4 py-3 bg-primary text-background font-bold rounded-2xl shadow-lg shadow-primary/30 active:scale-95 transition-all"       >         <SlidersHorizontal className="w-5 h-5" />         Filtros         {activeFiltersCount > 0 && (           <span className="bg-background text-primary text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">             {activeFiltersCount}           </span>         )}       </button>       {/* Botão de filtros - desktop */}
+      <div className="hidden sm:flex sm:px-8 sm:py-4">
         <button
           onClick={() => setShowFilters(!showFilters)}
           className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-white font-semibold hover:border-primary/50 transition-colors relative"
