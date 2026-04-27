@@ -12,6 +12,7 @@ interface ProviderDebug {
   roles: string[]
   status?: string
   diasScore?: number
+  diasScoreSource?: string
   subscriptionStatus?: string
   city?: string
   category?: string
@@ -57,16 +58,34 @@ export const DebugProvidersPage = () => {
           issues.push('❌ Role "provider" faltando em roles[]')
         }
 
-        // --- Validação de diasScore (raiz do doc users) ---
-        const diasScore = typeof data.diasScore === 'number' ? data.diasScore : undefined
+        // --- Validação de diasScore: raiz OU dentro de providerProfile ---
+        let diasScore: number | undefined
+        let diasScoreSource: string | undefined
+
+        if (typeof data.diasScore === 'number') {
+          diasScore = data.diasScore
+          diasScoreSource = 'raiz do documento'
+        } else if (typeof p.diasScore === 'number') {
+          diasScore = p.diasScore
+          diasScoreSource = 'providerProfile'
+        }
+
         const subscriptionStatus = p.subscriptionStatus
-        const hasActiveScore = (typeof diasScore === 'number' && diasScore > 0)
+        const hasActiveScore = typeof diasScore === 'number' && diasScore > 0
         const hasActiveSub = subscriptionStatus === 'active'
 
-        if (!isOwner && !hasActiveScore && !hasActiveSub) {
+        // Verifica também scoreExpiresAt como fallback
+        let hasValidExpiry = false
+        const scoreExpiry = p.scoreExpiresAt
+        if (scoreExpiry) {
+          const expiry = scoreExpiry?.toDate ? scoreExpiry.toDate() : new Date(scoreExpiry)
+          if (expiry > new Date()) hasValidExpiry = true
+        }
+
+        if (!isOwner && !hasActiveScore && !hasActiveSub && !hasValidExpiry) {
           issues.push(
             diasScore === undefined
-              ? '⏳ diasScore não encontrado na raiz do documento (users/{id})'
+              ? '⏳ diasScore não encontrado na raiz nem em providerProfile'
               : `⏳ diasScore = ${diasScore} — prestador não aparece na Home (necessário > 0)`
           )
         }
@@ -85,7 +104,7 @@ export const DebugProvidersPage = () => {
         // --- Visível na Home? ---
         const statusOk = isOwner || VALID_STATUSES.includes(status)
         const roleOk = isOwner || data.roles?.includes('provider')
-        const ativoOk = isOwner || hasActiveScore || hasActiveSub
+        const ativoOk = isOwner || hasActiveScore || hasActiveSub || hasValidExpiry
         const visibleOnHome = statusOk && roleOk && ativoOk
 
         debugData.push({
@@ -95,6 +114,7 @@ export const DebugProvidersPage = () => {
           roles: data.roles || [],
           status,
           diasScore,
+          diasScoreSource,
           subscriptionStatus,
           city: p.city,
           category: p.category,
@@ -285,7 +305,7 @@ export const DebugProvidersPage = () => {
                 </div>
 
                 <div>
-                  <p className="text-xs text-muted mb-1">diasScore <span className="text-muted/60">(raiz users/)</span></p>
+                  <p className="text-xs text-muted mb-1">diasScore</p>
                   <p className={`text-sm font-black ${
                     provider.isOwner ? 'text-primary'
                     : provider.diasScore !== undefined && provider.diasScore > 0 ? 'text-green-400'
@@ -301,6 +321,9 @@ export const DebugProvidersPage = () => {
                       : '❌ Não encontrado'
                     }
                   </p>
+                  {provider.diasScoreSource && (
+                    <p className="text-xs text-muted mt-0.5">fonte: {provider.diasScoreSource}</p>
+                  )}
                 </div>
               </div>
 
