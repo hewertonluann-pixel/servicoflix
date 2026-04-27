@@ -119,7 +119,7 @@ export const HomePage = () => {
   const [mockSettings, setMockSettings] = useState<MockSettings>({})
   const [filters, setFilters] = useState<Filters>({
     categories: [],
-    priceRange: { min: 0, max: 1000 },
+    priceRange: { min: 0, max: 9999 },
     searchRadius: 50,
     onlyVerified: false,
     minRating: 0,
@@ -188,18 +188,6 @@ export const HomePage = () => {
     }
     load()
   }, [])
-
-  useEffect(() => {
-    if (user?.settings?.preferences) {
-      setFilters({
-        categories: user.settings.preferences.favoriteCategories || [],
-        priceRange: user.settings.preferences.priceRange || { min: 0, max: 1000 },
-        searchRadius: user.settings.preferences.searchRadius || 50,
-        onlyVerified: user.settings.preferences.onlyVerified || false,
-        minRating: user.settings.preferences.minRating || 0,
-      })
-    }
-  }, [user])
 
   const applyFilters = (providers: MockProvider[]): MockProvider[] => {
     return providers.filter(p => {
@@ -297,7 +285,7 @@ export const HomePage = () => {
           />
         </div>
 
-        {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
+        {(filters.categories.length > 0 || filters.onlyVerified || filters.minRating > 0 || filters.priceRange.min > 0 || filters.priceRange.max < 9999) && (
           <div className="px-4 sm:px-8 mb-4">
             <div className="bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 flex items-center gap-2">
               <span className="text-primary text-sm font-semibold">
@@ -348,7 +336,7 @@ export const HomePage = () => {
               <button
                 onClick={() => setFilters({
                   categories: [],
-                  priceRange: { min: 0, max: 1000 },
+                  priceRange: { min: 0, max: 9999 },
                   searchRadius: 50,
                   onlyVerified: false,
                   minRating: 0,
