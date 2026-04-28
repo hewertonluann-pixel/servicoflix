@@ -44,7 +44,7 @@ export const Navbar = () => {
   }, [])
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false)
       }
@@ -53,7 +53,11 @@ export const Navbar = () => {
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
   }, [])
 
 useEffect(() => {
@@ -341,7 +345,7 @@ useEffect(() => {
       {/* ── Menu mobile ── */}
       <AnimatePresence>
         {menuOpen && createPortal(
-          <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }} transition={{ type: 'tween', duration: 0.3 }} className="md:hidden fixed inset-0 top-14 bg-background z-40 overflow-y-auto">
+          <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }} transition={{ type: 'tween', duration: 0.3 }} className="md:hidden fixed inset-0 top-14 sm:top-16 bg-background z-[60] overflow-y-auto">
             <div className="px-4 py-6 pb-24 space-y-6">
               <div className="p-4 bg-surface border-2 border-primary/30 rounded-xl">
                 <p className="text-xs font-bold text-muted uppercase mb-3">Serviços em:</p>
