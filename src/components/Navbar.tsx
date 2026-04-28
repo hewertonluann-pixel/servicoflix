@@ -83,7 +83,7 @@ export const Navbar = () => {
   return (
     <motion.nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled ? 'bg-background/95 backdrop-blur shadow-lg shadow-black/30' : 'bg-gradient-to-b from-black/70 to-transparent'
+        scrolled ? 'bg-background/95 backdrop-blur shadow-lg shadow-black/30' : 'bg-background md:bg-gradient-to-b md:from-black/70 md:to-transparent'
       }`}
       initial={{ y: -80 }}
       animate={{ y: 0 }}
@@ -339,7 +339,7 @@ export const Navbar = () => {
       <AnimatePresence>
         {menuOpen && (
           <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }} transition={{ type: 'tween', duration: 0.3 }} className="md:hidden fixed inset-0 top-14 bg-background z-40 overflow-y-auto">
-            <div className="px-4 py-6 space-y-6">
+            <div className="px-4 py-6 pb-24 space-y-6">
               <div className="p-4 bg-surface border-2 border-primary/30 rounded-xl">
                 <p className="text-xs font-bold text-muted uppercase mb-3">Serviços em:</p>
                 <CitySelectorNav />
