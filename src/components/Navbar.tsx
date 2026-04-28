@@ -1,6 +1,7 @@
 import { CreditoBadge } from './CreditoBadge'
 import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom' import { Link, useNavigate } from 'react-router-dom'
+import { createPortal } from 'react-dom' 
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList, Download, Image } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
