@@ -1,6 +1,6 @@
 import { CreditoBadge } from './CreditoBadge'
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { createPortal } from 'react-dom' import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Bell, User, Menu, X, Zap, Settings, LogOut, Briefcase, Home, Compass, Sparkles, MessageCircle, Shield, ExternalLink, CheckSquare, ClipboardList, Download, Image } from 'lucide-react'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
@@ -339,7 +339,7 @@ useEffect(() => {
 
       {/* ── Menu mobile ── */}
       <AnimatePresence>
-        {menuOpen && (
+        {menuOpen && createPortal(
           <motion.div initial={{ opacity: 0, x: '100%' }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: '100%' }} transition={{ type: 'tween', duration: 0.3 }} className="md:hidden fixed inset-0 top-14 bg-background z-40 overflow-y-auto">
             <div className="px-4 py-6 pb-24 space-y-6">
               <div className="p-4 bg-surface border-2 border-primary/30 rounded-xl">
@@ -444,7 +444,7 @@ useEffect(() => {
               )}
             </div>
           </motion.div>
-        )}
+        , document.body)}
       </AnimatePresence>
 
       <AnimatePresence>
