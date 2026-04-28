@@ -85,7 +85,7 @@ useEffect(() => {
   return (
     <motion.nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled ? 'bg-background/95 backdrop-blur shadow-lg shadow-black/30' : 'bg-background md:bg-gradient-to-b md:from-black/70 md:to-transparent'
+        scrolled ? 'bg-background/95 backdrop-blur shadow-lg shadow-black/30' : 'bg-transparent'
       }`}
       initial={{ y: -80 }}
       animate={{ y: 0 }}
