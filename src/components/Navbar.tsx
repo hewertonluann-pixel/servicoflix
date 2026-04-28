@@ -449,8 +449,8 @@ useEffect(() => {
               )}
             </div>
           </motion.div>
+                </AnimatePresence>
         , document.body)}
-      </AnimatePresence>
 
       <AnimatePresence>
         {searchOpen && (
