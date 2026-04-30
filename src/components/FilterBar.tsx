@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SlidersHorizontal, X, Check, MapPin, DollarSign, Star, Shield } from 'lucide-react'
+import { SlidersHorizontal, X, Check, MapPin, DollarSign, Star, Shield, Trash2 } from 'lucide-react'
 
 interface FilterBarProps {
   onFilterChange: (filters: Filters) => void
@@ -16,15 +16,17 @@ export interface Filters {
   minRating: number
 }
 
+const DEFAULT_FILTERS: Filters = {
+  categories: [],
+  priceRange: { min: 0, max: 9999 },
+  searchRadius: 50,
+  onlyVerified: false,
+  minRating: 0,
+}
+
 export const FilterBar = ({ onFilterChange, categories, initialFilters }: FilterBarProps) => {
   const [showFilters, setShowFilters] = useState(false)
-  const [filters, setFilters] = useState<Filters>(initialFilters || {
-    categories: [],
-    priceRange: { min: 0, max: 9999 },
-    searchRadius: 50,
-    onlyVerified: false,
-    minRating: 0,
-  })
+  const [filters, setFilters] = useState<Filters>(initialFilters || DEFAULT_FILTERS)
 
   const toggleCategory = (catId: string) => {
     setFilters(prev => ({
@@ -41,15 +43,9 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
   }
 
   const clearFilters = () => {
-    const defaultFilters: Filters = {
-      categories: [],
-      priceRange: { min: 0, max: 9999 },
-      searchRadius: 50,
-      onlyVerified: false,
-      minRating: 0,
-    }
-    setFilters(defaultFilters)
-    onFilterChange(defaultFilters)
+    setFilters(DEFAULT_FILTERS)
+    onFilterChange(DEFAULT_FILTERS)
+    setShowFilters(false)
   }
 
   const activeFiltersCount = [
@@ -62,8 +58,22 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
 
   return (
     <>
-      {/* FAB Filtros - mobile */}       <button         onClick={() => setShowFilters(!showFilters)}         className="sm:hidden fixed bottom-20 right-4 z-40 flex items-center gap-1.5 px-2.5 py-1.5 bg-primary text-background text-sm font-semibold rounded-2xl shadow-lg shadow-primary/30 active:scale-95 transition-all"       >         <SlidersHorizontal className="w-5 h-5" />         Filtros         {activeFiltersCount > 0 && (           <span className="bg-background text-primary text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">             {activeFiltersCount}           </span>         )}       </button>       {/* Botão de filtros - desktop */}
-      <div className="hidden sm:flex sm:px-8 sm:py-4">
+      {/* FAB Filtros - mobile */}
+      <button
+        onClick={() => setShowFilters(!showFilters)}
+        className="sm:hidden fixed bottom-20 right-4 z-40 flex items-center gap-1.5 px-2.5 py-1.5 bg-primary text-background text-sm font-semibold rounded-2xl shadow-lg shadow-primary/30 active:scale-95 transition-all"
+      >
+        <SlidersHorizontal className="w-5 h-5" />
+        Filtros
+        {activeFiltersCount > 0 && (
+          <span className="bg-background text-primary text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {activeFiltersCount}
+          </span>
+        )}
+      </button>
+
+      {/* Botao de filtros - desktop */}
+      <div className="hidden sm:flex sm:px-8 sm:py-4 items-center gap-3">
         <button
           onClick={() => setShowFilters(!showFilters)}
           className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-white font-semibold hover:border-primary/50 transition-colors relative"
@@ -76,6 +86,19 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
             </span>
           )}
         </button>
+
+        {activeFiltersCount > 0 && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={clearFilters}
+            className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold rounded-xl hover:bg-red-500/20 hover:border-red-500/60 transition-all"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Limpar filtros
+          </motion.button>
+        )}
       </div>
 
       {/* Painel de filtros */}
@@ -107,12 +130,24 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
                     <p className="text-xs text-muted">Personalize sua busca</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowFilters(false)}
-                  className="p-2 hover:bg-background rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-muted" />
-                </button>
+
+                <div className="flex items-center gap-2">
+                  {activeFiltersCount > 0 && (
+                    <button
+                      onClick={clearFilters}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold rounded-lg hover:bg-red-500/20 hover:border-red-500/60 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Limpar tudo
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowFilters(false)}
+                    className="p-2 hover:bg-background rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-muted" />
+                  </button>
+                </div>
               </div>
 
               {/* Content */}
@@ -149,17 +184,17 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
                   </div>
                 </div>
 
-                {/* Faixa de preço */}
+                {/* Faixa de preco */}
                 <div>
                   <label className="block text-sm font-semibold text-white mb-3">
                     <span className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4" />
-                      Faixa de preço
+                      Faixa de preco
                     </span>
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-muted mb-1.5">Mínimo</label>
+                      <label className="block text-xs text-muted mb-1.5">Minimo</label>
                       <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
                         <span className="text-muted text-sm">R$</span>
                         <input
@@ -171,7 +206,7 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs text-muted mb-1.5">Máximo</label>
+                      <label className="block text-xs text-muted mb-1.5">Maximo</label>
                       <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2">
                         <span className="text-muted text-sm">R$</span>
                         <input
@@ -208,12 +243,12 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
                   </div>
                 </div>
 
-                {/* Avaliação mínima */}
+                {/* Avaliacao minima */}
                 <div>
                   <label className="block text-sm font-semibold text-white mb-3">
                     <span className="flex items-center gap-2">
                       <Star className="w-4 h-4" />
-                      Avaliação mínima: {filters.minRating.toFixed(1)} ⭐
+                      Avaliacao minima: {filters.minRating.toFixed(1)} estrelas
                     </span>
                   </label>
                   <input
@@ -253,13 +288,19 @@ export const FilterBar = ({ onFilterChange, categories, initialFilters }: Filter
                 </label>
               </div>
 
-              {/* Footer com botões */}
+              {/* Footer com botoes */}
               <div className="sticky bottom-0 bg-surface border-t border-border p-4 flex gap-3">
                 <button
                   onClick={clearFilters}
-                  className="flex-1 py-3 bg-background border border-border text-muted font-semibold rounded-xl hover:text-white transition-colors"
+                  disabled={activeFiltersCount === 0}
+                  className={`flex items-center justify-center gap-2 flex-1 py-3 rounded-xl font-semibold transition-all ${
+                    activeFiltersCount > 0
+                      ? 'bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500/20 hover:border-red-500/70'
+                      : 'bg-background border border-border text-muted cursor-not-allowed opacity-50'
+                  }`}
                 >
-                  Limpar
+                  <Trash2 className="w-4 h-4" />
+                  Limpar filtros
                 </button>
                 <button
                   onClick={applyFilters}
