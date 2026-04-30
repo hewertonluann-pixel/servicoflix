@@ -117,7 +117,7 @@ function App() {
         <Route path="/debug" element={<DebugProvidersPage />} />
         <Route path="/fix" element={<FixProvidersPage />} />
         <Route path="/:slug" element={<SlugResolver />} />
-      <Route path="/prestador2/:id" element={<ProviderProfilePage2 />} />
+      <Route path="/profissional2/:id" element={<ProviderProfilePage2 />} />
       </Routes>
       {!hideNavbar && <BottomNav />}
     </div>
