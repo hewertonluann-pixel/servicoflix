@@ -26,6 +26,7 @@ import { ChatsPage } from '@/pages/ChatsPage'
 import { InstallPage } from '@/pages/InstallPage'
 import { UsernameProfilePage } from '@/pages/UsernameProfilePage'
 import { CidadePage } from '@/pages/CidadePage'
+import { ReelsPage } from '@/pages/ReelsPage'
 import { usePresence } from '@/hooks/usePresence'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -93,6 +94,7 @@ function App() {
       {!hideNavbar && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/reels" element={<ReelsPage />} />
         <Route path="/profissional/:id" element={<ProviderProfilePage />} />
         <Route path="/prestador/:id" element={<ProviderProfilePage />} />
         <Route path="/meu-perfil" element={<ProviderDashboardPage />} />
@@ -117,7 +119,7 @@ function App() {
         <Route path="/debug" element={<DebugProvidersPage />} />
         <Route path="/fix" element={<FixProvidersPage />} />
         <Route path="/:slug" element={<SlugResolver />} />
-      <Route path="/profissional2/:id" element={<ProviderProfilePage2 />} />
+        <Route path="/profissional2/:id" element={<ProviderProfilePage2 />} />
       </Routes>
       {!hideNavbar && <BottomNav />}
     </div>

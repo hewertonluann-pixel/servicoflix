@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Search, MessageCircle, User } from 'lucide-react'
+import { Home, Search, Clapperboard, MessageCircle, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -36,6 +36,7 @@ export const BottomNav = () => {
   const tabs = [
     { path: '/', icon: Home, label: 'Home' },
     { path: '/buscar', icon: Search, label: 'Buscar' },
+    { path: '/reels', icon: Clapperboard, label: 'Reels' },
     { path: '/chats', icon: MessageCircle, label: 'Chats', badge: unreadCount },
     { path: '/minha-conta', icon: User, label: 'Conta' },
   ]
