@@ -30,6 +30,8 @@ import { usePresence } from '@/hooks/usePresence'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Loader2 } from 'lucide-react'
+import { ProviderProfilePage2 } from '@/pages/ProviderProfilePage2'
+
 
 const slugCache: Record<string, 'cidade' | 'username'> = {}
 
@@ -115,6 +117,7 @@ function App() {
         <Route path="/debug" element={<DebugProvidersPage />} />
         <Route path="/fix" element={<FixProvidersPage />} />
         <Route path="/:slug" element={<SlugResolver />} />
+      <Route path="/prestador2/:id" element={<ProviderProfilePage2 />} />
       </Routes>
       {!hideNavbar && <BottomNav />}
     </div>
