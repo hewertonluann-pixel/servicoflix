@@ -1,15 +1,48 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Home, Search, Clapperboard, MessageCircle, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
+
+// Todos os itens possíveis da barra de navegação
+export const ALL_NAV_ITEMS = [
+  { path: '/', icon: 'Home', label: 'Home', defaultEnabled: true },
+  { path: '/buscar', icon: 'Search', label: 'Buscar', defaultEnabled: true },
+  { path: '/reels', icon: 'Clapperboard', label: 'Reels', defaultEnabled: false },
+  { path: '/chats', icon: 'MessageCircle', label: 'Chats', defaultEnabled: true, hasBadge: true },
+  { path: '/minha-conta', icon: 'User', label: 'Conta', defaultEnabled: true },
+]
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  Home,
+  Search,
+  Clapperboard,
+  MessageCircle,
+  User,
+}
 
 export const BottomNav = () => {
   const location = useLocation()
   const { user } = useSimpleAuth()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [enabledItems, setEnabledItems] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(ALL_NAV_ITEMS.map(item => [item.path, item.defaultEnabled]))
+  )
 
+  // Lê configuração da navbar do Firestore em tempo real
+  useEffect(() => {
+    const navConfigRef = doc(db, 'config', 'bottomNav')
+    const unsub = onSnapshot(navConfigRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        setEnabledItems(prev => ({ ...prev, ...data.items }))
+      }
+    })
+    return () => unsub()
+  }, [])
+
+  // Conta mensagens não lidas
   useEffect(() => {
     if (!user?.uid) return
     const q = query(
@@ -33,18 +66,18 @@ export const BottomNav = () => {
     return location.pathname.startsWith(path)
   }
 
-  const tabs = [
-    { path: '/', icon: Home, label: 'Home' },
-    { path: '/buscar', icon: Search, label: 'Buscar' },
-    { path: '/reels', icon: Clapperboard, label: 'Reels' },
-    { path: '/chats', icon: MessageCircle, label: 'Chats', badge: unreadCount },
-    { path: '/minha-conta', icon: User, label: 'Conta' },
-  ]
+  const visibleTabs = ALL_NAV_ITEMS
+    .filter(item => enabledItems[item.path])
+    .map(item => ({
+      ...item,
+      icon: ICON_MAP[item.icon],
+      badge: item.hasBadge ? unreadCount : undefined,
+    }))
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border">
       <div className="flex items-center justify-around px-2 py-2 pb-safe">
-        {tabs.map(({ path, icon: Icon, label, badge }) => {
+        {visibleTabs.map(({ path, icon: Icon, label, badge }) => {
           const active = isActive(path)
           return (
             <Link
