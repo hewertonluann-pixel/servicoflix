@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Home, Search, Clapperboard, MessageCircle, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useSimpleAuth } from '@/hooks/useSimpleAuth'
 
@@ -36,7 +36,20 @@ export const BottomNav = () => {
     const unsub = onSnapshot(navConfigRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data()
-        setEnabledItems(prev => ({ ...prev, ...data.items }))
+        // Reconstrói o mapa usando defaultEnabled como fallback para cada item,
+        // evitando que chaves ausentes no documento preservem valores antigos do estado
+        const resolved = Object.fromEntries(
+          ALL_NAV_ITEMS.map(item => [
+            item.path,
+            data.items?.[item.path] ?? item.defaultEnabled,
+          ])
+        )
+        setEnabledItems(resolved)
+      } else {
+        // Documento não existe: reseta para os defaults
+        setEnabledItems(
+          Object.fromEntries(ALL_NAV_ITEMS.map(item => [item.path, item.defaultEnabled]))
+        )
       }
     })
     return () => unsub()

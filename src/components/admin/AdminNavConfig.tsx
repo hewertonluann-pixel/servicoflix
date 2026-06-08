@@ -23,7 +23,15 @@ export const AdminNavConfig = () => {
     const unsub = onSnapshot(navConfigRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data()
-        setItems(prev => ({ ...prev, ...data.items }))
+        // Reconstrói o estado garantindo que TODOS os itens estão presentes,
+        // usando defaultEnabled como fallback para chaves ausentes no Firestore
+        const merged = Object.fromEntries(
+          ALL_NAV_ITEMS.map(item => [
+            item.path,
+            data.items?.[item.path] ?? item.defaultEnabled,
+          ])
+        )
+        setItems(merged)
       }
     })
     return () => unsub()
@@ -34,7 +42,9 @@ export const AdminNavConfig = () => {
     setItems(newItems)
     setSaving(true)
     try {
-      await setDoc(doc(db, 'config', 'bottomNav'), { items: newItems }, { merge: true })
+      // Sem merge: true — sobrescreve o documento completo para evitar
+      // valores fantasma de saves parciais anteriores
+      await setDoc(doc(db, 'config', 'bottomNav'), { items: newItems })
     } finally {
       setSaving(false)
     }
